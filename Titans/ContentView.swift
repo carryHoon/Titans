@@ -16,7 +16,7 @@ enum Currency { case usd, krw }
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
 enum Market: String, CaseIterable, Identifiable {
-    case all, nasdaq, nyse, kospi, jpx
+    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse
 
     var id: String { rawValue }
 
@@ -27,7 +27,25 @@ enum Market: String, CaseIterable, Identifiable {
         case .nasdaq: return "NASDAQ"
         case .nyse:   return "NYSE"
         case .kospi:  return "KOSPI"
+        case .kosdaq: return "KOSDAQ"
         case .jpx:    return "JPX"
+        case .sse:    return "SSE"
+        case .szse:   return "SZSE"
+        }
+    }
+
+    /// 백엔드 전용 피드(`?exchange=`)를 가진 거래소만 값을 반환.
+    /// nil이면 ALL 통합 피드를 클라이언트에서 필터링해 사용.
+    var apiExchangeParam: String? {
+        switch self {
+        case .nasdaq: return "nasdaq"
+        case .nyse:   return "nyse"
+        case .kospi:  return "kospi"
+        case .kosdaq: return "kosdaq"
+        case .jpx:    return "jpx"
+        case .sse:    return "sse"
+        case .szse:   return "szse"
+        default:      return nil
         }
     }
 }
@@ -38,9 +56,16 @@ private let tickerMarket: [String: Market] = [
     "NVDA": .nasdaq, "AAPL": .nasdaq, "MSFT": .nasdaq, "GOOGL": .nasdaq,
     "AMZN": .nasdaq, "META": .nasdaq, "TSLA": .nasdaq, "AVGO": .nasdaq,
     "COST": .nasdaq, "NFLX": .nasdaq, "PLTR": .nasdaq, "AMD": .nasdaq, "MU": .nasdaq,
+    "SPCX": .nasdaq,
+    "CSCO": .nasdaq, "ADBE": .nasdaq, "TMUS": .nasdaq, "INTU": .nasdaq, "QCOM": .nasdaq,
+    "AMAT": .nasdaq, "TXN": .nasdaq, "AMGN": .nasdaq, "ISRG": .nasdaq, "BKNG": .nasdaq,
+    "GILD": .nasdaq,
     // NYSE
     "BRK.B": .nyse, "JPM": .nyse, "TSM": .nyse, "LLY": .nyse, "WMT": .nyse,
     "V": .nyse, "ORCL": .nyse, "XOM": .nyse, "MA": .nyse, "UNH": .nyse,
+    "JNJ": .nyse, "HD": .nyse, "PG": .nyse, "ABBV": .nyse, "KO": .nyse,
+    "BAC": .nyse, "CVX": .nyse, "CRM": .nyse, "WFC": .nyse, "MRK": .nyse,
+    "ACN": .nyse, "MCD": .nyse,
     // KOSPI (KRX)
     "005930.KS": .kospi, "000660.KS": .kospi,
 ]
@@ -142,6 +167,31 @@ private let tickerSymbols: [String: String] = [
     "SPCX":  "airplane.departure",
     "AMD":   "cpu",
     "MU":    "memorychip",
+    // 추가 NASDAQ 종목
+    "CSCO":  "network",
+    "ADBE":  "paintbrush.pointed.fill",
+    "TMUS":  "antenna.radiowaves.left.and.right",
+    "INTU":  "chart.pie.fill",
+    "QCOM":  "dot.radiowaves.right",
+    "AMAT":  "gearshape.2.fill",
+    "TXN":   "function",
+    "AMGN":  "cross.case.fill",
+    "ISRG":  "stethoscope",
+    "BKNG":  "bed.double.fill",
+    "GILD":  "cross.vial.fill",
+    // 추가 NYSE 종목
+    "JNJ":   "bandage.fill",
+    "HD":    "hammer.fill",
+    "PG":    "shippingbox.fill",
+    "ABBV":  "pill.fill",
+    "KO":    "cup.and.saucer.fill",
+    "BAC":   "banknote.fill",
+    "CVX":   "flame.fill",
+    "CRM":   "cloud.fill",
+    "WFC":   "banknote",
+    "MRK":   "cross.fill",
+    "ACN":   "briefcase.fill",
+    "MCD":   "fork.knife",
     // Tadawul (Saudi Arabia)
     "2222.SR":   "drop.fill",
     // KRX (Korea)
@@ -178,10 +228,130 @@ private let tickerDomain: [String: String] = [
     "SPCX":      "spacex.com",
     "AMD":       "amd.com",
     "MU":        "micron.com",
+    // 추가 NASDAQ 종목
+    "CSCO":      "cisco.com",
+    "ADBE":      "adobe.com",
+    "TMUS":      "t-mobile.com",
+    "INTU":      "intuit.com",
+    "QCOM":      "qualcomm.com",
+    "AMAT":      "appliedmaterials.com",
+    "TXN":       "ti.com",
+    "AMGN":      "amgen.com",
+    "ISRG":      "intuitive.com",
+    "BKNG":      "bookingholdings.com",
+    "GILD":      "gilead.com",
+    // 추가 NYSE 종목
+    "JNJ":       "jnj.com",
+    "HD":        "homedepot.com",
+    "PG":        "pg.com",
+    "ABBV":      "abbvie.com",
+    "KO":        "coca-cola.com",
+    "BAC":       "bankofamerica.com",
+    "CVX":       "chevron.com",
+    "CRM":       "salesforce.com",
+    "WFC":       "wellsfargo.com",
+    "MRK":       "merck.com",
+    "ACN":       "accenture.com",
+    "MCD":       "mcdonalds.com",
     "2222.SR":   "aramco.com",
-    // KRX (Korea)
+    // KRX (Korea) — KOSPI
     "005930.KS": "samsung.com",
     "000660.KS": "skhynix.com",
+    "402340.KS": "sksquare.com",
+    "009150.KS": "samsungsem.com",
+    "005380.KS": "hyundai.com",
+    "373220.KS": "lgensol.com",
+    "032830.KS": "samsunglife.com",
+    "207940.KS": "samsungbiologics.com",
+    "105560.KS": "kbfg.com",
+    "028260.KS": "samsungcnt.com",
+    "000270.KS": "kia.com",
+    "055550.KS": "shinhangroup.com",
+    "012330.KS": "mobis.co.kr",
+    "012450.KS": "hanwhaaerospace.com",
+    "034730.KS": "sk.com",
+    "034020.KS": "doosanenerbility.com",
+    "068270.KS": "celltrion.com",
+    "086790.KS": "hanafn.com",
+    "006400.KS": "samsungsdi.com",
+    // KRX (Korea) — KOSDAQ
+    "196170.KQ": "alteogen.com",
+    "247540.KQ": "ecoprobm.co.kr",
+    "086520.KQ": "ecopro.co.kr",
+    "277810.KQ": "rainbow-robotics.com",
+    "036930.KQ": "jseng.com",
+    "240810.KQ": "wonikips.com",
+    "058470.KQ": "leeno.co.kr",
+    "298380.KQ": "ablbio.com",
+    "039030.KQ": "eotechnics.com",
+    "028300.KQ": "hlb.co.kr",
+    "222800.KQ": "simmtech.com",
+    "141080.KQ": "ligachembio.com",
+    "108490.KQ": "robotis.com",
+    "403870.KQ": "hpsp.co.kr",
+    // JPX (Japan) — Yahoo `.T` 심볼
+    "7203.T": "toyota-global.com",
+    "8306.T": "mufg.jp",
+    "6758.T": "sony.com",
+    "6861.T": "keyence.com",
+    "9984.T": "group.softbank",
+    "9983.T": "fastretailing.com",
+    "6098.T": "recruit.co.jp",
+    "8035.T": "tel.com",
+    "4063.T": "shinetsu.co.jp",
+    "9432.T": "group.ntt",
+    "6501.T": "hitachi.com",
+    "7974.T": "nintendo.com",
+    "8058.T": "mitsubishicorp.com",
+    "8001.T": "itochu.co.jp",
+    "6902.T": "denso.com",
+    "4519.T": "chugai-pharm.co.jp",
+    "6367.T": "daikin.com",
+    "8316.T": "smfg.co.jp",
+    "7267.T": "global.honda",
+    "6594.T": "nidec.com",
+    // SSE (Shanghai) — Yahoo `.SS` 심볼
+    "600519.SS": "moutaichina.com",
+    "601398.SS": "icbc.com.cn",
+    "600941.SS": "chinamobileltd.com",
+    "601288.SS": "abchina.com",
+    "601857.SS": "petrochina.com.cn",
+    "601988.SS": "boc.cn",
+    "600036.SS": "cmbchina.com",
+    "601318.SS": "pingan.cn",
+    "601628.SS": "e-chinalife.com",
+    "600900.SS": "ctg.com.cn",
+    "600028.SS": "sinopec.com",
+    "601088.SS": "chnenergy.com.cn",
+    "600030.SS": "citics.com",
+    "603288.SS": "haitian-food.com",
+    "600276.SS": "hengrui.com",
+    "601668.SS": "cscec.com",
+    "688981.SS": "smics.com",
+    "601166.SS": "cib.com.cn",
+    "600887.SS": "yili.com",
+    "600809.SS": "fenjiu.com.cn",
+    // SZSE (Shenzhen) — Yahoo `.SZ` 심볼
+    "300750.SZ": "catl.com",
+    "000858.SZ": "wuliangye.com.cn",
+    "002594.SZ": "byd.com",
+    "000333.SZ": "midea.com",
+    "000651.SZ": "gree.com",
+    "002415.SZ": "hikvision.com",
+    "300760.SZ": "mindray.com",
+    "000001.SZ": "bank.pingan.com",
+    "002714.SZ": "muyuanfoods.com",
+    "300059.SZ": "eastmoney.com",
+    "002475.SZ": "luxshare-ict.com",
+    "000568.SZ": "lzlj.com",
+    "002304.SZ": "chinayanghe.com",
+    "300124.SZ": "inovance.com",
+    "002352.SZ": "sf-express.com",
+    "300015.SZ": "aierchina.com",
+    "000725.SZ": "boe.com",
+    "002230.SZ": "iflytek.com",
+    "300274.SZ": "sungrowpower.com",
+    "002460.SZ": "ganfenglithium.com",
 ]
 
 // MARK: - Color(hex:) Extension
@@ -198,6 +368,17 @@ extension Color {
     }
 }
 
+// MARK: - Exchange Feed (거래소 전용 피드 상태)
+
+/// NASDAQ·NYSE처럼 백엔드 전용 엔드포인트를 가진 거래소의 로드 상태.
+/// ALL(companies)과 완전히 분리해 서로 상태를 덮어쓰지 않도록 함.
+struct ExchangeFeed {
+    var companies: [Company] = []
+    var isLoading = true
+    var isError   = false
+    var isStale   = false
+}
+
 // MARK: - ViewModel
 
 @MainActor
@@ -207,6 +388,9 @@ final class MarketCapViewModel: ObservableObject {
     @Published var isLoading = true
     @Published var isError   = false
     @Published var isStale   = false
+
+    // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
+    @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
     // 시뮬레이터는 Mac의 localhost로, 실제 기기는 같은 Wi-Fi의 Mac LAN IP로 자동 연결
     #if targetEnvironment(simulator)
@@ -255,6 +439,52 @@ final class MarketCapViewModel: ObservableObject {
         }
     }
 
+    /// 거래소 전용 피드 로드 (NASDAQ/NYSE …). fetch()와 동일한 매핑 로직이지만
+    /// 해당 Market의 exchangeFeeds 항목에만 반영해 ALL 피드와 간섭하지 않음.
+    func fetchExchange(_ market: Market) async {
+        guard let param = market.apiExchangeParam,
+              let url = URL(string: "http://\(Self.host):3000/api/market-cap?exchange=\(param)")
+        else { return }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                throw URLError(.badServerResponse)
+            }
+            let decoded = try JSONDecoder().decode(MarketCapResponse.self, from: data)
+            if let apiError = decoded.error, decoded.data.isEmpty {
+                throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
+            }
+            let mapped: [Company] = decoded.data.map { api in
+                Company(
+                    rank:         api.rank,
+                    name:         api.name,
+                    ticker:       api.ticker,
+                    marketCapUSD: api.marketCapUSD,
+                    change:       api.changePercent,
+                    color:        Color(hex: api.color),
+                    symbol:       tickerSymbols[api.ticker] ?? "chart.line.uptrend.xyaxis"
+                )
+            }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                exchangeFeeds[market] = ExchangeFeed(
+                    companies: mapped,
+                    isLoading: false,
+                    isError:   false,
+                    isStale:   decoded.stale ?? false
+                )
+            }
+            if let rate = decoded.exchangeRate {
+                exchangeRate = rate
+            }
+        } catch {
+            // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
+            var feed = exchangeFeeds[market] ?? ExchangeFeed()
+            feed.isError = true
+            if feed.companies.isEmpty { feed.isLoading = true }
+            exchangeFeeds[market] = feed
+        }
+    }
+
     func fetchIndices() async -> [MarketIndex]? {
         guard let (data, response) = try? await URLSession.shared.data(from: indexEndpoint),
               let http = response as? HTTPURLResponse,
@@ -283,10 +513,34 @@ struct ContentView: View {
 
     private var exchangeRate: Double { viewModel.exchangeRate }
 
-    /// 선택된 거래소로 필터링된 기업 리스트 (ALL이면 전체)
+    /// 전용 피드(NASDAQ/NYSE …)를 가진 거래소가 선택된 경우 그 피드를 반환. 아니면 nil.
+    /// 아직 fetch 전이면 기본값(로딩 상태, 빈 리스트)을 돌려 skeleton이 뜨도록 함.
+    private var dedicatedFeed: ExchangeFeed? {
+        guard selectedMarket.apiExchangeParam != nil else { return nil }
+        return viewModel.exchangeFeeds[selectedMarket] ?? ExchangeFeed()
+    }
+
+    /// 선택된 거래소로 필터링된 기업 리스트.
+    /// ALL/기타 거래소는 통합 피드(companies)를 클라이언트에서 필터링,
+    /// NASDAQ·NYSE는 전용 피드(상위 20개)를 그대로 사용.
     private var filteredCompanies: [Company] {
+        if let feed = dedicatedFeed { return feed.companies }
         guard selectedMarket != .all else { return viewModel.companies }
         return viewModel.companies.filter { $0.market == selectedMarket }
+    }
+
+    /// 현재 선택된 섹션 기준 로딩/에러/Stale 상태 (전용 피드는 자체 상태를 사용)
+    private var isDisplayLoading: Bool {
+        if let feed = dedicatedFeed { return feed.isLoading && feed.companies.isEmpty }
+        return viewModel.isLoading && viewModel.companies.isEmpty
+    }
+    private var isDisplayError: Bool {
+        if let feed = dedicatedFeed { return feed.isError && feed.companies.isEmpty }
+        return viewModel.isError && viewModel.companies.isEmpty
+    }
+    private var isDisplayStale: Bool {
+        if let feed = dedicatedFeed { return feed.isStale }
+        return viewModel.isStale
     }
 
     var body: some View {
@@ -305,30 +559,30 @@ struct ContentView: View {
                 .padding(.bottom, 12)
 
                 // Stale 배너 (API 장애 시 캐시 데이터 사용 중 알림)
-                if viewModel.isStale {
+                if isDisplayStale {
                     StaleBanner()
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                 }
 
                 // 거래소 카테고리 필터 (가로 스크롤 칩) — 에러 상태가 아닐 때만 표시
-                if !(viewModel.isError && viewModel.companies.isEmpty) {
+                if !isDisplayError {
                     MarketFilterBar(selected: $selectedMarket)
                         .padding(.bottom, 12)
                 }
 
                 LazyVStack(spacing: 10) {
                     // 컬럼 헤더 (순위 / 기업 / 시가총액) — 에러 상태가 아닐 때만 표시
-                    if !(viewModel.isError && viewModel.companies.isEmpty) {
+                    if !isDisplayError {
                         ColumnHeader()
                     }
 
-                    if viewModel.isLoading && viewModel.companies.isEmpty {
+                    if isDisplayLoading {
                         // Skeleton UI — 첫 로드 중
                         ForEach(1...20, id: \.self) { rank in
                             SkeletonCompanyRow(rank: rank)
                         }
-                    } else if viewModel.isError && viewModel.companies.isEmpty {
+                    } else if isDisplayError {
                         // 에러 UI — fallback 캐시도 없음
                         ErrorStateView()
                     } else if filteredCompanies.isEmpty {
@@ -354,6 +608,16 @@ struct ContentView: View {
         .task {
             while !Task.isCancelled {
                 await viewModel.fetch()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+        // 거래소 전용 피드(NASDAQ/NYSE …) 폴링 — 해당 탭 선택 중에만 15초 주기로 동작.
+        // selectedMarket 변경 시 task가 취소/재시작되므로 다른 탭에서는 호출되지 않아
+        // 기존 ALL 폴링 및 Finnhub rate limit에 영향을 최소화한다.
+        .task(id: selectedMarket) {
+            guard selectedMarket.apiExchangeParam != nil else { return }
+            while !Task.isCancelled {
+                await viewModel.fetchExchange(selectedMarket)
                 try? await Task.sleep(for: .seconds(15))
             }
         }
@@ -729,6 +993,7 @@ private struct LogoImage: View {
     let brandfetchURL: URL?
     let faviconURL: URL?
     let ticker: String
+    let name: String
     let color: Color
 
     var body: some View {
@@ -768,8 +1033,17 @@ private struct LogoImage: View {
             .shadow(color: .black.opacity(0.10), radius: 2, x: 0, y: 1)
     }
 
+    /// 숫자 티커(예: KRX "005930.KS")는 이니셜이 무의미하므로, 알파벳 티커면 티커,
+    /// 아니면 회사명의 첫 글자로 폴백 이니셜을 만든다.
+    private var fallbackInitials: String {
+        if ticker.first?.isLetter == true {
+            return String(ticker.prefix(2)).uppercased()
+        }
+        return String(name.prefix(2)).uppercased()
+    }
+
     private var textFallback: some View {
-        Text(String(ticker.prefix(2)))
+        Text(fallbackInitials)
             .font(.system(size: 14, weight: .bold))
             .foregroundStyle(color)
             .frame(width: 36, height: 36)
@@ -779,6 +1053,7 @@ private struct LogoImage: View {
 
 struct BrandLogoTile: View {
     let ticker: String
+    let name: String
     let color: Color
 
     private var domain: String? { tickerDomain[ticker] }
@@ -801,6 +1076,7 @@ struct BrandLogoTile: View {
             brandfetchURL: brandfetchURL,
             faviconURL: faviconURL,
             ticker: ticker,
+            name: name,
             color: color
         )
         .frame(width: 50, height: 50)
@@ -863,7 +1139,7 @@ struct CompanyRow: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 20, alignment: .center)
 
-            BrandLogoTile(ticker: company.ticker, color: company.color)
+            BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(company.name)
