@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+build/
+DerivedData/
+
+# Next.js / Node (titans-web)
+titans-web/node_modules/
+titans-web/.next/
+titans-web/out/
+titans-web/next-env.d.ts
+titans-web/tsconfig.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.local
+.env*.local
