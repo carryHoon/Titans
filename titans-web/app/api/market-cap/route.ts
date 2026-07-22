@@ -345,8 +345,8 @@ interface KRXQuoteData {
   marketCapKRW:  number
 }
 
-// Yahoo v7 배치 quote 1건 (현지 통화). JPX/SSE/SZSE 공용.
-interface YahooQuote {
+// 해외 거래소(JPX/SSE/SZSE) 배치 quote 1건 (현지 통화). Yahoo v7 응답에서 매핑.
+interface ForeignQuote {
   price:         number
   change:        number
   changePercent: number
@@ -386,8 +386,8 @@ const quoteCache      = new Map<string, CacheEntry<QuoteData>>()
 const profileCache    = new Map<string, CacheEntry<ProfileData>>()
 const krxQuoteCache   = new Map<string, CacheEntry<KRXQuoteData>>()
 const naverKRXCache   = new Map<string, CacheEntry<KRXQuoteData>>()
-// Yahoo v7 배치 quote 결과 캐시 (거래소 키). 폴링(15s)과 QUOTE_TTL(21s) 동기화.
-const yahooBatchCache = new Map<string, CacheEntry<Map<string, YahooQuote>>>()
+// 해외 거래소 Yahoo v7 배치 quote 결과 캐시 (거래소 키). QUOTE_TTL로 콜수 절감.
+const foreignQuoteCache = new Map<string, CacheEntry<Map<string, ForeignQuote>>>()
 // JPX/SSE/SZSE 개별 종목 stale 폴백 (배치 일부 누락 시 목록 flickering 방지)
 const foreignLastGoodCache = new Map<string, Omit<CompanyResult, 'rank'>>()
 let forexCache: CacheEntry<ForexRates> | null = null
@@ -451,6 +451,48 @@ const YF_HTML_HEADERS = {
   'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
+}
+
+// finance.yahoo.com HTML 페이지에 SSR로 임베드된 v7 quoteResponse를 파싱.
+// v7/v8 JSON API는 crumb 인증 + IP 레이트리밋(429)으로 막히지만 HTML 페이지는 응답하므로
+// KRX Yahoo 폴백·Aramco·해외 거래소(JPX/SSE/SZSE)가 공통으로 사용한다.
+// 한 페이지에 여러 심볼(관련 종목 등)이 임베드되므로 symbol이 일치하는 result만 고른다.
+// marketCap.raw는 해당 종목의 표시 통화 단위(KRW/JPY/CNY/SAR …) — 호출부에서 환산.
+function parseYahooHtmlQuote(html: string, yahooTicker: string): {
+  price: number
+  change: number
+  changePercent: number
+  marketCap: number
+} | null {
+  const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g
+  let match: RegExpExecArray | null
+  while ((match = scriptRe.exec(html)) !== null) {
+    const content = match[1]
+    if (!content.includes('quoteResponse')) continue
+    try {
+      const outer = JSON.parse(content)
+
+      // Case 1: quoteResponse가 body 문자열 내부에 중첩된 경우 / Case 2: 최상위인 경우
+      let results: any[] | null = null
+      if (typeof outer.body === 'string') {
+        results = JSON.parse(outer.body)?.quoteResponse?.result ?? null
+      }
+      if (!results) results = outer?.quoteResponse?.result ?? null
+      if (!Array.isArray(results)) continue
+
+      const result = results.find(r => r?.symbol === yahooTicker)
+      if (!result) continue
+
+      const price         = (result.regularMarketPrice?.raw ?? result.regularMarketOpen?.raw ?? 0) as number
+      const change        = (result.regularMarketChange?.raw ?? 0) as number
+      const changePercent = (result.regularMarketChangePercent?.raw ?? 0) as number
+      const marketCap     = (result.marketCap?.raw ?? 0) as number
+      if (!price || !marketCap) continue
+
+      return { price, change, changePercent, marketCap }
+    } catch { continue }
+  }
+  return null
 }
 
 // ─── Finnhub Fetchers ─────────────────────────────────────────────────────────
@@ -525,42 +567,18 @@ async function getKRXQuote(yahooTicker: string): Promise<KRXQuoteData> {
     )
     if (!res.ok) throw new Error(`KRX HTML ${yahooTicker} → HTTP ${res.status}`)
 
-    const html = await res.text()
-    const scriptRe = /<script[^>]*>(.*?)<\/script>/gs
-    let match: RegExpExecArray | null
+    const parsed = parseYahooHtmlQuote(await res.text(), yahooTicker)
+    if (!parsed) throw new Error(`KRX HTML ${yahooTicker} → quote data not found in page scripts`)
 
-    while ((match = scriptRe.exec(html)) !== null) {
-      const content = match[1]
-      if (!content.includes('quoteResponse')) continue
-      try {
-        const outer = JSON.parse(content)
-
-        // Case 1: quoteResponse가 body 문자열 내부에 중첩된 경우
-        let result: any = null
-        if (typeof outer.body === 'string') {
-          const body = JSON.parse(outer.body)
-          result = body?.quoteResponse?.result?.[0]
-        }
-        // Case 2: quoteResponse가 최상위에 있는 경우
-        if (!result) result = outer?.quoteResponse?.result?.[0]
-        if (!result) continue
-
-        // 다른 종목 데이터를 잘못 파싱하지 않도록 심볼 검증
-        if (result.symbol && result.symbol !== yahooTicker) continue
-
-        const price         = (result.regularMarketPrice?.raw ?? result.regularMarketOpen?.raw ?? 0) as number
-        const change        = (result.regularMarketChange?.raw ?? 0) as number
-        const changePercent = (result.regularMarketChangePercent?.raw ?? 0) as number
-        const marketCapKRW  = (result.marketCap?.raw ?? 0) as number
-        if (!price || !marketCapKRW) continue
-
-        const data: KRXQuoteData = { price, change, changePercent, marketCapKRW }
-        krxQuoteCache.set(yahooTicker, { data, ts: Date.now() })
-        krxLastGoodCache.set(yahooTicker, data)
-        return data
-      } catch { continue }
+    const data: KRXQuoteData = {
+      price:         parsed.price,
+      change:        parsed.change,
+      changePercent: parsed.changePercent,
+      marketCapKRW:  parsed.marketCap,
     }
-    throw new Error(`KRX HTML ${yahooTicker} → quote data not found in page scripts`)
+    krxQuoteCache.set(yahooTicker, { data, ts: Date.now() })
+    krxLastGoodCache.set(yahooTicker, data)
+    return data
   } catch (err) {
     // Stale 캐시가 있으면 실패해도 이전 데이터 유지 (목록 안정성)
     const stale = krxLastGoodCache.get(yahooTicker) ?? cached?.data
@@ -647,92 +665,64 @@ async function getKRXResult(
   }
 }
 
-// ─── JPX·SSE·SZSE Fetcher (Yahoo Finance v7 배치 quote) ───────────────────────
-// Finnhub 무료는 아시아 미지원, Naver는 한국 전용, Yahoo HTML 스크래핑은 20종목
-// 배치에서 레이트리밋으로 절반 이상 누락됨. → yfinance와 동일한 방식으로
-// crumb+cookie 인증 후 v7 batch quote 한 번에 20종목을 받아 안정성을 확보한다.
-// (요청량: 거래소당 20 → 1). marketCap은 현지 통화(JPY/CNY)라 환율로 USD 환산.
+// ─── JPX·SSE·SZSE Fetcher (Tencent qt.gtimg.cn 배치 quote) ───────────────────
+// Finnhub 무료는 아시아 미지원, Naver는 한국 전용, FMP 무료는 국제 종목 미지원.
+// Yahoo v7 API는 crumb 인증 + IP 레이트리밋(429)으로, HTML은 상당수 심볼 404로 불안정.
+// → 텐센트(qt.gtimg.cn)를 쓴다. A주(상하이 sh·선전 sz)와 일본(jp)을 모두 커버하고,
+//   현재가·등락률·총시가총액을 IP 차단 없이 1콜 배치로 반환한다(한국의 Naver와 같은 역할).
+// 응답은 `v_sh600519="1~名~code~price~...";` 형태의 GBK 인코딩 `~` 구분 문자열.
+// 필드 인덱스: [3] 현재가 · [31] 등락 · [32] 등락% · [45] 총시가총액(억 단위 현지통화 JPY/CNY).
+// 시총 = f[45] × 1e8(억) → forex(jpy/cny)로 나눠 USD 환산.
 
-const YAHOO_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
-const YAHOO_AUTH_TTL_MS = 30 * 60 * 1000  // crumb/cookie는 수 시간 유효 → 30분 캐시
+const TENCENT_QUOTE_URL = 'https://qt.gtimg.cn/q='
 
-let yahooAuth: { crumb: string; cookie: string; ts: number } | null = null
-
-// fc.yahoo.com에서 세션 쿠키(A1/A3)를 받고, 그 쿠키로 crumb 토큰을 발급받는다.
-// 이 둘이 있어야 v7/quote가 429 없이 응답한다.
-async function getYahooAuth(): Promise<{ crumb: string; cookie: string }> {
-  if (yahooAuth && Date.now() - yahooAuth.ts < YAHOO_AUTH_TTL_MS) {
-    return { crumb: yahooAuth.crumb, cookie: yahooAuth.cookie }
-  }
-
-  const cookieRes = await fetch('https://fc.yahoo.com/', {
-    headers: { 'User-Agent': YAHOO_UA },
-    redirect: 'manual',
-    cache: 'no-store',
-  })
-  // undici(Node 18+)의 getSetCookie로 다중 Set-Cookie를 배열로 수집
-  const setCookies: string[] = (cookieRes.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? []
-  const cookie = setCookies.map(c => c.split(';')[0]).filter(Boolean).join('; ')
-  if (!cookie) throw new Error('Yahoo cookie fetch failed')
-
-  const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
-    headers: { 'User-Agent': YAHOO_UA, 'Cookie': cookie },
-    cache: 'no-store',
-  })
-  const crumb = (await crumbRes.text()).trim()
-  if (!crumb || crumb.length > 40 || /too many|<html|error/i.test(crumb)) {
-    throw new Error(`Yahoo crumb fetch failed: ${crumb.slice(0, 40)}`)
-  }
-
-  yahooAuth = { crumb, cookie, ts: Date.now() }
-  return { crumb, cookie }
+// 야후 심볼(005930.KS류가 아닌 7203.T/600519.SS/300750.SZ) → 텐센트 코드로 변환.
+// .SS→sh, .SZ→sz, .T→jp (접미사 제거 후 접두사 부착). 그 외는 매핑 불가로 null.
+function tencentCode(ticker: string): string | null {
+  if (ticker.endsWith('.SS')) return 'sh' + ticker.slice(0, -3)
+  if (ticker.endsWith('.SZ')) return 'sz' + ticker.slice(0, -3)
+  if (ticker.endsWith('.T'))  return 'jp' + ticker.slice(0, -2)
+  return null
 }
 
-async function yahooQuoteFetch(symbols: string[], auth: { crumb: string; cookie: string }): Promise<Response> {
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote`
-    + `?symbols=${encodeURIComponent(symbols.join(','))}`
-    + `&crumb=${encodeURIComponent(auth.crumb)}`
-  return fetch(url, {
-    headers: { 'User-Agent': YAHOO_UA, 'Cookie': auth.cookie },
+// 유니버스 전 종목을 텐센트 1콜 배치로 조회 → 텐센트코드별 ForeignQuote 맵.
+// GBK 응답을 디코드해 라인별로 파싱. 데이터 없는(가격/시총 0) 종목은 맵에서 누락.
+async function fetchForeignQuotes(tencentCodes: string[]): Promise<Map<string, ForeignQuote>> {
+  const res = await fetch(TENCENT_QUOTE_URL + tencentCodes.join(','), {
+    headers: { 'Referer': 'https://gu.qq.com/' },
     cache: 'no-store',
   })
-}
+  if (!res.ok) throw new Error(`Tencent quote → HTTP ${res.status}`)
 
-// v7 배치 quote → symbol별 YahooQuote 맵. crumb 만료(401/403/429) 시 1회 재인증 후 재시도.
-async function fetchYahooQuotes(symbols: string[]): Promise<Map<string, YahooQuote>> {
-  let auth = await getYahooAuth()
-  let res  = await yahooQuoteFetch(symbols, auth)
-  if (res.status === 401 || res.status === 403 || res.status === 429) {
-    yahooAuth = null                       // 만료 추정 → 강제 재발급
-    auth = await getYahooAuth()
-    res  = await yahooQuoteFetch(symbols, auth)
-  }
-  if (!res.ok) throw new Error(`Yahoo v7 quote → HTTP ${res.status}`)
+  // 종목명(f[1])은 GBK 한자라 정확한 디코드 필요. 숫자/구분자는 ASCII라 파싱엔 영향 없음.
+  const text = new TextDecoder('gbk').decode(await res.arrayBuffer())
 
-  const json   = await res.json()
-  const result = json?.quoteResponse?.result
-  if (!Array.isArray(result)) throw new Error('Yahoo v7 quote → no result array')
-
-  const map = new Map<string, YahooQuote>()
-  for (const q of result) {
-    if (!q?.symbol) continue
-    map.set(q.symbol, {
-      price:         q.regularMarketPrice ?? 0,
-      change:        q.regularMarketChange ?? 0,
-      changePercent: q.regularMarketChangePercent ?? 0,
-      marketCap:     q.marketCap ?? 0,
-      currency:      q.currency ?? '',
+  const map = new Map<string, ForeignQuote>()
+  const lineRe = /v_(\w+)="([^"]*)"/g
+  let m: RegExpExecArray | null
+  while ((m = lineRe.exec(text)) !== null) {
+    const code = m[1]
+    const f    = m[2].split('~')
+    const price     = parseFloat(f[3])
+    const marketCap = parseFloat(f[45]) * 1e8   // f[45]: 총시가총액(억) → 현지통화 원단위
+    if (!price || !marketCap || !isFinite(marketCap)) continue
+    map.set(code, {
+      price,
+      change:        parseFloat(f[31]) || 0,
+      changePercent: parseFloat(f[32]) || 0,
+      marketCap,
+      currency:      '',
     })
   }
   return map
 }
 
-// 거래소 단위 캐시(QUOTE_TTL) — 폴링마다 배치 1콜을 넘지 않도록.
-async function getYahooBatchQuotes(exchange: string, symbols: string[]): Promise<Map<string, YahooQuote>> {
-  const hit = yahooBatchCache.get(exchange)
+// 거래소 단위 캐시(QUOTE_TTL) — 폴링마다 배치를 반복하지 않도록.
+async function getForeignQuotes(exchange: string, tencentCodes: string[]): Promise<Map<string, ForeignQuote>> {
+  const hit = foreignQuoteCache.get(exchange)
   if (hit && Date.now() - hit.ts < QUOTE_TTL_MS) return hit.data
-  const map = await fetchYahooQuotes(symbols)
-  yahooBatchCache.set(exchange, { data: map, ts: Date.now() })
+  const map = await fetchForeignQuotes(tencentCodes)
+  foreignQuoteCache.set(exchange, { data: map, ts: Date.now() })
   return map
 }
 
@@ -756,7 +746,7 @@ async function getAramcoData(): Promise<AramcoData> {
     if (!res.ok) throw new Error(`Aramco HTML → HTTP ${res.status}`)
 
     const html = await res.text()
-    const scriptRe = /<script[^>]*>(.*?)<\/script>/gs
+    const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g
     let match: RegExpExecArray | null
     while ((match = scriptRe.exec(html)) !== null) {
       const content = match[1]
@@ -1076,10 +1066,10 @@ async function handleKoreanExchange(exchange: string, companies: KoreanStockMeta
   }
 }
 
-// 해외 거래소 전용 핸들러 (JPX/SSE/SZSE 공통) — 하드코딩 유니버스를 Yahoo v7 배치 quote로
+// 해외 거래소 전용 핸들러 (JPX/SSE/SZSE 공통) — 하드코딩 유니버스를 텐센트 배치 quote로
 // 한 번에 조회 → currency(jpy/cny) 환율로 USD 환산 후 상위 20개 반환.
 // Finnhub 무료는 아시아 미지원, Naver는 한국 전용이라 handleKoreanExchange와 달리
-// getYahooBatchQuotes(crumb 인증)를 사용한다. 응답 형태(exchangeRate/data/updatedAt/stale)는 동일.
+// getForeignQuotes(텐센트 배치)를 사용한다. 응답 형태(exchangeRate/data/updatedAt/stale)는 동일.
 // exchangeRate는 클라이언트 원화 토글용이라 항상 KRW를 실어 보낸다.
 async function handleForeignExchange(
   exchange: string,
@@ -1094,10 +1084,15 @@ async function handleForeignExchange(
     })
     const ratePerUsd = forexRates[currency]
 
-    // 배치 quote 1콜로 전 종목 조회. 배치에서 누락된 종목은 stale 폴백 → 목록 안정화.
-    const quotes = await getYahooBatchQuotes(exchange, companies.map(c => c.yahooTicker))
+    // 티커 → 텐센트 코드 매핑(변환 불가 종목은 제외). 배치 1콜로 전 종목 조회.
+    const codes = companies
+      .map(c => tencentCode(c.ticker))
+      .filter((c): c is string => c !== null)
+    const quotes = await getForeignQuotes(exchange, codes)
     const allRows = companies.map((meta): Omit<CompanyResult, 'rank'> | null => {
-      const q = quotes.get(meta.yahooTicker)
+      const code = tencentCode(meta.ticker)
+      const q    = code ? quotes.get(code) : undefined
+      // 배치에서 누락된 종목은 stale 폴백 → 목록 안정화.
       if (!q || !q.marketCap || !q.price) {
         const stale = foreignLastGoodCache.get(meta.ticker)
         if (stale) console.warn(`[market-cap:${exchange}] ${meta.ticker} missing in batch, using stale`)
