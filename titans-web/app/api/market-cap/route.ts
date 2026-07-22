@@ -384,6 +384,10 @@ interface AramcoData {
 
 const quoteCache      = new Map<string, CacheEntry<QuoteData>>()
 const profileCache    = new Map<string, CacheEntry<ProfileData>>()
+// 진행 중 요청 병합(coalescing) — ALL·NASDAQ·NYSE 피드가 같은 티커(BRK.B·JPM·TSM …)를
+// 동시에 조회할 때 Finnhub 호출을 1건으로 합쳐 무료 한도(60/min) 소진을 줄인다.
+const quoteInFlight   = new Map<string, Promise<QuoteData>>()
+const profileInFlight = new Map<string, Promise<ProfileData>>()
 const krxQuoteCache   = new Map<string, CacheEntry<KRXQuoteData>>()
 const naverKRXCache   = new Map<string, CacheEntry<KRXQuoteData>>()
 // 해외 거래소 Yahoo v7 배치 quote 결과 캐시 (거래소 키). QUOTE_TTL로 콜수 절감.
@@ -495,36 +499,75 @@ function parseYahooHtmlQuote(html: string, yahooTicker: string): {
   return null
 }
 
+// ─── Finnhub 전역 레이트리미터 ─────────────────────────────────────────────────
+// 무료 플랜은 60 calls/min. ALL·NASDAQ·NYSE 세 피드가 하나의 토큰을 공유하므로
+// 각 피드가 quote+profile를 동시 버스트로 쏘면 분당 한도를 넘겨 429가 나고,
+// 실패한 종목이 null로 빠져 섹션 목록이 20개 미만(예: 14개)으로 줄어든다.
+//
+// 논블로킹 슬라이딩 윈도우 예산. 무료 한도(60/min)를 지속적으로 넘겨 429가 쏟아지면
+// Finnhub가 토큰을 일시 차단할 수 있으므로, 최근 60초 호출이 예산에 도달하면 '대기하지 않고'
+// 즉시 실패시킨다. 그러면 getQuote가 throw → fetchFinnhubRows가 stale 캐시로 폴백하고,
+// 부족분은 rankWithBackfill이 직전 랭킹으로 채워 목록은 20개를 유지한다.
+// 대기가 없으므로 응답은 항상 빠르고(캐시 히트), 갱신은 "예산 안에서 가능한 만큼만" 이뤄진다.
+const FINNHUB_MAX_PER_MIN = 55   // 60 한도 대비 여유
+const finnhubCallTimes: number[] = []  // 최근 60초 호출 시각(ms)
+
+function acquireFinnhubSlot(): void {
+  const now = Date.now()
+  while (finnhubCallTimes.length && now - finnhubCallTimes[0] > 60_000) finnhubCallTimes.shift()
+  if (finnhubCallTimes.length >= FINNHUB_MAX_PER_MIN) throw new Error('finnhub rate budget exceeded')
+  finnhubCallTimes.push(now)
+}
+
+async function finnhubFetch(url: string): Promise<Response> {
+  acquireFinnhubSlot()
+  return fetch(url, { cache: 'no-store' })
+}
+
 // ─── Finnhub Fetchers ─────────────────────────────────────────────────────────
 
 async function getQuote(ticker: string): Promise<QuoteData> {
   const hit = quoteCache.get(ticker)
   if (hit && Date.now() - hit.ts < QUOTE_TTL_MS) return hit.data
 
-  const res = await fetch(
-    `${BASE}/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_TOKEN}`,
-    { cache: 'no-store' },
-  )
-  if (!res.ok) throw new Error(`quote ${ticker} → HTTP ${res.status}`)
-  const data: QuoteData = await res.json()
-  if (!data.c) throw new Error(`quote ${ticker} → empty response`)
-  quoteCache.set(ticker, { data, ts: Date.now() })
-  return data
+  const pending = quoteInFlight.get(ticker)
+  if (pending) return pending
+
+  const task = (async (): Promise<QuoteData> => {
+    const res = await finnhubFetch(
+      `${BASE}/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_TOKEN}`,
+    )
+    if (!res.ok) throw new Error(`quote ${ticker} → HTTP ${res.status}`)
+    const data: QuoteData = await res.json()
+    if (!data.c) throw new Error(`quote ${ticker} → empty response`)
+    quoteCache.set(ticker, { data, ts: Date.now() })
+    return data
+  })().finally(() => quoteInFlight.delete(ticker))
+
+  quoteInFlight.set(ticker, task)
+  return task
 }
 
 async function getProfile(ticker: string): Promise<ProfileData> {
   const hit = profileCache.get(ticker)
   if (hit && Date.now() - hit.ts < PROFILE_TTL_MS) return hit.data
 
-  const res = await fetch(
-    `${BASE}/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_TOKEN}`,
-    { cache: 'no-store' },
-  )
-  if (!res.ok) throw new Error(`profile ${ticker} → HTTP ${res.status}`)
-  const data: ProfileData = await res.json()
-  if (!data.marketCapitalization) throw new Error(`profile ${ticker} → marketCapitalization missing`)
-  profileCache.set(ticker, { data, ts: Date.now() })
-  return data
+  const pending = profileInFlight.get(ticker)
+  if (pending) return pending
+
+  const task = (async (): Promise<ProfileData> => {
+    const res = await finnhubFetch(
+      `${BASE}/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_TOKEN}`,
+    )
+    if (!res.ok) throw new Error(`profile ${ticker} → HTTP ${res.status}`)
+    const data: ProfileData = await res.json()
+    if (!data.marketCapitalization) throw new Error(`profile ${ticker} → marketCapitalization missing`)
+    profileCache.set(ticker, { data, ts: Date.now() })
+    return data
+  })().finally(() => profileInFlight.delete(ticker))
+
+  profileInFlight.set(ticker, task)
+  return task
 }
 
 async function getForexRates(): Promise<ForexRates> {
@@ -927,6 +970,32 @@ async function fetchFinnhubRows(
   )
 }
 
+// ─── Ranking Helper ───────────────────────────────────────────────────────────
+// 신선 데이터를 시총순 상위 N개로 랭킹하되, 레이트리밋 등으로 이번 폴링이 N개를
+// 못 채우면 직전 성공 랭킹(previous)으로 빈자리를 메워 섹션이 20개 밑으로 내려가지
+// 않게 한다. 신선 데이터가 항상 우선하고, 중복 티커는 신선본을 유지한다.
+function rankWithBackfill(
+  fresh: Omit<CompanyResult, 'rank'>[],
+  previous: CompanyResult[] | null,
+  limit = 20,
+): CompanyResult[] {
+  const seen   = new Set(fresh.map(r => r.ticker))
+  const merged: Omit<CompanyResult, 'rank'>[] = [...fresh]
+  if (previous && merged.length < limit) {
+    for (const p of previous) {
+      if (merged.length >= limit) break
+      if (seen.has(p.ticker)) continue
+      const { rank: _rank, ...rest } = p
+      merged.push(rest)
+      seen.add(p.ticker)
+    }
+  }
+  return merged
+    .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
+    .slice(0, limit)
+    .map((r, i) => ({ ...r, rank: i + 1 }))
+}
+
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 // ALL(전 거래소 통합)과 거래소 전용(NASDAQ/NYSE) 피드를 분기.
@@ -984,10 +1053,7 @@ async function handleAll() {
       ...krxResults,
     ].filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
 
-    const ranked: CompanyResult[] = allRows
-      .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
-      .slice(0, 20)
-      .map((r, i) => ({ ...r, rank: i + 1 }))
+    const ranked = rankWithBackfill(allRows, lastGoodResult)
 
     lastGoodResult = ranked
     lastGoodAt = Date.now()
@@ -1165,10 +1231,8 @@ async function handleExchange(exchange: string, fallback: CompanyMeta[]) {
     // SpaceX(비상장)는 Finnhub 유니버스에 없으므로 나스닥 섹션에만 수동 주입 후 함께 정렬.
     if (exchange === 'NASDAQ') allRows.push(getSpaceXResult())
 
-    const ranked: CompanyResult[] = allRows
-      .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
-      .slice(0, 20)
-      .map((r, i) => ({ ...r, rank: i + 1 }))
+    // 레이트리밋 등으로 일부 종목이 빠져도 직전 성공 랭킹으로 보강해 20개 유지.
+    const ranked = rankWithBackfill(allRows, state?.lastGoodResult)
 
     if (state) {
       state.lastGoodResult = ranked

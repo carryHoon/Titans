@@ -508,6 +508,9 @@ struct ContentView: View {
     @State private var selectedCurrency: Currency = .usd
     @State private var selectedMarket: Market = .all
 
+    // 화이트/다크 모드 선택 (앱 재실행 후에도 유지)
+    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+
     private static let switchTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
     private static let liveTimer   = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -546,7 +549,7 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                LiveIndicatorBar(currentTime: currentTime)
+                LiveIndicatorBar(currentTime: currentTime, isDarkMode: $isDarkMode)
                     .padding(.top, 12)
 
                 HStack(alignment: .center, spacing: 12) {
@@ -603,7 +606,9 @@ struct ContentView: View {
                 .padding(.bottom, 32)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
+        // 상단 토글 버튼 선택값에 따라 라이트/다크 모드 적용
+        .preferredColorScheme(isDarkMode ? .dark : .light)
         // 15초 폴링 — 백엔드 quote 캐시(21초)와 sync, Finnhub rate limit 안전
         .task {
             while !Task.isCancelled {
@@ -717,9 +722,6 @@ struct SkeletonCompanyRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
         .opacity(shimmer ? 0.45 : 1.0)
         .onAppear {
             withAnimation(
@@ -743,8 +745,6 @@ struct CurrencyToggle: View {
             pill("$", currency: .usd)
             pill("원", currency: .krw)
         }
-        .padding(3)
-        .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 10))
     }
 
     @ViewBuilder
@@ -756,7 +756,7 @@ struct CurrencyToggle: View {
             }
         } label: {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? Color(.label) : Color(.secondaryLabel))
                 .frame(minWidth: 32)
                 .padding(.horizontal, 10)
@@ -764,12 +764,7 @@ struct CurrencyToggle: View {
                 .background {
                     if isSelected {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemBackground))
-                            .shadow(color: .black.opacity(0.28), radius: 5, x: 0, y: 2)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(.systemGray4), lineWidth: 0.5)
-                            )
+                            .stroke(Color(.systemGray3), lineWidth: 1)
                     }
                 }
         }
@@ -804,13 +799,14 @@ struct MarketFilterBar: View {
             }
         } label: {
             Text(market.title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
                 .foregroundStyle(isSelected ? Color(.systemBackground) : Color(.label))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background {
-                    Capsule()
-                        .fill(isSelected ? Color(.label) : Color(.systemGray5))
+                    if isSelected {
+                        Capsule().fill(Color(.label))
+                    }
                 }
         }
         .buttonStyle(.plain)
@@ -840,6 +836,7 @@ struct EmptyMarketView: View {
 
 struct LiveIndicatorBar: View {
     let currentTime: Date
+    @Binding var isDarkMode: Bool
     @State private var blinkOpacity: Double = 1.0
 
     private static let dateFormatter: DateFormatter = {
@@ -859,6 +856,20 @@ struct LiveIndicatorBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // 좌측 상단 화이트/다크 모드 토글
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isDarkMode.toggle()
+                }
+            } label: {
+                Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isDarkMode ? Color.yellow : Color.orange)
+                    .frame(width: 34, height: 34)
+                    .background(Color(.systemGray5), in: Circle())
+            }
+            .buttonStyle(.plain)
+
             Spacer()
 
             Circle()
@@ -881,7 +892,6 @@ struct LiveIndicatorBar: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
-        .background(Color(.systemBackground))
     }
 }
 
@@ -930,9 +940,6 @@ struct SingleMarketTicker: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -1167,9 +1174,6 @@ struct CompanyRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
     }
 }
 
