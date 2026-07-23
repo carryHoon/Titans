@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "samsung-cnt-logo.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

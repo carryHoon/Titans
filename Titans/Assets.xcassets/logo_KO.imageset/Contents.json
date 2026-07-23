@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "coca-cola-com-logo.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

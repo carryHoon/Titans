@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "samsung-sdi-logo-korean.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

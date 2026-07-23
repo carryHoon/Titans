@@ -11,7 +11,7 @@ import SwiftUI
 struct TitansApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
     }
 }
