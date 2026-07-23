@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "caterpillar-com-logo.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
