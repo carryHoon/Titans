@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Combine
+import Combine   // ObservableObject / @Published
 
 // MARK: - Currency
 
@@ -15,8 +15,13 @@ enum Currency { case usd, krw }
 // MARK: - Market (거래소 필터)
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
+///
+/// 섹션 = "EODHD 거래소코드 필터 + 통화" 로 정의한다(선언적). 데이터 소스를 EODHD 상업
+/// 플랜으로 전환하면 각 섹션은 아래 eodhdCode 매핑만으로 동작한다(스크래핑 로직 불필요).
+/// 확장 시장(HKEX/TWSE/NSE)은 구조만 정의해 두고 실데이터는 EODHD 전환 시 활성화한다
+/// (그전까지 comingSoon = true → "출시 시 제공" 플레이스홀더).
 enum Market: String, CaseIterable, Identifiable {
-    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext
+    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, hkex, twse, nse
 
     var id: String { rawValue }
 
@@ -32,6 +37,54 @@ enum Market: String, CaseIterable, Identifiable {
         case .sse:      return "SSE"
         case .szse:     return "SZSE"
         case .euronext: return "EURONEXT"
+        case .hkex:     return "HKEX"
+        case .twse:     return "TWSE"
+        case .nse:      return "NSE"
+        }
+    }
+
+    /// EODHD 거래소 코드(접미사). 전환 후 유니버스/시세 조회의 단일 기준.
+    /// US는 `.US` 하나로 오고 종목별 상장거래소 필드로 NASDAQ/NYSE를 분리한다.
+    /// Euronext는 도시별 코드(PA·AS·MI)를 백엔드에서 한 섹션으로 합친다.
+    var eodhdCode: [String] {
+        switch self {
+        case .all:      return []                       // 전 섹션 통합
+        case .nasdaq:   return ["US"]                   // + 상장거래소=NASDAQ 필터
+        case .nyse:     return ["US"]                   // + 상장거래소=NYSE 필터
+        case .kospi:    return ["KO"]
+        case .kosdaq:   return ["KQ"]
+        case .jpx:      return ["TSE"]
+        case .sse:      return ["SHG"]
+        case .szse:     return ["SHE"]
+        case .euronext: return ["PA", "AS", "MI"]
+        case .hkex:     return ["HK"]
+        case .twse:     return ["TW"]
+        case .nse:      return ["NSE"]
+        }
+    }
+
+    /// 1차 출시(v1) 범위 = US(NASDAQ/NYSE) + 한국(KOSPI/KOSDAQ)만. 나머지 섹션은
+    /// "준비 중" 플레이스홀더(ComingSoonView)로 표시하고 데이터 조회를 하지 않는다.
+    /// 상업용 데이터 소스 연동 시 해당 case를 false로 내리고 apiExchangeParam만 열어주면 됨.
+    var comingSoon: Bool {
+        switch self {
+        case .all, .nasdaq, .nyse, .kospi, .kosdaq: return false
+        default:                                    return true
+        }
+    }
+
+    /// 거래소 소속 국가 국기 이미지명 (Assets.xcassets 기준)
+    var flagImageName: String {
+        switch self {
+        case .all:              return "flag_global"
+        case .nasdaq, .nyse:   return "flag_us"
+        case .kospi, .kosdaq:  return "flag_kr"
+        case .jpx:             return "flag_jp"
+        case .sse, .szse:      return "flag_cn"
+        case .euronext:        return "flag_eu"
+        case .hkex:            return "flag_hk"
+        case .twse:            return "flag_tw"
+        case .nse:             return "flag_in"
         }
     }
 
@@ -43,11 +96,10 @@ enum Market: String, CaseIterable, Identifiable {
         case .nyse:   return "nyse"
         case .kospi:  return "kospi"
         case .kosdaq: return "kosdaq"
-        case .jpx:      return "jpx"
-        case .sse:      return "sse"
-        case .szse:     return "szse"
-        case .euronext: return "euronext"
-        default:        return nil
+        // jpx/sse/szse/euronext/hkex/twse/nse 는 1차 출시 범위 밖(comingSoon)이라
+        // 백엔드 피드가 없다. 상업용 데이터 소스(EODHD) 전환 시 백엔드 핸들러와 함께
+        // 여기서 "jpx"/"sse"/… 로 개방하면 별도 UI 변경 없이 활성화된다.
+        default:      return nil
         }
     }
 }
@@ -93,7 +145,7 @@ struct MarketIndex: Identifiable {
     var changePercent: Double
 }
 
-private var initialIndices: [MarketIndex] = [
+private let initialIndices: [MarketIndex] = [
     MarketIndex(id: "usd",    name: "달러 환율", value: 1450.00,  change:   0.00,   changePercent:  0.00),
     MarketIndex(id: "nasdaq", name: "나스닥",   value: 19854.32, change: -123.45,  changePercent: -0.62),
     MarketIndex(id: "kospi",  name: "코스피",   value: 2856.78,  change:   12.34,  changePercent:  0.43),
@@ -112,7 +164,6 @@ struct Company: Identifiable {
     let marketCapUSD: Double   // USD 조(trillion) 단위
     let change: Double         // changePercent (%) — API의 dp 값
     let color: Color
-    let symbol: String
 
     /// Ticker 기반 상장 거래소. 미등록 종목은 필터에서 ALL에만 노출됨.
     var market: Market? { tickerMarket[ticker] }
@@ -125,16 +176,14 @@ struct APICompanyResult: Decodable {
     let ticker: String
     let name: String
     let color: String          // hex 문자열 e.g. "#78BB17"
-    let currentPrice: Double
-    let change: Double         // dollar change (사용하지 않음)
     let changePercent: Double  // % change → Company.change 에 매핑
     let marketCapUSD: Double   // trillion USD
 }
 
 struct MarketCapResponse: Decodable {
     let exchangeRate: Double?
+    let basDt: String?         // KRX 기준일("YYYYMMDD") — 코스피/코스닥만 내려옴(EOD/D-1)
     let data: [APICompanyResult]
-    let updatedAt: Double
     let stale: Bool?
     let error: String?
 }
@@ -145,91 +194,12 @@ struct APIIndexData: Decodable {
     let value: Double
     let change: Double
     let changePercent: Double
-    let updatedAt: Double
 }
 
 struct MarketIndexResponse: Decodable {
     let data: [APIIndexData]
     let stale: Bool?
 }
-
-// MARK: - Ticker → SF Symbol 매핑
-
-private let tickerSymbols: [String: String] = [
-    "NVDA":  "cpu.fill",
-    "AAPL":  "apple.logo",
-    "MSFT":  "square.grid.2x2.fill",
-    "GOOGL": "magnifyingglass",
-    "AMZN":  "bag.fill",
-    "META":  "bubble.left.and.bubble.right.fill",
-    "TSLA":  "bolt.car",
-    "BRK.B": "chart.bar.fill",
-    "AVGO":  "cpu.fill",
-    "JPM":   "building.columns.fill",
-    "TSM":   "memorychip.fill",
-    // 11–20위
-    "LLY":   "pills.fill",
-    "WMT":   "cart.fill",
-    "V":     "creditcard.fill",
-    "ORCL":  "server.rack",
-    "XOM":   "fuelpump.fill",
-    "MA":    "creditcard",
-    "COST":  "basket.fill",
-    "NFLX":  "play.rectangle.fill",
-    "UNH":   "heart.fill",
-    "PLTR":  "waveform.path.ecg",
-    "SPCX":  "airplane.departure",
-    "AMD":   "cpu",
-    "MU":    "memorychip",
-    // 추가 NASDAQ 종목
-    "CSCO":  "network",
-    "ADBE":  "paintbrush.pointed.fill",
-    "TMUS":  "antenna.radiowaves.left.and.right",
-    "INTU":  "chart.pie.fill",
-    "QCOM":  "dot.radiowaves.right",
-    "AMAT":  "gearshape.2.fill",
-    "TXN":   "function",
-    "AMGN":  "cross.case.fill",
-    "ISRG":  "stethoscope",
-    "BKNG":  "bed.double.fill",
-    "GILD":  "cross.vial.fill",
-    // 추가 NYSE 종목
-    "JNJ":   "bandage.fill",
-    "HD":    "hammer.fill",
-    "PG":    "shippingbox.fill",
-    "ABBV":  "pill.fill",
-    "KO":    "cup.and.saucer.fill",
-    "BAC":   "banknote.fill",
-    "CVX":   "flame.fill",
-    "CRM":   "cloud.fill",
-    "WFC":   "banknote",
-    "MRK":   "cross.fill",
-    "ACN":   "briefcase.fill",
-    "MCD":   "fork.knife",
-    // 추가 NASDAQ 종목 (시총 상위 유니버스 확장)
-    "INTC":  "cpu",
-    "LRCX":  "gearshape.2.fill",
-    "ARM":   "cpu.fill",
-    "KLAC":  "wrench.and.screwdriver.fill",
-    "PANW":  "lock.shield.fill",
-    "LIN":   "wind",
-    "ASML":  "camera.aperture",
-    // 추가 NYSE 종목 (시총 상위 유니버스 확장)
-    "CAT":   "truck.box.fill",
-    "GE":    "airplane",
-    "MS":    "building.columns.fill",
-    "GS":    "building.columns.fill",
-    "PM":    "smoke.fill",
-    "RTX":   "airplane.circle.fill",
-    "AXP":   "creditcard.fill",
-    "C":     "building.columns.fill",
-    "HSBC":  "building.columns.fill",
-    // Tadawul (Saudi Arabia)
-    "2222.SR":   "drop.fill",
-    // KRX (Korea)
-    "005930.KS": "memorychip.fill",
-    "000660.KS": "memorychip",
-]
 
 // MARK: - Brandfetch
 
@@ -345,92 +315,6 @@ private let tickerDomain: [String: String] = [
     "440110.KQ": "fadu.io",
     "095340.KQ": "iscmfg.com",
     "095610.KQ": "tes.co.kr",
-    // JPX (Japan) — Yahoo `.T` 심볼
-    "7203.T": "toyota-global.com",
-    "8306.T": "mufg.jp",
-    "6758.T": "sony.com",
-    "6861.T": "keyence.com",
-    "9984.T": "group.softbank",
-    "9983.T": "fastretailing.com",
-    "6098.T": "recruit.co.jp",
-    "8035.T": "tel.com",
-    "4063.T": "shinetsu.co.jp",
-    "9432.T": "group.ntt",
-    "6501.T": "hitachi.com",
-    "7974.T": "nintendo.com",
-    "8058.T": "mitsubishicorp.com",
-    "8001.T": "itochu.co.jp",
-    "6902.T": "denso.com",
-    "4519.T": "chugai-pharm.co.jp",
-    "6367.T": "daikin.com",
-    "8316.T": "smfg.co.jp",
-    "7267.T": "global.honda",
-    "6594.T": "nidec.com",
-    // SSE (Shanghai) — Yahoo `.SS` 심볼
-    "600519.SS": "moutaichina.com",
-    "601398.SS": "icbc.com.cn",
-    "600941.SS": "chinamobileltd.com",
-    "601288.SS": "abchina.com",
-    "601857.SS": "petrochina.com.cn",
-    "601988.SS": "boc.cn",
-    "600036.SS": "cmbchina.com",
-    "601318.SS": "pingan.cn",
-    "601628.SS": "e-chinalife.com",
-    "600900.SS": "ctg.com.cn",
-    "600028.SS": "sinopec.com",
-    "601088.SS": "chnenergy.com.cn",
-    "600030.SS": "citics.com",
-    "603288.SS": "haitian-food.com",
-    "600276.SS": "hengrui.com",
-    "601668.SS": "cscec.com",
-    "688981.SS": "smics.com",
-    "601166.SS": "cib.com.cn",
-    "600887.SS": "yili.com",
-    "600809.SS": "fenjiu.com.cn",
-    // SZSE (Shenzhen) — Yahoo `.SZ` 심볼
-    "300750.SZ": "catl.com",
-    "000858.SZ": "wuliangye.com.cn",
-    "002594.SZ": "byd.com",
-    "000333.SZ": "midea.com",
-    "000651.SZ": "gree.com",
-    "002415.SZ": "hikvision.com",
-    "300760.SZ": "mindray.com",
-    "000001.SZ": "bank.pingan.com",
-    "002714.SZ": "muyuanfoods.com",
-    "300059.SZ": "eastmoney.com",
-    "002475.SZ": "luxshare-ict.com",
-    "000568.SZ": "lzlj.com",
-    "002304.SZ": "chinayanghe.com",
-    "300124.SZ": "inovance.com",
-    "002352.SZ": "sf-express.com",
-    "300015.SZ": "aierchina.com",
-    "000725.SZ": "boe.com",
-    "002230.SZ": "iflytek.com",
-    "300274.SZ": "sungrowpower.com",
-    "002460.SZ": "ganfenglithium.com",
-    // Euronext (범유럽) — 파리 `.PA` / 암스테르담 `.AS` / 밀라노 `.MI`
-    "ASML.AS":  "asml.com",
-    "MC.PA":    "lvmh.com",
-    "RMS.PA":   "hermes.com",
-    "OR.PA":    "loreal.com",
-    "TTE.PA":   "totalenergies.com",
-    "PRX.AS":   "prosus.com",
-    "SAN.PA":   "sanofi.com",
-    "SU.PA":    "se.com",
-    "AI.PA":    "airliquide.com",
-    "EL.PA":    "essilorluxottica.com",
-    "RACE.MI":  "ferrari.com",
-    "AIR.PA":   "airbus.com",
-    "SAF.PA":   "safran-group.com",
-    "CDI.PA":   "dior.com",
-    "BNP.PA":   "bnpparibas.com",
-    "ENEL.MI":  "enel.com",
-    "ADYEN.AS": "adyen.com",
-    "UCG.MI":   "unicreditgroup.eu",
-    "ISP.MI":   "intesasanpaolo.com",
-    "DG.PA":    "vinci.com",
-    "INGA.AS":  "ing.com",
-    "BN.PA":    "danone.com",
 ]
 
 // MARK: - Color(hex:) Extension
@@ -533,6 +417,7 @@ struct ExchangeFeed {
     var isLoading = true
     var isError   = false
     var isStale   = false
+    var basDt: String? = nil   // KRX 기준일("YYYYMMDD") — 코스피/코스닥 "종가 기준" 표기용
 }
 
 // MARK: - Daily Baseline (일별 기준 순위)
@@ -604,39 +489,45 @@ final class MarketCapViewModel: ObservableObject {
         }
     }
 
+    /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
+    /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
+    private func loadCompanies(from url: URL, exchangeParam: String?) async throws
+        -> (companies: [Company], stale: Bool, rate: Double?, basDt: String?) {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        let decoded = try JSONDecoder().decode(MarketCapResponse.self, from: data)
+        if let apiError = decoded.error, decoded.data.isEmpty {
+            throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
+        }
+        let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
+        setBaselineIfNeeded(ranks: todayRanks, exchangeParam: exchangeParam)
+        let baseline = exchangeParam.map { dailyBaseline.exchangeRanks[$0] ?? [:] } ?? dailyBaseline.allRanks
+        let mapped: [Company] = decoded.data.map { api in
+            Company(
+                rank:         api.rank,
+                previousRank: baseline[api.ticker],
+                name:         api.name,
+                ticker:       api.ticker,
+                marketCapUSD: api.marketCapUSD,
+                change:       api.changePercent,
+                color:        Color(hex: api.color)
+            )
+        }
+        return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.basDt)
+    }
+
     func fetch() async {
         do {
-            let (data, response) = try await URLSession.shared.data(from: endpoint)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                throw URLError(.badServerResponse)
-            }
-            let decoded = try JSONDecoder().decode(MarketCapResponse.self, from: data)
-            if let apiError = decoded.error, decoded.data.isEmpty {
-                throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
-            }
-            let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-            setBaselineIfNeeded(ranks: todayRanks, exchangeParam: nil)
-            let mapped: [Company] = decoded.data.map { api in
-                Company(
-                    rank:         api.rank,
-                    previousRank: dailyBaseline.allRanks[api.ticker],
-                    name:         api.name,
-                    ticker:       api.ticker,
-                    marketCapUSD: api.marketCapUSD,
-                    change:       api.changePercent,
-                    color:        Color(hex: api.color),
-                    symbol:       tickerSymbols[api.ticker] ?? "chart.line.uptrend.xyaxis"
-                )
-            }
+            let result = try await loadCompanies(from: endpoint, exchangeParam: nil)
             withAnimation(.easeInOut(duration: 0.3)) {
-                companies = mapped
-                isStale   = decoded.stale ?? false
+                companies = result.companies
+                isStale   = result.stale
                 isError   = false
                 isLoading = false
             }
-            if let rate = decoded.exchangeRate {
-                exchangeRate = rate
-            }
+            if let rate = result.rate { exchangeRate = rate }
         } catch {
             isError = true
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
@@ -644,46 +535,24 @@ final class MarketCapViewModel: ObservableObject {
         }
     }
 
-    /// 거래소 전용 피드 로드 (NASDAQ/NYSE …). fetch()와 동일한 매핑 로직이지만
-    /// 해당 Market의 exchangeFeeds 항목에만 반영해 ALL 피드와 간섭하지 않음.
+    /// 거래소 전용 피드 로드 (NASDAQ/NYSE …). 해당 Market의 exchangeFeeds 항목에만
+    /// 반영해 ALL 피드와 간섭하지 않음.
     func fetchExchange(_ market: Market) async {
         guard let param = market.apiExchangeParam,
               let url = URL(string: "http://\(Self.host):3000/api/market-cap?exchange=\(param)")
         else { return }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                throw URLError(.badServerResponse)
-            }
-            let decoded = try JSONDecoder().decode(MarketCapResponse.self, from: data)
-            if let apiError = decoded.error, decoded.data.isEmpty {
-                throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
-            }
-            let todayRanksEx = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-            setBaselineIfNeeded(ranks: todayRanksEx, exchangeParam: param)
-            let mapped: [Company] = decoded.data.map { api in
-                Company(
-                    rank:         api.rank,
-                    previousRank: dailyBaseline.exchangeRanks[param]?[api.ticker],
-                    name:         api.name,
-                    ticker:       api.ticker,
-                    marketCapUSD: api.marketCapUSD,
-                    change:       api.changePercent,
-                    color:        Color(hex: api.color),
-                    symbol:       tickerSymbols[api.ticker] ?? "chart.line.uptrend.xyaxis"
-                )
-            }
+            let result = try await loadCompanies(from: url, exchangeParam: param)
             withAnimation(.easeInOut(duration: 0.3)) {
                 exchangeFeeds[market] = ExchangeFeed(
-                    companies: mapped,
+                    companies: result.companies,
                     isLoading: false,
                     isError:   false,
-                    isStale:   decoded.stale ?? false
+                    isStale:   result.stale,
+                    basDt:     result.basDt
                 )
             }
-            if let rate = decoded.exchangeRate {
-                exchangeRate = rate
-            }
+            if let rate = result.rate { exchangeRate = rate }
         } catch {
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
             var feed = exchangeFeeds[market] ?? ExchangeFeed()
@@ -762,10 +631,22 @@ struct ContentView: View {
     // 화이트/다크 모드 선택 (앱 재실행 후에도 유지)
     @AppStorage("isDarkMode") private var isDarkMode: Bool = false
 
-    private static let switchTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
-    private static let liveTimer   = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    // 검색 / 메뉴 화면 표시 상태
+    @State private var showSearch = false
+    @State private var showMenu = false
 
     private var exchangeRate: Double { viewModel.exchangeRate }
+
+    /// 검색 대상 유니버스 — ALL 피드 + 현재까지 로드된 거래소별 피드를 티커 기준으로 합침.
+    /// (별도 API 없이 이미 라이브로 받고 있는 데이터를 그대로 검색에 재사용)
+    private var searchableCompanies: [Company] {
+        var seen = Set<String>()
+        var merged: [Company] = []
+        for c in viewModel.companies + viewModel.exchangeFeeds.values.flatMap(\.companies) {
+            if seen.insert(c.ticker).inserted { merged.append(c) }
+        }
+        return merged
+    }
 
     /// 현재 선택 모드에 대응하는 테마. isDarkMode 변경 시 색상이 보간되도록 명시적 Color 사용.
     private var theme: AppTheme { isDarkMode ? .dark : .light }
@@ -858,8 +739,16 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                LiveIndicatorBar(currentTime: currentTime, isDarkMode: $isDarkMode, vScale: vScale)
-                    .padding(.top, 6 * vScale)
+                LiveIndicatorBar(
+                    market: selectedMarket,
+                    currentTime: currentTime,
+                    basDt: dedicatedFeed?.basDt,
+                    isDarkMode: $isDarkMode,
+                    vScale: vScale,
+                    onSearch: { showSearch = true },
+                    onMenu: { showMenu = true }
+                )
+                .padding(.top, 6 * vScale)
 
                 // 지수 섹션 — 기준 기기(iPhone 17 Pro, 폭 402pt) 레이아웃을 그대로 유지한 채
                 // 좁은 기기에서는 전체를 비례 축소해 한 줄 UI가 깨지지 않도록 함.
@@ -888,15 +777,18 @@ struct ContentView: View {
                 }
 
                 LazyVStack(spacing: 8) {
-                    // 컬럼 헤더 (순위 / 기업 / 시가총액) — 에러 상태가 아닐 때만 표시
-                    if !isDisplayError {
+                    // 컬럼 헤더 (순위 / 기업 / 시가총액) — 에러/출시예정이 아닐 때만 표시
+                    if !isDisplayError && !selectedMarket.comingSoon {
                         ColumnHeader(sortField: $sortField, sortOrder: $sortOrder)
                     }
 
                     // 섹션(거래소)별 기업 리스트. selectedMarket을 id로 묶어 섹션이 바뀌면
                     // 리스트 전체가 스와이프 방향과 같은 방향으로 슬라이드된다.
                     VStack(spacing: 8) {
-                        if isDisplayLoading {
+                        if selectedMarket.comingSoon {
+                            // EODHD 전환 시 활성화될 시장 — 데이터 준비 전 플레이스홀더
+                            ComingSoonView(market: selectedMarket)
+                        } else if isDisplayLoading {
                             // Skeleton UI — 첫 로드 중
                             ForEach(1...20, id: \.self) { rank in
                                 SkeletonCompanyRow(rank: rank)
@@ -953,6 +845,24 @@ struct ContentView: View {
         )
         // 상단 토글 버튼 선택값에 따라 라이트/다크 모드 적용 (status bar 등 시스템 요소용)
         .preferredColorScheme(isDarkMode ? .dark : .light)
+        // 검색 화면 (돋보기)
+        .fullScreenCover(isPresented: $showSearch) {
+            SearchView(
+                companies: searchableCompanies,
+                currency: selectedCurrency,
+                exchangeRate: exchangeRate,
+                isDarkMode: isDarkMode,
+                onDismiss: { showSearch = false }
+            )
+        }
+        // 전체 메뉴 화면 (≡)
+        .fullScreenCover(isPresented: $showMenu) {
+            MenuView(
+                isDarkMode: $isDarkMode,
+                selectedCurrency: $selectedCurrency,
+                onDismiss: { showMenu = false }
+            )
+        }
         // isDarkMode 변경으로 인한 테마 색상 변화를 부드럽게 애니메이션
         .animation(.easeInOut(duration: 0.45), value: isDarkMode)
         // 15초 폴링 — 백엔드 quote 캐시(21초)와 sync, Finnhub rate limit 안전
@@ -983,13 +893,21 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(30))
             }
         }
-        .onReceive(Self.switchTimer) { _ in
-            withAnimation(.easeInOut(duration: 0.4)) {
-                currentMarketIndex = (currentMarketIndex + 1) % indices.count
+        // 1초 주기 현재 시각 갱신 (Live 시계)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                currentTime = Date()
             }
         }
-        .onReceive(Self.liveTimer) { time in
-            currentTime = time
+        // 3초 주기 지수 카드 순환
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    currentMarketIndex = (currentMarketIndex + 1) % indices.count
+                }
+            }
         }
     }
 }
@@ -1177,6 +1095,140 @@ struct MarketFilterBar: View {
     }
 }
 
+// MARK: - Launch Vote (출시 투표 집계)
+
+/// 기기 고유 식별자 — 서버가 SET으로 세어 한 기기가 여러 번 눌러도 1로 집계(중복 방지).
+enum DeviceID {
+    static let current: String = {
+        let key = "titansDeviceID"
+        let defaults = UserDefaults.standard
+        if let existing = defaults.string(forKey: key) { return existing }
+        let id = UUID().uuidString
+        defaults.set(id, forKey: key)
+        return id
+    }()
+}
+
+/// titans-web `/api/launch-vote` 클라이언트.
+enum LaunchVoteAPI {
+    private static var base: URL {
+        URL(string: "http://\(MarketCapViewModel.host):3000/api/launch-vote")!
+    }
+
+    /// 거래소별 하트 수. 실패 시 빈 딕셔너리.
+    static func counts() async -> [String: Int] {
+        do {
+            let (data, _) = try await URLSession.shared.data(from: base)
+            return try JSONDecoder().decode(CountsResponse.self, from: data).counts
+        } catch {
+            return [:]
+        }
+    }
+
+    /// 하트 추가(wants=true)/취소(false). 성공 시 갱신된 총합, 실패 시 nil.
+    static func vote(market: String, wants: Bool) async -> Int? {
+        var req = URLRequest(url: base)
+        req.httpMethod = wants ? "POST" : "DELETE"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(
+            withJSONObject: ["market": market, "deviceId": DeviceID.current])
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(VoteResponse.self, from: data).count
+        } catch {
+            return nil
+        }
+    }
+
+    private struct CountsResponse: Decodable { let counts: [String: Int] }
+    private struct VoteResponse: Decodable { let count: Int }
+}
+
+// MARK: - Coming Soon View (1차 출시 범위 밖 — 준비 중 + 출시 투표)
+
+struct ComingSoonView: View {
+    let market: Market
+    @Environment(\.appTheme) private var theme
+
+    /// 이 기기에서 하트를 눌렀는지(즉시 UI 반영 + 서버 확인 전 상태 유지).
+    @AppStorage private var wantsLaunch: Bool
+    @State private var count: Int = 0
+    @State private var isBusy = false
+
+    init(market: Market) {
+        self.market = market
+        _wantsLaunch = AppStorage(wrappedValue: false, "launchWish_\(market.rawValue)")
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "clock.badge.checkmark")
+                .font(.system(size: 38))
+                .foregroundStyle(theme.tertiaryLabel)
+            Text("\(market.title) 준비 중입니다")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(theme.secondaryLabel)
+            Text("하트가 많은 증권거래소부터 출시돼요")
+                .font(.system(size: 13))
+                .foregroundStyle(theme.tertiaryLabel)
+                .multilineTextAlignment(.center)
+
+            // 하트 토글 — 서버 집계와 연동. 누르면 총 인원 수가 동적으로 갱신됨
+            VStack(spacing: 8) {
+                Button {
+                    Task { await toggleVote() }
+                } label: {
+                    Image(systemName: wantsLaunch ? "heart.fill" : "heart")
+                        .font(.system(size: 34))
+                        .foregroundStyle(wantsLaunch ? Color.pink : theme.tertiaryLabel)
+                        .scaleEffect(wantsLaunch ? 1.0 : 0.92)
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+
+                Text("\(count)명이 출시를 원해요")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(theme.secondaryLabel)
+                    .contentTransition(.numericText())
+            }
+            .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 56)
+        .task(id: market) { await loadCount() }
+    }
+
+    private func loadCount() async {
+        if let c = await LaunchVoteAPI.counts()[market.rawValue] {
+            withAnimation(.snappy) { count = c }
+        }
+    }
+
+    private func toggleVote() async {
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+
+        let newValue = !wantsLaunch
+        // 낙관적 UI — 서버 응답 전 즉시 반영
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            wantsLaunch = newValue
+            count = max(0, count + (newValue ? 1 : -1))
+        }
+
+        if let serverCount = await LaunchVoteAPI.vote(market: market.rawValue, wants: newValue) {
+            withAnimation(.snappy) { count = serverCount }
+        } else {
+            // 실패 → 롤백
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                wantsLaunch = !newValue
+                count = max(0, count + (newValue ? -1 : 1))
+            }
+        }
+    }
+}
+
 // MARK: - Empty Market View (필터 결과 없음)
 
 struct EmptyMarketView: View {
@@ -1200,47 +1252,19 @@ struct EmptyMarketView: View {
 // MARK: - Live Indicator Bar
 
 struct LiveIndicatorBar: View {
-    let currentTime: Date
+    let market: Market                      // 현재 섹션 — 상태 문구(실시간/종가 기준)를 결정
+    let currentTime: Date                   // 실시간 섹션 시계
+    let basDt: String?                      // 코스피/코스닥 기준일("YYYYMMDD")
     @Binding var isDarkMode: Bool
     var vScale: CGFloat = 1                 // 헤더 세로 비례 계수 (기기별 동일 비율)
+    var onSearch: () -> Void = {}           // 돋보기 → 검색 화면
+    var onMenu: () -> Void = {}             // ≡ → 전체 메뉴
     @Environment(\.appTheme) private var theme
-    @State private var blinkOpacity: Double = 1.0
-
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
-
-    private var dateString: String { Self.dateFormatter.string(from: currentTime) }
-    private var timeString: String { Self.timeFormatter.string(from: currentTime) }
 
     var body: some View {
         HStack(spacing: 8) {
-            // 좌측 상단 Live 인디케이터 + 현재 날짜/시간
-            Circle()
-                .fill(Color.green)
-                .frame(width: 8, height: 8)
-                .opacity(blinkOpacity)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                        blinkOpacity = 0.15
-                    }
-                }
-
-            Text("Live")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.green)
-
-            Text("\(dateString)  \(timeString)")
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(theme.secondaryLabel)
+            // 좌측 상단 — 섹션별 데이터 기준 표시 (실시간 시각 / D-1 종가 기준)
+            MarketStatusView(market: market, currentTime: currentTime, basDt: basDt)
 
             Spacer()
 
@@ -1257,19 +1281,15 @@ struct LiveIndicatorBar: View {
                 }
                 .buttonStyle(.plain)
 
-                // 검색 (기능은 다음 단계에서 연결)
-                Button {
-                    // TODO: 검색 화면 연결
-                } label: {
+                // 검색 → 토스식 검색 화면
+                Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(theme.label)
                 }
                 .buttonStyle(.plain)
 
-                // 메뉴 (기능은 다음 단계에서 연결)
-                Button {
-                    // TODO: 메뉴 연결
-                } label: {
+                // 메뉴 → 전체 메뉴 화면
+                Button(action: onMenu) {
                     Image(systemName: "line.3.horizontal")
                         .foregroundStyle(theme.label)
                 }
@@ -1281,6 +1301,66 @@ struct LiveIndicatorBar: View {
         .padding(.leading, 24)
         .padding(.trailing, 20)
         .padding(.vertical, 6 * vScale)
+    }
+}
+
+// MARK: - Market Status View (섹션별 데이터 기준 표시)
+
+/// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
+/// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
+///  · 실시간(ALL/NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ 실시간 HH:mm:ss" (1초마다 시각 갱신)
+///  · EOD(KOSPI/KOSDAQ, 공공데이터포털 D-1): "● KOSPI 2026.07.23 종가 기준" (실제 기준일 basDt)
+///  · 준비 중 섹션(데이터 없음): "● JPX 출시 준비 중" (초록 대신 흐린 색·정적 원으로 구분)
+/// 초록 하이라이트 + 깜빡이는 원은 기존 Live 인디케이터의 시각 언어를 그대로 계승한다.
+struct MarketStatusView: View {
+    let market: Market
+    let currentTime: Date
+    let basDt: String?                      // "20260723" (코스피/코스닥만)
+    @Environment(\.appTheme) private var theme
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
+    private var isEOD: Bool { market == .kospi || market == .kosdaq }
+
+    /// "20260723" → "2026.07.23". 형식이 다르면 원본 그대로.
+    private func formatBasDt(_ s: String) -> String {
+        guard s.count == 8 else { return s }
+        return "\(s.prefix(4)).\(s.dropFirst(4).prefix(2)).\(s.dropFirst(6).prefix(2))"
+    }
+
+    /// 거래소명 옆 부가 문구 — 섹션 성격에 따라 기준일/실시간 시각/준비 중.
+    private var detail: String {
+        if market.comingSoon { return "출시 준비 중" }
+        if isEOD { return basDt.map { "\(formatBasDt($0)) 종가 기준" } ?? "불러오는 중" }
+        return "실시간 \(Self.timeFormatter.string(from: currentTime))"
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // 국가 국기 아이콘 — 원형 클리핑으로 일관된 모양 유지
+            // 글로브 아이콘은 PNG 내부 여백이 있어 실제 시각 크기가 작으므로 프레임을 키워 보정
+            let flagSize: CGFloat = market == .all ? 24 : 18
+            Image(market.flagImageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: flagSize, height: flagSize)
+                .clipShape(Circle())
+                .opacity(market.comingSoon ? 0.35 : 1.0)
+
+            // 초록 하이라이트 = 선택된 거래소명 (준비 중은 흐린 색)
+            Text(market.title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(market.comingSoon ? theme.secondaryLabel : Color.green)
+
+            Text(detail)
+                .font(.system(size: 12, weight: .medium))
+                .monospacedDigit()          // 실시간 시계 자릿수 흔들림 방지
+                .foregroundStyle(theme.secondaryLabel)
+        }
     }
 }
 
@@ -1298,19 +1378,8 @@ struct SingleMarketTicker: View {
                     if i == currentIndex {
                         MarketIndexRow(
                             index: indices[i],
-                            nameValueSpacing: {
-                                switch indices[i].id {
-                                case "usd":    return 8
-                                case "nasdaq": return 8
-                                case "kospi":  return 8
-                                case "kosdaq": return 8
-                                default:       return 8
-                                }
-                            }(),
                             changeTrailingPadding: {
                                 switch indices[i].id {
-                                case "usd":    return 0
-                                case "nasdaq": return 0
                                 case "kospi":  return 12
                                 case "kosdaq": return 15
                                 default:       return 0
@@ -1337,7 +1406,6 @@ struct SingleMarketTicker: View {
 
 struct MarketIndexRow: View {
     let index: MarketIndex
-    var nameValueSpacing: CGFloat = 8
     var changeTrailingPadding: CGFloat = 0
     @Environment(\.appTheme) private var theme
 
@@ -1349,12 +1417,16 @@ struct MarketIndexRow: View {
             : Color(red: 0.10, green: 0.43, blue: 0.92)
     }
 
+    private static let valueFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
     private var formattedValue: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: index.value)) ?? "\(index.value)"
+        Self.valueFormatter.string(from: NSNumber(value: index.value)) ?? "\(index.value)"
     }
 
     private var formattedChangePercent: String {
@@ -1364,7 +1436,7 @@ struct MarketIndexRow: View {
 
     var body: some View {
         HStack(alignment: .lastTextBaseline) {
-            HStack(alignment: .firstTextBaseline, spacing: nameValueSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(index.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(theme.secondaryLabel)
@@ -1448,7 +1520,6 @@ private let tickerLocalLogo: [String: String] = [
     "ARM":        "logo_ARM",
     "INTC":       "logo_INTC",
     "ASML":       "logo_ASML",
-    "ASML.AS":    "logo_ASML",
     "CAT":        "logo_CAT",
     "GE":         "logo_GE",
     "247540.KQ":  "logo_247540KQ",
@@ -1470,14 +1541,6 @@ private let tickerLocalLogo: [String: String] = [
     "108490.KQ":  "logo_108490KQ",
     "095610.KQ":  "logo_095610KQ",
     "141080.KQ":  "logo_141080KQ",
-    "RACE.MI":    "logo_RACEMI",
-    "MC.PA":      "logo_MCPA",
-    "OR.PA":      "logo_ORPA",
-    "TTE.PA":     "logo_TTEPA",
-    "SU.PA":      "logo_SUPA",
-    "SAF.PA":     "logo_SAFPA",
-    "CDI.PA":     "logo_CDIPA",
-    "BNP.PA":     "logo_BNPPA",
 ]
 
 /// 로컬 PNG에 검정 배경이 포함된 로고 — 표시 시 배경을 자동 제거.
@@ -1662,32 +1725,45 @@ struct ColumnHeader: View {
     @ViewBuilder
     private func sortButton(_ title: String, field: SortField) -> some View {
         let isActive = sortField == field
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                if isActive {
-                    sortOrder = sortOrder == .ascending ? .descending : .ascending
-                } else {
-                    sortField = field
-                    sortOrder = .ascending
+        HStack(spacing: 3) {
+            // 제목 탭: 해당 컬럼 활성화(토글). 방향은 위/아래 화살표로 명시적으로 고른다.
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if isActive {
+                        sortOrder = sortOrder == .ascending ? .descending : .ascending
+                    } else {
+                        sortField = field
+                        sortOrder = .ascending
+                    }
                 }
-            }
-        } label: {
-            HStack(spacing: 3) {
+            } label: {
                 Text(title)
                     .foregroundStyle(isActive ? theme.label : theme.secondaryLabel)
-                VStack(spacing: 1) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(
-                            isActive && sortOrder == .ascending ? theme.label : theme.tertiaryLabel
-                        )
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(
-                            isActive && sortOrder == .descending ? theme.label : theme.tertiaryLabel
-                        )
-                }
             }
+            .buttonStyle(.plain)
+
+            // 위 화살표 = 오름차순, 아래 화살표 = 내림차순 (각각 개별 탭)
+            VStack(spacing: 1) {
+                chevron("chevron.up",   field: field, order: .ascending,  isActive: isActive)
+                chevron("chevron.down", field: field, order: .descending, isActive: isActive)
+            }
+        }
+    }
+
+    /// 방향 화살표 한 개 — 탭하면 해당 컬럼을 그 방향으로 정렬한다.
+    @ViewBuilder
+    private func chevron(_ system: String, field: SortField, order: SortOrder, isActive: Bool) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                sortField = field
+                sortOrder = order
+            }
+        } label: {
+            Image(systemName: system)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(isActive && sortOrder == order ? theme.label : theme.tertiaryLabel)
+                .padding(.horizontal, 3)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -1701,17 +1777,21 @@ struct CompanyRow: View {
     let exchangeRate: Double
     @Environment(\.appTheme) private var theme
 
+    private static let krwFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.maximumFractionDigits = 0
+        f.minimumFractionDigits = 0
+        return f
+    }()
+
     private var formattedMarketCap: String {
         switch currency {
         case .usd:
             return String(format: "$%.2fT", company.marketCapUSD)
         case .krw:
             let krwTrillion = company.marketCapUSD * exchangeRate
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.maximumFractionDigits = 0
-            formatter.minimumFractionDigits = 0
-            let formatted = formatter.string(from: NSNumber(value: krwTrillion)) ?? String(format: "%d", krwTrillion)
+            let formatted = Self.krwFormatter.string(from: NSNumber(value: krwTrillion)) ?? "\(Int(krwTrillion))"
             return "\(formatted)조원"
         }
     }

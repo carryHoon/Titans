@@ -1,0 +1,86 @@
+{
+  "source": "app-baseline",
+  "asOf": "2026-07-23T23:50:11.557Z",
+  "top": [
+    {
+      "ticker": "TSM",
+      "name": "TSMC"
+    },
+    {
+      "ticker": "LLY",
+      "name": "Eli Lilly"
+    },
+    {
+      "ticker": "BRK.B",
+      "name": "Berkshire"
+    },
+    {
+      "ticker": "JPM",
+      "name": "JPMorgan"
+    },
+    {
+      "ticker": "V",
+      "name": "Visa"
+    },
+    {
+      "ticker": "JNJ",
+      "name": "J&J"
+    },
+    {
+      "ticker": "XOM",
+      "name": "ExxonMobil"
+    },
+    {
+      "ticker": "MA",
+      "name": "Mastercard"
+    },
+    {
+      "ticker": "ABBV",
+      "name": "AbbVie"
+    },
+    {
+      "ticker": "BAC",
+      "name": "Bank of America"
+    },
+    {
+      "ticker": "CAT",
+      "name": "Caterpillar"
+    },
+    {
+      "ticker": "UNH",
+      "name": "UnitedHealth"
+    },
+    {
+      "ticker": "CVX",
+      "name": "Chevron"
+    },
+    {
+      "ticker": "GE",
+      "name": "GE Aerospace"
+    },
+    {
+      "ticker": "KO",
+      "name": "Coca-Cola"
+    },
+    {
+      "ticker": "PG",
+      "name": "P&G"
+    },
+    {
+      "ticker": "ORCL",
+      "name": "Oracle"
+    },
+    {
+      "ticker": "MS",
+      "name": "Morgan Stanley"
+    },
+    {
+      "ticker": "HD",
+      "name": "Home Depot"
+    },
+    {
+      "ticker": "GS",
+      "name": "Goldman Sachs"
+    }
+  ]
+}

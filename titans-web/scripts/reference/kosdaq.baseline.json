@@ -1,0 +1,86 @@
+{
+  "source": "app-baseline",
+  "asOf": "2026-07-23T23:50:13.207Z",
+  "top": [
+    {
+      "ticker": "196170.KQ",
+      "name": "Alteogen"
+    },
+    {
+      "ticker": "247540.KQ",
+      "name": "Ecopro BM"
+    },
+    {
+      "ticker": "086520.KQ",
+      "name": "Ecopro"
+    },
+    {
+      "ticker": "277810.KQ",
+      "name": "Rainbow Robotics"
+    },
+    {
+      "ticker": "036930.KQ",
+      "name": "Jusung Eng."
+    },
+    {
+      "ticker": "058470.KQ",
+      "name": "Leeno Ind."
+    },
+    {
+      "ticker": "240810.KQ",
+      "name": "Wonik IPS"
+    },
+    {
+      "ticker": "319660.KQ",
+      "name": "PSK"
+    },
+    {
+      "ticker": "298380.KQ",
+      "name": "ABL Bio"
+    },
+    {
+      "ticker": "039030.KQ",
+      "name": "EO Technics"
+    },
+    {
+      "ticker": "028300.KQ",
+      "name": "HLB"
+    },
+    {
+      "ticker": "000250.KQ",
+      "name": "Samchundang"
+    },
+    {
+      "ticker": "141080.KQ",
+      "name": "LigaChem Bio"
+    },
+    {
+      "ticker": "214450.KQ",
+      "name": "Pharma Research"
+    },
+    {
+      "ticker": "440110.KQ",
+      "name": "FADU"
+    },
+    {
+      "ticker": "222800.KQ",
+      "name": "Simmtech"
+    },
+    {
+      "ticker": "403870.KQ",
+      "name": "HPSP"
+    },
+    {
+      "ticker": "108490.KQ",
+      "name": "Robotis"
+    },
+    {
+      "ticker": "095340.KQ",
+      "name": "ISC"
+    },
+    {
+      "ticker": "095610.KQ",
+      "name": "Tes"
+    }
+  ]
+}

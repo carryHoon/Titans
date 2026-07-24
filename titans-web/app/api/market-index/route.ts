@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
+import { getUsdKrwQuote } from '@/lib/fx'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Yahoo Finance v8/finance/chart — crumb 불필요, 가장 안정적
-// 장중: ~15초 지연 실시간 / 장외: 직전 종가
+// 지수(나스닥/코스피/코스닥) = Yahoo Finance v8/finance/chart (crumb 불필요).
+// 달러 환율 = 통합 FX 레이어(@/lib/fx) — 수출입은행 우선, OXR·상수 자동 폴백.
 const CACHE_TTL_MS = 15_000
 
 const INDICES = [
@@ -49,9 +50,9 @@ interface CacheEntry {
 let cache: CacheEntry | null = null
 let lastGoodCache: CacheEntry | null = null
 
-// ─── Fetcher ──────────────────────────────────────────────────────────────────
+// ─── Yahoo Fetcher ──────────────────────────────────────────────────────────
 
-async function fetchYahooChart(symbol: string): Promise<IndexData & { id: string; name: string }> {
+async function fetchYahooChart(symbol: string): Promise<IndexData> {
   const encoded = encodeURIComponent(symbol)
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1d`
 
@@ -83,6 +84,21 @@ async function fetchYahooChart(symbol: string): Promise<IndexData & { id: string
   }
 }
 
+// ─── 달러 환율 (통합 FX 레이어) ─────────────────────────────────────────────────
+// 소스 선택·캐시·폴백은 전부 @/lib/fx 가 담당한다(수출입은행 우선 → OXR → 상수).
+// 여기선 FxQuote 를 지수 카드(IndexData) 형태로 매핑만 한다.
+async function fetchUsdIndex(): Promise<IndexData> {
+  const q = await getUsdKrwQuote()
+  return {
+    id: 'usd',
+    name: '달러 환율',
+    value: q.rate,
+    change: q.change,
+    changePercent: q.changePercent,
+    updatedAt: q.asOf,
+  }
+}
+
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -92,7 +108,13 @@ export async function GET() {
   }
 
   try {
-    const data = await Promise.all(INDICES.map(idx => fetchYahooChart(idx.symbol)))
+    // 달러 환율은 Eximbank(폴백 Yahoo), 나머지 지수는 Yahoo. 순서는 INDICES 기준 유지.
+    const others = INDICES.filter(i => i.id !== 'usd')
+    const [usd, ...rest] = await Promise.all([
+      fetchUsdIndex(),
+      ...others.map(idx => fetchYahooChart(idx.symbol)),
+    ])
+    const data = [usd, ...rest]
 
     cache = { data, ts: Date.now() }
     lastGoodCache = cache

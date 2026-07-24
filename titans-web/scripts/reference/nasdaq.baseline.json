@@ -1,0 +1,86 @@
+{
+  "source": "app-baseline",
+  "asOf": "2026-07-23T23:50:09.480Z",
+  "top": [
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA"
+    },
+    {
+      "ticker": "AAPL",
+      "name": "Apple"
+    },
+    {
+      "ticker": "GOOGL",
+      "name": "Alphabet"
+    },
+    {
+      "ticker": "MSFT",
+      "name": "Microsoft"
+    },
+    {
+      "ticker": "AMZN",
+      "name": "Amazon"
+    },
+    {
+      "ticker": "AVGO",
+      "name": "Broadcom"
+    },
+    {
+      "ticker": "SPCX",
+      "name": "SpaceX"
+    },
+    {
+      "ticker": "META",
+      "name": "Meta"
+    },
+    {
+      "ticker": "TSLA",
+      "name": "Tesla"
+    },
+    {
+      "ticker": "MU",
+      "name": "Micron"
+    },
+    {
+      "ticker": "WMT",
+      "name": "Walmart"
+    },
+    {
+      "ticker": "000660.KS",
+      "name": "SK Hynix"
+    },
+    {
+      "ticker": "AMD",
+      "name": "AMD"
+    },
+    {
+      "ticker": "ASML",
+      "name": "ASML"
+    },
+    {
+      "ticker": "INTC",
+      "name": "Intel"
+    },
+    {
+      "ticker": "AMAT",
+      "name": "Applied Materials"
+    },
+    {
+      "ticker": "CSCO",
+      "name": "Cisco"
+    },
+    {
+      "ticker": "COST",
+      "name": "Costco"
+    },
+    {
+      "ticker": "LRCX",
+      "name": "Lam Research"
+    },
+    {
+      "ticker": "ARM",
+      "name": "Arm Holdings"
+    }
+  ]
+}

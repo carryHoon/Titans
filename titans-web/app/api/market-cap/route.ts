@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server'
+import { getUsdKrwQuote } from '@/lib/fx'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const FINNHUB_TOKEN = process.env.FINNHUB_API_KEY ?? ''
 const BASE = 'https://finnhub.io/api/v1'
-const OXR_APP_ID = process.env.OPEN_EXCHANGE_RATES_APP_ID ?? ''
-// 환율 폴백 (통화당 USD). OXR 장애 시 마지막 성공값(lastGoodForex)이 없을 때만 사용.
+// 환율(KRW/USD)은 통합 FX 레이어(@/lib/fx)에서 조회한다 — 소스/캐시/폴백 일원화.
+// 지수 섹션 달러 환율 카드와 동일하게 수출입은행 매매기준율을 쓴다(값 일치).
+// 아래 상수는 lastGoodExchangeRate 초기값(최후 방어선)으로만 사용.
 const FOREX_FALLBACK = 1450.0   // KRW/USD
-const JPY_FALLBACK   = 155.0    // JPY/USD — JPX 시총 환산용
-const CNY_FALLBACK   = 7.2      // CNY/USD — SSE 시총 환산용
-const EUR_FALLBACK   = 0.92     // EUR/USD — Euronext 시총 환산용
 
 // NASDAQ/NYSE 유니버스는 정적 리스트로 관리한다. FMP 무료 플랜은 스크리너를 더 이상
 // 지원하지 않고(레거시 폐지 + 신규 company-screener 유료), 배치 quote·일부 티커(BRK.B)도
@@ -177,9 +176,10 @@ const KOREAN_STOCKS: KoreanStockMeta[] = [
 // 순위가 나스닥 공식과 일치한다. (KOSPI 섹션과 중복 노출은 TSM처럼 정상)
 const SKHYNIX_KRX: KoreanStockMeta = { ticker: '000660.KS', yahooTicker: '000660.KS', name: 'SK Hynix', color: '#EA5504' }
 
-// KOSPI 시총 상위 종목 (하드코딩 유니버스, 우선주 제외).
-// 순위는 하루 안에 거의 안 바뀌므로 정적 관리 → API 콜 절약. 시세/시총만 Naver로 라이브 갱신.
-// Finnhub 무료 플랜은 KRX 미지원이라 미국 거래소와 달리 Naver Finance를 사용.
+// KOSPI 큐레이션 메타 (영문명·브랜드색·우선주 제외 기준). 유니버스·시세·시총은 이제
+// 공공데이터포털(금융위 주식시세정보)에서 매일 EOD로 동적으로 뽑으므로(getKrxDataset),
+// 이 배열은 "종목코드 → 영문명/색" 표시 메타의 소스로만 쓰인다.
+// 여기에 없는 신규 상위 종목은 공공데이터포털의 한글 종목명 + 기본색으로 폴백 표시된다.
 const KOSPI_COMPANIES: KoreanStockMeta[] = [
   { ticker: '005930.KS', yahooTicker: '005930.KS', name: 'Samsung Elec.',    color: '#1428A0' },
   { ticker: '000660.KS', yahooTicker: '000660.KS', name: 'SK Hynix',         color: '#EA5504' },
@@ -203,8 +203,7 @@ const KOSPI_COMPANIES: KoreanStockMeta[] = [
   { ticker: '006400.KS', yahooTicker: '006400.KS', name: 'Samsung SDI',      color: '#1428A0' },
 ]
 
-// KOSDAQ 시총 상위 종목 (하드코딩 유니버스). KOSPI와 동일하게 Naver로 라이브 갱신.
-// Naver 조회는 거래소 구분 없이 6자리 종목코드만 사용하므로 로직은 KOSPI와 공유.
+// KOSDAQ 큐레이션 메타. KOSPI_COMPANIES와 동일하게 표시용 영문명/색 소스로만 사용.
 const KOSDAQ_COMPANIES: KoreanStockMeta[] = [
   { ticker: '196170.KQ', yahooTicker: '196170.KQ', name: 'Alteogen',         color: '#0067AC' },
   { ticker: '247540.KQ', yahooTicker: '247540.KQ', name: 'Ecopro BM',        color: '#008C44' },
@@ -228,123 +227,22 @@ const KOSDAQ_COMPANIES: KoreanStockMeta[] = [
   { ticker: '095340.KQ', yahooTicker: '095340.KQ', name: 'ISC',              color: '#0060A9' },
 ]
 
-// JPX(도쿄)·SSE(상하이) 종목도 KoreanStockMeta와 동일 형태(티커/야후티커/이름/색)를 쓴다.
-// Finnhub 무료 플랜은 JPX/SSE 미지원 → KRX처럼 Yahoo Finance HTML로 시세/시총을 확보.
-type ForeignStockMeta = KoreanStockMeta
-
-// JPX(도쿄증권거래소) 시총 상위 종목 (하드코딩 유니버스). Yahoo `.T` 심볼 사용.
-// marketCap은 JPY 단위 → forex.jpy(JPY/USD)로 나눠 USD 환산.
-const JPX_COMPANIES: ForeignStockMeta[] = [
-  { ticker: '7203.T', yahooTicker: '7203.T', name: 'Toyota',          color: '#EB0A1E' },
-  { ticker: '8306.T', yahooTicker: '8306.T', name: 'Mitsubishi UFJ',  color: '#E60000' },
-  { ticker: '6758.T', yahooTicker: '6758.T', name: 'Sony',            color: '#000000' },
-  { ticker: '6861.T', yahooTicker: '6861.T', name: 'Keyence',         color: '#003DA5' },
-  { ticker: '9984.T', yahooTicker: '9984.T', name: 'SoftBank Group',  color: '#EF3E42' },
-  { ticker: '9983.T', yahooTicker: '9983.T', name: 'Fast Retailing',  color: '#FF0000' },
-  { ticker: '6098.T', yahooTicker: '6098.T', name: 'Recruit',         color: '#FF7A00' },
-  { ticker: '8035.T', yahooTicker: '8035.T', name: 'Tokyo Electron',  color: '#003399' },
-  { ticker: '4063.T', yahooTicker: '4063.T', name: 'Shin-Etsu Chem.', color: '#005BAC' },
-  { ticker: '9432.T', yahooTicker: '9432.T', name: 'NTT',             color: '#2C4B9B' },
-  { ticker: '6501.T', yahooTicker: '6501.T', name: 'Hitachi',         color: '#E60027' },
-  { ticker: '7974.T', yahooTicker: '7974.T', name: 'Nintendo',        color: '#E60012' },
-  { ticker: '8058.T', yahooTicker: '8058.T', name: 'Mitsubishi Corp', color: '#E60012' },
-  { ticker: '8001.T', yahooTicker: '8001.T', name: 'Itochu',          color: '#0068B7' },
-  { ticker: '6902.T', yahooTicker: '6902.T', name: 'Denso',           color: '#E60027' },
-  { ticker: '4519.T', yahooTicker: '4519.T', name: 'Chugai Pharma',   color: '#003F98' },
-  { ticker: '6367.T', yahooTicker: '6367.T', name: 'Daikin',          color: '#0097E0' },
-  { ticker: '8316.T', yahooTicker: '8316.T', name: 'Sumitomo Mitsui', color: '#00A040' },
-  { ticker: '7267.T', yahooTicker: '7267.T', name: 'Honda',           color: '#E60012' },
-  { ticker: '6594.T', yahooTicker: '6594.T', name: 'Nidec',           color: '#004098' },
-]
-
-// SSE(상하이증권거래소) 시총 상위 종목 (하드코딩 유니버스). Yahoo `.SS` 심볼 사용.
-// marketCap은 CNY 단위 → forex.cny(CNY/USD)로 나눠 USD 환산.
-const SSE_COMPANIES: ForeignStockMeta[] = [
-  { ticker: '600519.SS', yahooTicker: '600519.SS', name: 'Kweichow Moutai', color: '#A5122A' },
-  { ticker: '601398.SS', yahooTicker: '601398.SS', name: 'ICBC',            color: '#C7000B' },
-  { ticker: '600941.SS', yahooTicker: '600941.SS', name: 'China Mobile',    color: '#005BAC' },
-  { ticker: '601288.SS', yahooTicker: '601288.SS', name: 'Agric. Bank',     color: '#00954C' },
-  { ticker: '601857.SS', yahooTicker: '601857.SS', name: 'PetroChina',      color: '#E60012' },
-  { ticker: '601988.SS', yahooTicker: '601988.SS', name: 'Bank of China',   color: '#AF1E24' },
-  { ticker: '600036.SS', yahooTicker: '600036.SS', name: 'China Merch. Bk', color: '#C60C1E' },
-  { ticker: '601318.SS', yahooTicker: '601318.SS', name: 'Ping An',         color: '#F26A21' },
-  { ticker: '601628.SS', yahooTicker: '601628.SS', name: 'China Life',      color: '#C8161D' },
-  { ticker: '600900.SS', yahooTicker: '600900.SS', name: 'Yangtze Power',   color: '#1E88C7' },
-  { ticker: '600028.SS', yahooTicker: '600028.SS', name: 'Sinopec',         color: '#E60012' },
-  { ticker: '601088.SS', yahooTicker: '601088.SS', name: 'China Shenhua',   color: '#C7000B' },
-  { ticker: '600030.SS', yahooTicker: '600030.SS', name: 'CITIC Sec.',      color: '#C8161D' },
-  { ticker: '603288.SS', yahooTicker: '603288.SS', name: 'Foshan Haitian',  color: '#C8161D' },
-  { ticker: '600276.SS', yahooTicker: '600276.SS', name: 'Hengrui Pharma',  color: '#0096D6' },
-  { ticker: '601668.SS', yahooTicker: '601668.SS', name: 'China State Cons.',color: '#C8161D' },
-  { ticker: '688981.SS', yahooTicker: '688981.SS', name: 'SMIC',            color: '#00539B' },
-  { ticker: '601166.SS', yahooTicker: '601166.SS', name: 'Industrial Bank', color: '#1C4E9D' },
-  { ticker: '600887.SS', yahooTicker: '600887.SS', name: 'Yili',            color: '#0066B3' },
-  { ticker: '600809.SS', yahooTicker: '600809.SS', name: 'Shanxi Fenjiu',   color: '#A5122A' },
-]
-
-// SZSE(선전증권거래소) 시총 상위 종목 (하드코딩 유니버스). Yahoo `.SZ` 심볼 사용.
-// marketCap은 CNY 단위 → SSE와 동일하게 forex.cny로 USD 환산.
-const SZSE_COMPANIES: ForeignStockMeta[] = [
-  { ticker: '300750.SZ', yahooTicker: '300750.SZ', name: 'CATL',            color: '#00A03E' },
-  { ticker: '000858.SZ', yahooTicker: '000858.SZ', name: 'Wuliangye',       color: '#C8161D' },
-  { ticker: '002594.SZ', yahooTicker: '002594.SZ', name: 'BYD',             color: '#E60012' },
-  { ticker: '000333.SZ', yahooTicker: '000333.SZ', name: 'Midea Group',     color: '#1A5CB4' },
-  { ticker: '000651.SZ', yahooTicker: '000651.SZ', name: 'Gree Electric',   color: '#005BAC' },
-  { ticker: '002415.SZ', yahooTicker: '002415.SZ', name: 'Hikvision',       color: '#E60012' },
-  { ticker: '300760.SZ', yahooTicker: '300760.SZ', name: 'Mindray',         color: '#00539B' },
-  { ticker: '000001.SZ', yahooTicker: '000001.SZ', name: 'Ping An Bank',    color: '#F26A21' },
-  { ticker: '002714.SZ', yahooTicker: '002714.SZ', name: 'Muyuan Foods',    color: '#009944' },
-  { ticker: '300059.SZ', yahooTicker: '300059.SZ', name: 'East Money',      color: '#E60012' },
-  { ticker: '002475.SZ', yahooTicker: '002475.SZ', name: 'Luxshare',        color: '#004098' },
-  { ticker: '000568.SZ', yahooTicker: '000568.SZ', name: 'Luzhou Laojiao',  color: '#B01F24' },
-  { ticker: '002304.SZ', yahooTicker: '002304.SZ', name: 'Yanghe Brewery',  color: '#1E5EA8' },
-  { ticker: '300124.SZ', yahooTicker: '300124.SZ', name: 'Inovance',        color: '#005BAC' },
-  { ticker: '002352.SZ', yahooTicker: '002352.SZ', name: 'SF Holding',      color: '#000000' },
-  { ticker: '300015.SZ', yahooTicker: '300015.SZ', name: 'Aier Eye',        color: '#009944' },
-  { ticker: '000725.SZ', yahooTicker: '000725.SZ', name: 'BOE Tech.',       color: '#1A9AD6' },
-  { ticker: '002230.SZ', yahooTicker: '002230.SZ', name: 'iFlytek',         color: '#E60012' },
-  { ticker: '300274.SZ', yahooTicker: '300274.SZ', name: 'Sungrow Power',   color: '#E60012' },
-  { ticker: '002460.SZ', yahooTicker: '002460.SZ', name: 'Ganfeng Lithium', color: '#00954C' },
-]
-
-// Euronext(범유럽 통합 거래소) 시총 상위 종목 (하드코딩 유니버스).
-// 파리(.PA)·암스테르담(.AS)·밀라노(.MI) 등 도시별 접미사를 쓰지만 모두 EUR 표시통화라
-// currency는 'eur' 하나로 통일. 오슬로(.OL, NOK)는 통화가 달라 이번 범위에서 제외.
-// SAP(프랑크푸르트)·노보노디스크(코펜하겐)는 유로넥스트가 아니므로 포함하지 않는다.
-// marketCap은 EUR 단위 → forex.eur(EUR/USD)로 나눠 USD 환산. Finnhub 무료는 유럽 미지원 →
-// Aramco·KRX와 동일하게 Yahoo Finance HTML 파싱으로 시세/시총 확보.
-const EURONEXT_COMPANIES: ForeignStockMeta[] = [
-  { ticker: 'ASML.AS',  yahooTicker: 'ASML.AS',  name: 'ASML',              color: '#0B5394' },
-  { ticker: 'MC.PA',    yahooTicker: 'MC.PA',    name: 'LVMH',              color: '#2B2B2B' },
-  { ticker: 'RMS.PA',   yahooTicker: 'RMS.PA',   name: 'Hermès',            color: '#F37021' },
-  { ticker: 'OR.PA',    yahooTicker: 'OR.PA',    name: "L'Oréal",           color: '#000000' },
-  { ticker: 'TTE.PA',   yahooTicker: 'TTE.PA',   name: 'TotalEnergies',     color: '#E3001B' },
-  { ticker: 'PRX.AS',   yahooTicker: 'PRX.AS',   name: 'Prosus',            color: '#00A0DF' },
-  { ticker: 'SAN.PA',   yahooTicker: 'SAN.PA',   name: 'Sanofi',            color: '#7A00E6' },
-  { ticker: 'SU.PA',    yahooTicker: 'SU.PA',    name: 'Schneider Elec.',   color: '#3DCD58' },
-  { ticker: 'AI.PA',    yahooTicker: 'AI.PA',    name: 'Air Liquide',       color: '#005BAC' },
-  { ticker: 'EL.PA',    yahooTicker: 'EL.PA',    name: 'EssilorLuxottica',  color: '#1A1A1A' },
-  { ticker: 'RACE.MI',  yahooTicker: 'RACE.MI',  name: 'Ferrari',           color: '#FF2800' },
-  { ticker: 'AIR.PA',   yahooTicker: 'AIR.PA',   name: 'Airbus',            color: '#00205B' },
-  { ticker: 'SAF.PA',   yahooTicker: 'SAF.PA',   name: 'Safran',            color: '#E2001A' },
-  { ticker: 'CDI.PA',   yahooTicker: 'CDI.PA',   name: 'Christian Dior',    color: '#000000' },
-  { ticker: 'BNP.PA',   yahooTicker: 'BNP.PA',   name: 'BNP Paribas',       color: '#00915A' },
-  { ticker: 'ENEL.MI',  yahooTicker: 'ENEL.MI',  name: 'Enel',              color: '#0072CE' },
-  { ticker: 'ADYEN.AS', yahooTicker: 'ADYEN.AS', name: 'Adyen',             color: '#0ABF53' },
-  { ticker: 'UCG.MI',   yahooTicker: 'UCG.MI',   name: 'UniCredit',         color: '#E2001A' },
-  { ticker: 'ISP.MI',   yahooTicker: 'ISP.MI',   name: 'Intesa Sanpaolo',   color: '#007A33' },
-  { ticker: 'DG.PA',    yahooTicker: 'DG.PA',    name: 'Vinci',             color: '#E2001A' },
-  { ticker: 'INGA.AS',  yahooTicker: 'INGA.AS',  name: 'ING Group',         color: '#FF6200' },
-  { ticker: 'BN.PA',    yahooTicker: 'BN.PA',    name: 'Danone',            color: '#005EB8' },
-]
+// 종목코드(6자리, 접미사 없음) → 영문명·색 큐레이션 메타. 위 두 배열에서 자동 생성.
+// 공공데이터포털 동적 유니버스에 이 메타가 없는 신규 종목은 한글명 + 기본색으로 폴백 표시된다.
+const KRX_META: Record<string, { name: string; color: string }> = Object.fromEntries(
+  [...KOSPI_COMPANIES, ...KOSDAQ_COMPANIES].map(c => [
+    c.ticker.replace(/\.(KS|KQ)$/, ''),
+    { name: c.name, color: c.color },
+  ]),
+)
+const KRX_DEFAULT_COLOR = '#3182F6'
 
 // Finnhub 무료: 60 calls/min
 // Quote 5개씩 배치(200ms 딜레이), 21초 캐시 → burst rate limit 방지 ✓
 // Profile 1시간 캐시 → 서버 재시작 시에만 호출                        ✓
-// Forex 1개, 1시간 캐시 → ~24 calls/day (~720/month) → OXR 무료 1,000/월 한도 안전 ✓
+// 환율은 @/lib/fx 가 자체 1시간 캐시로 호출 제한을 관리한다.
 const QUOTE_TTL_MS   = 21_000
 const PROFILE_TTL_MS = 3_600_000
-const FOREX_TTL_MS   = 3_600_000   // 1시간 (60 × 60 × 1000)
 
 // 미국 종목 '순위 기준 시총'은 Yahoo Finance marketCap을 앵커로 쓴다(나스닥 공식과 잘 맞음, 예:
 // Walmart를 Finnhub는 ~10% 부풀리지만 Yahoo는 공식과 일치). 시총·주식수는 하루 안에 거의 안
@@ -372,17 +270,6 @@ interface ProfileData {
   shareOutstanding: number      // millions of shares (보통주 기준) — TSM ADR 계산에만 사용
 }
 
-interface ForexRates {
-  krw: number  // KRW/USD
-  jpy: number  // JPY/USD — JPX 환산용
-  cny: number  // CNY/USD — SSE 환산용
-  eur: number  // EUR/USD — Euronext 환산용
-}
-
-interface OXRResponse {
-  rates: Record<string, number>
-}
-
 interface CacheEntry<T> {
   data: T
   ts: number
@@ -399,37 +286,44 @@ export interface CompanyResult {
   marketCapUSD: number  // Trillion USD
 }
 
-interface KRXQuoteData {
+// 공공데이터포털(금융위 주식시세정보) 응답 1건 — getStockPriceInfo item.
+interface DataGoStockItem {
+  basDt:      string  // 기준일자 "20260723"
+  srtnCd:     string  // 단축코드 "005930"
+  itmsNm:     string  // 종목명 "삼성전자"
+  mrktCtg:    string  // 시장구분 "KOSPI" | "KOSDAQ" | "KONEX"
+  clpr:       string  // 종가 "70000"
+  vs:         string  // 전일대비 "-500" | "1500"
+  fltRt:      string  // 등락률 "-0.71"
+  mrktTotAmt: string  // 시가총액(KRW) "417..."
+}
+
+interface DataGoResponse {
+  response?: {
+    header?: { resultCode?: string; resultMsg?: string }
+    body?: {
+      totalCount?: number
+      items?: { item?: DataGoStockItem[] } | ''
+    }
+  }
+}
+
+// 공공데이터포털에서 정규화한 KRX 종목 1건 (시장별 배열 + byCode 조회용).
+interface KrxRow {
+  code:          string  // 6자리 단축코드
+  name:          string  // 한글 종목명
+  market:        'KOSPI' | 'KOSDAQ'
   price:         number
   change:        number
   changePercent: number
   marketCapKRW:  number
 }
 
-// 해외 거래소(JPX/SSE/SZSE) 배치 quote 1건 (현지 통화). Yahoo v7 응답에서 매핑.
-interface ForeignQuote {
-  price:         number
-  change:        number
-  changePercent: number
-  marketCap:     number  // 현지 통화(JPY/CNY) 단위
-  currency:      string
-}
-
-interface NaverStockBasic {
-  closePrice?:                  string  // "259,000"
-  compareToPreviousClosePrice?: string  // "-500" | "15,000" (하락 시에만 부호 포함)
-  fluctuationsRatio?:           string  // "-0.16" | "6.15"
-}
-
-// integration 엔드포인트의 totalInfos 항목 (basic에서 marketValue 필드가 제거되어 대체)
-interface NaverTotalInfo {
-  code:  string  // "marketValue" 등
-  key:   string  // "시총"
-  value: string  // "1,514조 1,862억"
-}
-
-interface NaverStockIntegration {
-  totalInfos?: NaverTotalInfo[]
+interface KrxDataset {
+  basDt:  string
+  kospi:  KrxRow[]
+  kosdaq: KrxRow[]
+  byCode: Map<string, KrxRow>
 }
 
 // ─── Aramco-Specific Types ────────────────────────────────────────────────────
@@ -449,13 +343,8 @@ const profileCache    = new Map<string, CacheEntry<ProfileData>>()
 // 동시에 조회할 때 Finnhub 호출을 1건으로 합쳐 무료 한도(60/min) 소진을 줄인다.
 const quoteInFlight   = new Map<string, Promise<QuoteData>>()
 const profileInFlight = new Map<string, Promise<ProfileData>>()
-const krxQuoteCache   = new Map<string, CacheEntry<KRXQuoteData>>()
-const naverKRXCache   = new Map<string, CacheEntry<KRXQuoteData>>()
-// 해외 거래소 Yahoo v7 배치 quote 결과 캐시 (거래소 키). QUOTE_TTL로 콜수 절감.
-const foreignQuoteCache = new Map<string, CacheEntry<Map<string, ForeignQuote>>>()
-// JPX/SSE/SZSE 개별 종목 stale 폴백 (배치 일부 누락 시 목록 flickering 방지)
-const foreignLastGoodCache = new Map<string, Omit<CompanyResult, 'rank'>>()
-let forexCache: CacheEntry<ForexRates> | null = null
+// 공공데이터포털 KRX 데이터셋 캐시 (KOSPI+KOSDAQ 전 종목, EOD). 하루 1회 갱신이라 TTL 여유.
+let krxDatasetCache: CacheEntry<KrxDataset> | null = null
 let aramcoDataCache: CacheEntry<AramcoData> | null = null
 
 // 실패 시 Yahoo Finance에 폭격 방지 — 마지막 실패로부터 60초 쿨다운
@@ -463,7 +352,6 @@ const ARAMCO_ERROR_COOLDOWN_MS = 60_000
 let aramcoErrorUntil = 0
 
 // 개별 종목 실패 시 stale 데이터 유지용 (목록 flickering 방지)
-const krxLastGoodCache     = new Map<string, KRXQuoteData>()
 const finnhubLastGoodCache = new Map<string, Omit<CompanyResult, 'rank'>>()
 // 미국 종목 Yahoo marketCap 앵커 캐시 (ticker → 시총 조 단위, 6시간 TTL, 마지막 성공값 유지)
 const usYahooCapCache = new Map<string, CacheEntry<number>>()
@@ -474,24 +362,19 @@ let usYahooCapErrorUntil = 0
 let lastGoodResult: CompanyResult[] | null = null
 let lastGoodAt = 0
 let lastGoodExchangeRate = FOREX_FALLBACK
-// 마지막 성공 환율 전체(KRW/JPY/CNY). OXR 실패 시 통화별 폴백으로 사용.
-let lastGoodForex: ForexRates = { krw: FOREX_FALLBACK, jpy: JPY_FALLBACK, cny: CNY_FALLBACK, eur: EUR_FALLBACK }
 
 // 거래소 전용 피드 상태 (ALL과 분리해 서로 간섭하지 않도록).
 // 신규 거래소는 여기 한 줄만 추가하면 확장됨.
 interface ExchangeFeedState {
   lastGoodResult: CompanyResult[] | null            // 마지막 성공 랭킹 (stale 폴백)
   lastGoodAt:     number
+  lastBasDt?:     string                            // KRX 기준일("YYYYMMDD") — stale 응답에도 유지
 }
 const exchangeFeeds: Record<string, ExchangeFeedState> = {
   NASDAQ: { lastGoodResult: null, lastGoodAt: 0 },
   NYSE:   { lastGoodResult: null, lastGoodAt: 0 },
   KOSPI:  { lastGoodResult: null, lastGoodAt: 0 },
   KOSDAQ: { lastGoodResult: null, lastGoodAt: 0 },
-  JPX:    { lastGoodResult: null, lastGoodAt: 0 },
-  SSE:    { lastGoodResult: null, lastGoodAt: 0 },
-  SZSE:   { lastGoodResult: null, lastGoodAt: 0 },
-  EURONEXT: { lastGoodResult: null, lastGoodAt: 0 },
 }
 
 // ─── Batch Utility ───────────────────────────────────────────────────────────
@@ -521,48 +404,6 @@ const YF_HTML_HEADERS = {
   'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
-}
-
-// finance.yahoo.com HTML 페이지에 SSR로 임베드된 v7 quoteResponse를 파싱.
-// v7/v8 JSON API는 crumb 인증 + IP 레이트리밋(429)으로 막히지만 HTML 페이지는 응답하므로
-// KRX Yahoo 폴백·Aramco·해외 거래소(JPX/SSE/SZSE)가 공통으로 사용한다.
-// 한 페이지에 여러 심볼(관련 종목 등)이 임베드되므로 symbol이 일치하는 result만 고른다.
-// marketCap.raw는 해당 종목의 표시 통화 단위(KRW/JPY/CNY/SAR …) — 호출부에서 환산.
-function parseYahooHtmlQuote(html: string, yahooTicker: string): {
-  price: number
-  change: number
-  changePercent: number
-  marketCap: number
-} | null {
-  const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g
-  let match: RegExpExecArray | null
-  while ((match = scriptRe.exec(html)) !== null) {
-    const content = match[1]
-    if (!content.includes('quoteResponse')) continue
-    try {
-      const outer = JSON.parse(content)
-
-      // Case 1: quoteResponse가 body 문자열 내부에 중첩된 경우 / Case 2: 최상위인 경우
-      let results: any[] | null = null
-      if (typeof outer.body === 'string') {
-        results = JSON.parse(outer.body)?.quoteResponse?.result ?? null
-      }
-      if (!results) results = outer?.quoteResponse?.result ?? null
-      if (!Array.isArray(results)) continue
-
-      const result = results.find(r => r?.symbol === yahooTicker)
-      if (!result) continue
-
-      const price         = (result.regularMarketPrice?.raw ?? result.regularMarketOpen?.raw ?? 0) as number
-      const change        = (result.regularMarketChange?.raw ?? 0) as number
-      const changePercent = (result.regularMarketChangePercent?.raw ?? 0) as number
-      const marketCap     = (result.marketCap?.raw ?? 0) as number
-      if (!price || !marketCap) continue
-
-      return { price, change, changePercent, marketCap }
-    } catch { continue }
-  }
-  return null
 }
 
 // ─── Finnhub 전역 레이트리미터 ─────────────────────────────────────────────────
@@ -636,225 +477,163 @@ async function getProfile(ticker: string): Promise<ProfileData> {
   return task
 }
 
-async function getForexRates(): Promise<ForexRates> {
-  if (forexCache && Date.now() - forexCache.ts < FOREX_TTL_MS) return forexCache.data
-
-  const res = await fetch(
-    `https://openexchangerates.org/api/latest.json?app_id=${OXR_APP_ID}&symbols=KRW,JPY,CNY,EUR`,
-    { cache: 'no-store' },
-  )
-  if (!res.ok) throw new Error(`forex rates → HTTP ${res.status}`)
-  const data: OXRResponse = await res.json()
-  const krw = data.rates?.KRW
-  if (!krw || !isFinite(krw)) throw new Error('forex KRW rate missing or invalid')
-  // JPY/CNY/EUR는 부분 누락돼도 KRW만 있으면 진행 — 없으면 마지막 성공값으로 폴백.
-  const jpy = data.rates?.JPY
-  const cny = data.rates?.CNY
-  const eur = data.rates?.EUR
-  const rates: ForexRates = {
-    krw,
-    jpy: (jpy && isFinite(jpy)) ? jpy : lastGoodForex.jpy,
-    cny: (cny && isFinite(cny)) ? cny : lastGoodForex.cny,
-    eur: (eur && isFinite(eur)) ? eur : lastGoodForex.eur,
+// 환율(KRW/USD)은 @/lib/fx 의 getUsdKrwQuote 로 조회한다(수출입은행 우선 → OXR → 상수 폴백).
+// 소스 우선순위·캐시·last-good은 모두 그 레이어가 담당한다. 여기선 예외 시 마지막 성공
+// 환율(lastGoodExchangeRate)로 폴백만 처리한다.
+async function getKrwRate(): Promise<number> {
+  try {
+    return (await getUsdKrwQuote()).rate
+  } catch (err) {
+    console.warn('[market-cap] forex fetch failed, using last-good:', err)
+    return lastGoodExchangeRate
   }
-  forexCache = { data: rates, ts: Date.now() }
-  lastGoodForex = rates
-  return rates
 }
 
-// ─── KRX (한국거래소) Fetcher — Yahoo Finance HTML 파싱 ───────────────────────
-// Yahoo Finance v7/v8 JSON API는 crumb 인증 필요(429) → Aramco와 동일하게
-// finance.yahoo.com HTML 페이지 내 SSR 임베드 JSON에서 직접 파싱.
-// marketCap 필드는 KRW 단위 → forexRates.krw(KRW/USD)로 나눠 USD 환산.
+// ─── KRX (한국거래소) Fetcher — 공공데이터포털 금융위 주식시세정보 ────────────────
+// 소스: data.go.kr 금융위원회_주식시세정보 getStockPriceInfo (정부 공식 오픈데이터, 라이선스 클린).
+// Naver/Yahoo 비공식 스크래핑을 대체한다. 단, 이 API는 장 마감 후(EOD) 데이터로 영업일 기준
+// 하루 지연(D-1)이라 장중 실시간 시세는 제공하지 않는다(출시 스펙의 일 1회 갱신과 부합).
+// 한 번의 배치 콜로 시장별 전 종목(종가·등락·시총)을 받아 상위 20개를 동적으로 뽑는다.
+// serviceKey는 data.go.kr 발급 "Decoding(일반)" 인증키를 넣는다(URLSearchParams가 인코딩 처리).
+const DATA_GO_KRX_URL =
+  'https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo'
+const DATA_GO_KR_KEY = process.env.DATA_GO_KR_KEY
+const KRX_DATASET_TTL_MS = 30 * 60 * 1000  // 30분 (EOD 데이터는 하루 1회 갱신이라 여유롭게)
 
-async function getKRXQuote(yahooTicker: string): Promise<KRXQuoteData> {
-  const cached = krxQuoteCache.get(yahooTicker)
-  if (cached && Date.now() - cached.ts < QUOTE_TTL_MS) return cached.data
+// KST 기준 YYYYMMDD 문자열 (UTC+9로 보정 후 UTC 필드 읽기).
+function kstDateStr(msFromNow: number): string {
+  const kst = new Date(Date.now() + msFromNow + 9 * 60 * 60 * 1000)
+  const y = kst.getUTCFullYear()
+  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(kst.getUTCDate()).padStart(2, '0')
+  return `${y}${m}${d}`
+}
 
+// 우선주·스팩·리츠 등 제외 — 시총 상위 "보통주"만 노출(기존 하드코딩 유니버스 기준과 동일).
+// 우선주 종목명은 대체로 "…우"·"…우B"·"…(전환)"로 끝나고, 스팩은 "스팩"을 포함한다.
+function isCommonStock(name: string): boolean {
+  if (/스팩/.test(name)) return false
+  if (/우[0-9A-Z]?$/.test(name)) return false
+  if (/\(전환\)$/.test(name)) return false
+  return true
+}
+
+// 공공데이터포털에서 특정 시장(mrktCls)·기준일(basDt)의 전 종목을 1콜로 받아 정규화.
+async function fetchKrxMarket(mrktCls: 'KOSPI' | 'KOSDAQ', basDt: string): Promise<KrxRow[]> {
+  const params = new URLSearchParams({
+    serviceKey: DATA_GO_KR_KEY!,
+    resultType: 'json',
+    numOfRows:  '2500',   // KOSDAQ ~1,700 종목도 한 페이지에 수용
+    pageNo:     '1',
+    mrktCls,
+    basDt,
+  })
+  const res = await fetch(`${DATA_GO_KRX_URL}?${params.toString()}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`data.go.kr ${mrktCls} ${basDt} → HTTP ${res.status}`)
+
+  const json: DataGoResponse = await res.json()
+  const code = json.response?.header?.resultCode
+  if (code && code !== '00') {
+    throw new Error(`data.go.kr ${mrktCls} → ${code} ${json.response?.header?.resultMsg ?? ''}`)
+  }
+
+  const items = json.response?.body?.items
+  const list = items && typeof items !== 'string' ? items.item ?? [] : []
+
+  const rows: KrxRow[] = []
+  for (const it of list) {
+    if (!isCommonStock(it.itmsNm)) continue
+    const price        = Number(it.clpr)
+    const marketCapKRW = Number(it.mrktTotAmt)
+    if (!price || !marketCapKRW) continue
+    rows.push({
+      code:          it.srtnCd,
+      name:          it.itmsNm,
+      market:        mrktCls,
+      price,
+      change:        Number(it.vs)    || 0,
+      changePercent: Number(it.fltRt) || 0,
+      marketCapKRW,
+    })
+  }
+  return rows
+}
+
+// 최근 거래일(basDt) 탐색 — 오늘부터 최대 8일 뒤로 가며 데이터가 있는 첫 날을 찾는다.
+// (주말·공휴일·데이터 반영 지연 대비). numOfRows=1 프로브로 저렴하게 확인.
+async function resolveLatestBasDt(): Promise<string> {
+  for (let i = 0; i < 8; i++) {
+    const basDt = kstDateStr(-i * 24 * 60 * 60 * 1000)
+    const params = new URLSearchParams({
+      serviceKey: DATA_GO_KR_KEY!,
+      resultType: 'json',
+      numOfRows:  '1',
+      pageNo:     '1',
+      mrktCls:    'KOSPI',
+      basDt,
+    })
+    const res = await fetch(`${DATA_GO_KRX_URL}?${params.toString()}`, { cache: 'no-store' })
+    if (!res.ok) continue
+    const json: DataGoResponse = await res.json()
+    if ((json.response?.body?.totalCount ?? 0) > 0) return basDt
+  }
+  throw new Error('data.go.kr → 최근 8일 내 거래 데이터 없음')
+}
+
+// KOSPI+KOSDAQ 전 종목 데이터셋 (30분 캐시). 실패 시 마지막 성공 캐시로 폴백.
+async function getKrxDataset(): Promise<KrxDataset> {
+  if (!DATA_GO_KR_KEY) throw new Error('DATA_GO_KR_KEY 미설정 — 공공데이터포털 인증키 필요')
+  if (krxDatasetCache && Date.now() - krxDatasetCache.ts < KRX_DATASET_TTL_MS) {
+    return krxDatasetCache.data
+  }
   try {
-    const res = await fetch(
-      `https://finance.yahoo.com/quote/${encodeURIComponent(yahooTicker)}/`,
-      { headers: YF_HTML_HEADERS, redirect: 'follow', cache: 'no-store' },
-    )
-    if (!res.ok) throw new Error(`KRX HTML ${yahooTicker} → HTTP ${res.status}`)
+    const basDt = await resolveLatestBasDt()
+    const [kospi, kosdaq] = await Promise.all([
+      fetchKrxMarket('KOSPI', basDt),
+      fetchKrxMarket('KOSDAQ', basDt),
+    ])
+    kospi.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
+    kosdaq.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
 
-    const parsed = parseYahooHtmlQuote(await res.text(), yahooTicker)
-    if (!parsed) throw new Error(`KRX HTML ${yahooTicker} → quote data not found in page scripts`)
+    const byCode = new Map<string, KrxRow>()
+    for (const r of [...kospi, ...kosdaq]) byCode.set(r.code, r)
 
-    const data: KRXQuoteData = {
-      price:         parsed.price,
-      change:        parsed.change,
-      changePercent: parsed.changePercent,
-      marketCapKRW:  parsed.marketCap,
-    }
-    krxQuoteCache.set(yahooTicker, { data, ts: Date.now() })
-    krxLastGoodCache.set(yahooTicker, data)
+    const data: KrxDataset = { basDt, kospi, kosdaq, byCode }
+    krxDatasetCache = { data, ts: Date.now() }
     return data
   } catch (err) {
-    // Stale 캐시가 있으면 실패해도 이전 데이터 유지 (목록 안정성)
-    const stale = krxLastGoodCache.get(yahooTicker) ?? cached?.data
-    if (stale) {
-      console.warn(`[market-cap] KRX ${yahooTicker} fetch failed, using stale cache`)
-      return stale
+    if (krxDatasetCache) {
+      console.warn('[market-cap:KRX] dataset fetch failed, using stale cache:', err)
+      return krxDatasetCache.data
     }
     throw err
   }
 }
 
-// ─── Naver Finance KRX Fetcher ────────────────────────────────────────────────
-// Yahoo Finance HTML 스크래핑 대체: Naver Finance 모바일 API
-// 인증 불필요, KRX 전용, JSON 직접 반환 → 파싱 오류 없음
-
-// Naver 한국식 시총 표기("1,514조 1,862억")를 KRW 숫자로 변환
-// 조 = 10^12, 억 = 10^8. 둘 중 하나만 있는 경우도 처리.
-function parseKoreanMarketCap(s: string): number {
-  const jo  = s.match(/([\d,]+)\s*조/)
-  const eok = s.match(/([\d,]+)\s*억/)
-  let total = 0
-  if (jo)  total += parseFloat(jo[1].replace(/,/g, ''))  * 1_000_000_000_000
-  if (eok) total += parseFloat(eok[1].replace(/,/g, '')) * 100_000_000
-  return total
-}
-
-async function getNaverKRXQuote(naverCode: string): Promise<KRXQuoteData> {
-  const cached = naverKRXCache.get(naverCode)
-  if (cached && Date.now() - cached.ts < QUOTE_TTL_MS) return cached.data
-
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-    'Referer':    'https://m.stock.naver.com/',
-  }
-
-  // basic: 현재가/등락 · integration: 시가총액(basic에서 제거되어 별도 호출)
-  const [basicRes, integrationRes] = await Promise.all([
-    fetch(`https://m.stock.naver.com/api/stock/${naverCode}/basic`,       { headers, cache: 'no-store' }),
-    fetch(`https://m.stock.naver.com/api/stock/${naverCode}/integration`, { headers, cache: 'no-store' }),
-  ])
-  if (!basicRes.ok)       throw new Error(`Naver basic ${naverCode} → HTTP ${basicRes.status}`)
-  if (!integrationRes.ok) throw new Error(`Naver integration ${naverCode} → HTTP ${integrationRes.status}`)
-
-  const basic:       NaverStockBasic       = await basicRes.json()
-  const integration: NaverStockIntegration = await integrationRes.json()
-
-  const price         = parseFloat((basic.closePrice                  ?? '').replace(/,/g, ''))
-  const change        = parseFloat((basic.compareToPreviousClosePrice ?? '0').replace(/,/g, ''))
-  const changePercent = parseFloat( basic.fluctuationsRatio           ?? '0')
-
-  const marketCapRaw = integration.totalInfos?.find(i => i.code === 'marketValue')?.value ?? ''
-  const marketCapKRW = parseKoreanMarketCap(marketCapRaw)
-
-  if (!price || !marketCapKRW) throw new Error(`Naver ${naverCode} → invalid data (price=${price}, mcap=${marketCapKRW})`)
-
-  const data: KRXQuoteData = { price, change, changePercent, marketCapKRW }
-  naverKRXCache.set(naverCode, { data, ts: Date.now() })
-  return data
-}
-
+// ALL·NASDAQ 피드가 특정 KRX 종목(삼성전자·SK하이닉스)을 코드로 조회할 때 사용.
+// 공유 데이터셋에서 조회하므로 추가 API 콜 없이 큐레이션 메타(영문명/색)로 매핑한다.
 async function getKRXResult(
   meta: KoreanStockMeta,
   krwPerUsd: number,
 ): Promise<Omit<CompanyResult, 'rank'>> {
-  // Naver Finance 1차 시도 → Yahoo Finance fallback
-  // Yahoo Finance HTML 스크래핑은 .KS 종목 응답 구조 변경으로 불안정
-  const naverCode = meta.ticker.replace(/\.(KS|KQ)$/, '')
-  let data: KRXQuoteData
-  try {
-    data = await getNaverKRXQuote(naverCode)
-  } catch (naverErr) {
-    console.warn(`[market-cap] Naver ${naverCode} failed, trying Yahoo:`, naverErr)
-    data = await getKRXQuote(meta.yahooTicker)
-  }
-  if (!data.marketCapKRW) throw new Error(`KRX ${meta.ticker} → marketCap missing`)
+  const code = meta.ticker.replace(/\.(KS|KQ)$/, '')
+  const ds = await getKrxDataset()
+  const row = ds.byCode.get(code)
+  if (!row || !row.marketCapKRW) throw new Error(`KRX ${meta.ticker} → marketCap missing`)
   return {
     ticker:        meta.ticker,
     name:          meta.name,
     color:         meta.color,
-    currentPrice:  data.price,
-    change:        data.change,
-    changePercent: data.changePercent,
-    marketCapUSD:  data.marketCapKRW / krwPerUsd / 1_000_000_000_000,
+    currentPrice:  row.price,
+    change:        row.change,
+    changePercent: row.changePercent,
+    marketCapUSD:  row.marketCapKRW / krwPerUsd / 1_000_000_000_000,
   }
 }
 
-// ─── JPX·SSE·SZSE Fetcher (Tencent qt.gtimg.cn 배치 quote) ───────────────────
-// Finnhub 무료는 아시아 미지원, Naver는 한국 전용, FMP 무료는 국제 종목 미지원.
-// Yahoo v7 API는 crumb 인증 + IP 레이트리밋(429)으로, HTML은 상당수 심볼 404로 불안정.
-// → 텐센트(qt.gtimg.cn)를 쓴다. A주(상하이 sh·선전 sz)와 일본(jp)을 모두 커버하고,
-//   현재가·등락률·총시가총액을 IP 차단 없이 1콜 배치로 반환한다(한국의 Naver와 같은 역할).
-// 응답은 `v_sh600519="1~名~code~price~...";` 형태의 GBK 인코딩 `~` 구분 문자열.
-// 필드 인덱스: [3] 현재가 · [31] 등락 · [32] 등락% · [45] 총시가총액(억 단위 현지통화 JPY/CNY).
-// 시총 = f[45] × 1e8(억) → forex(jpy/cny)로 나눠 USD 환산.
-
-const TENCENT_QUOTE_URL = 'https://qt.gtimg.cn/q='
-
-// 야후 심볼(005930.KS류가 아닌 7203.T/600519.SS/300750.SZ) → 텐센트 코드로 변환.
-// .SS→sh, .SZ→sz, .T→jp (접미사 제거 후 접두사 부착). 그 외는 매핑 불가로 null.
-function tencentCode(ticker: string): string | null {
-  if (ticker.endsWith('.SS')) return 'sh' + ticker.slice(0, -3)
-  if (ticker.endsWith('.SZ')) return 'sz' + ticker.slice(0, -3)
-  if (ticker.endsWith('.T'))  return 'jp' + ticker.slice(0, -2)
-  return null
-}
-
-// 유니버스 전 종목을 텐센트 1콜 배치로 조회 → 텐센트코드별 ForeignQuote 맵.
-// GBK 응답을 디코드해 라인별로 파싱. 데이터 없는(가격/시총 0) 종목은 맵에서 누락.
-async function fetchForeignQuotes(tencentCodes: string[]): Promise<Map<string, ForeignQuote>> {
-  const res = await fetch(TENCENT_QUOTE_URL + tencentCodes.join(','), {
-    headers: { 'Referer': 'https://gu.qq.com/' },
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error(`Tencent quote → HTTP ${res.status}`)
-
-  // 종목명(f[1])은 GBK 한자라 정확한 디코드 필요. 숫자/구분자는 ASCII라 파싱엔 영향 없음.
-  const text = new TextDecoder('gbk').decode(await res.arrayBuffer())
-
-  const map = new Map<string, ForeignQuote>()
-  const lineRe = /v_(\w+)="([^"]*)"/g
-  let m: RegExpExecArray | null
-  while ((m = lineRe.exec(text)) !== null) {
-    const code = m[1]
-    const f    = m[2].split('~')
-    const price     = parseFloat(f[3])
-    const marketCap = parseFloat(f[45]) * 1e8   // f[45]: 총시가총액(억) → 현지통화 원단위
-    if (!price || !marketCap || !isFinite(marketCap)) continue
-    map.set(code, {
-      price,
-      change:        parseFloat(f[31]) || 0,
-      changePercent: parseFloat(f[32]) || 0,
-      marketCap,
-      currency:      '',
-    })
-  }
-  return map
-}
-
-// 거래소 단위 캐시(QUOTE_TTL) — 폴링마다 배치를 반복하지 않도록.
-async function getForeignQuotes(exchange: string, tencentCodes: string[]): Promise<Map<string, ForeignQuote>> {
-  const hit = foreignQuoteCache.get(exchange)
-  if (hit && Date.now() - hit.ts < QUOTE_TTL_MS) return hit.data
-  const map = await fetchForeignQuotes(tencentCodes)
-  foreignQuoteCache.set(exchange, { data: map, ts: Date.now() })
-  return map
-}
-
-// ─── Yahoo v7 JSON Fetcher (crumb 인증, Euronext 등) ──────────────────────────
-// 텐센트가 유럽을 커버하지 않고(=pv_none_match), Finnhub·FMP 무료는 미국 전용이며,
-// finance.yahoo.com HTML은 일부 유럽 심볼(RMS.PA·SAN.PA·ENEL.MI 등)을 '결정적으로'
-// 404 처리해 벌크 소스로 못 쓴다. 대신 Yahoo v7 quote JSON을 crumb+쿠키로 인증해
-// 1콜 배치로 전 종목의 시세·등락·시가총액(표시통화)을 받는다(yfinance와 동일 방식).
-// marketCap은 종목 표시통화(EUR 등) 단위 → 호출부에서 forex로 USD 환산.
-
-interface YahooQuoteData {
-  price:         number
-  change:        number
-  changePercent: number
-  marketCap:     number  // 현지통화(EUR 등) 단위
-  currency:      string
-}
-
-// v7 배치 결과 캐시(거래소 키, QUOTE_TTL) + 개별 종목 stale 폴백(목록 안정화)
-const yahooV7Cache    = new Map<string, CacheEntry<Map<string, YahooQuoteData>>>()
-const yahooV7LastGood = new Map<string, YahooQuoteData>()
+// ─── Yahoo 인증(crumb+쿠키) — 미국 종목 marketCap 앵커용 ────────────────────────
+// finance.yahoo.com HTML은 일부 심볼을 404 처리해 벌크 소스로 못 쓰므로, Yahoo v7 quote
+// JSON을 crumb+쿠키로 인증해 1콜 배치로 미국 종목의 시총(USD)을 받는다(refreshUsYahooCaps).
 
 // crumb·쿠키는 세션 단위로 재사용(30분). v7 quote가 401/403이면 즉시 무효화해 재발급.
 interface YahooAuth { cookie: string; crumb: string; ts: number }
@@ -909,39 +688,6 @@ async function getYahooAuth(): Promise<YahooAuth> {
 
   yahooAuth = { cookie, crumb, ts: Date.now() }
   return yahooAuth
-}
-
-// 유니버스 전 종목을 v7 quote 1콜 배치로 조회 → 심볼별 ForeignQuote 맵. 거래소 키로 캐시.
-async function getYahooV7Quotes(exchange: string, symbols: string[]): Promise<Map<string, YahooQuoteData>> {
-  const hit = yahooV7Cache.get(exchange)
-  if (hit && Date.now() - hit.ts < QUOTE_TTL_MS) return hit.data
-
-  const { cookie, crumb } = await getYahooAuth()
-  const url = 'https://query2.finance.yahoo.com/v7/finance/quote'
-    + `?symbols=${encodeURIComponent(symbols.join(','))}&crumb=${encodeURIComponent(crumb)}`
-  const res = await fetch(url, { headers: { ...YF_HTML_HEADERS, Cookie: cookie }, cache: 'no-store' })
-  if (res.status === 401 || res.status === 403) yahooAuth = null  // crumb 만료 → 다음 호출서 재발급
-  if (!res.ok) throw new Error(`Yahoo v7 ${exchange} → HTTP ${res.status}`)
-
-  const json = await res.json()
-  const results: any[] = json?.quoteResponse?.result ?? []
-  const map = new Map<string, YahooQuoteData>()
-  for (const r of results) {
-    const price     = r.regularMarketPrice as number
-    const marketCap = r.marketCap as number
-    if (!price || !marketCap || !isFinite(marketCap)) continue
-    const q: YahooQuoteData = {
-      price,
-      change:        (r.regularMarketChange as number) ?? 0,
-      changePercent: (r.regularMarketChangePercent as number) ?? 0,
-      marketCap,
-      currency:      (r.currency as string) ?? '',
-    }
-    map.set(r.symbol, q)
-    yahooV7LastGood.set(r.symbol, q)
-  }
-  yahooV7Cache.set(exchange, { data: map, ts: Date.now() })
-  return map
 }
 
 // ─── US 종목 Yahoo marketCap 앵커 ─────────────────────────────────────────────
@@ -1186,12 +932,8 @@ export async function GET(req: Request) {
   const exchange = new URL(req.url).searchParams.get('exchange')?.toLowerCase()
   if (exchange === 'nasdaq') return handleExchange('NASDAQ', NASDAQ_COMPANIES)
   if (exchange === 'nyse')   return handleExchange('NYSE',   NYSE_COMPANIES)
-  if (exchange === 'kospi')  return handleKoreanExchange('KOSPI',  KOSPI_COMPANIES)
-  if (exchange === 'kosdaq') return handleKoreanExchange('KOSDAQ', KOSDAQ_COMPANIES)
-  if (exchange === 'jpx')    return handleForeignExchange('JPX',  JPX_COMPANIES,  'jpy')
-  if (exchange === 'sse')    return handleForeignExchange('SSE',  SSE_COMPANIES,  'cny')
-  if (exchange === 'szse')   return handleForeignExchange('SZSE', SZSE_COMPANIES, 'cny')
-  if (exchange === 'euronext') return handleYahooExchange('EURONEXT', EURONEXT_COMPANIES, 'eur')
+  if (exchange === 'kospi')  return handleKoreanExchange('KOSPI')
+  if (exchange === 'kosdaq') return handleKoreanExchange('KOSDAQ')
   return handleAll()
 }
 
@@ -1201,10 +943,7 @@ async function handleAll() {
       throw new Error('FINNHUB_API_KEY 환경 변수가 설정되지 않았습니다.')
     }
 
-    const forexRates = await getForexRates().catch((err) => {
-      console.warn('[market-cap] forex fetch failed, using fallback:', err)
-      return lastGoodForex
-    })
+    const rate = await getKrwRate()
 
     // Finnhub 배치, Aramco(Yahoo HTML), KRX(Yahoo JSON) 병렬 실행
     // 개별 종목 실패는 null로 처리 — 한 종목 장애가 전체를 막지 않도록
@@ -1217,7 +956,7 @@ async function handleAll() {
 
     const krxTask = Promise.all(
       KOREAN_STOCKS.map(meta =>
-        getKRXResult(meta, forexRates.krw).catch((err) => {
+        getKRXResult(meta, rate).catch((err) => {
           console.warn(`[market-cap] KRX ${meta.ticker} failed, skipping:`, err)
           return null
         }),
@@ -1240,9 +979,9 @@ async function handleAll() {
 
     lastGoodResult = ranked
     lastGoodAt = Date.now()
-    lastGoodExchangeRate = forexRates.krw
+    lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: forexRates.krw, data: ranked, updatedAt: lastGoodAt, stale: false })
+    return NextResponse.json({ exchangeRate: rate, data: ranked, updatedAt: lastGoodAt, stale: false })
   } catch (err) {
     console.error('[market-cap] fetch error:', err)
 
@@ -1260,235 +999,49 @@ async function handleAll() {
   }
 }
 
-// 한국거래소 전용 핸들러 (KOSPI/KOSDAQ 공통) — 하드코딩 유니버스를 Naver Finance로
-// 실시간 시세/시총 조회 → USD 환산 후 상위 20개 반환. Finnhub 무료는 KRX 미지원이므로
-// 미국 거래소(handleExchange)와 달리 getKRXResult(Naver→Yahoo 폴백)를 사용한다.
+// 한국거래소 전용 핸들러 (KOSPI/KOSDAQ 공통) — 공공데이터포털 EOD 데이터셋에서 해당 시장의
+// 시총 상위 20개를 동적으로 뽑아 USD 환산 후 반환. 영문명·브랜드색은 KRX_META로 오버레이하고,
+// 큐레이션에 없는 신규 종목은 한글 종목명 + 기본색으로 폴백한다(JPX 동적 유니버스와 동일 패턴).
 // ALL/미국 피드와 동일한 응답 형태(exchangeRate/data/updatedAt/stale)를 유지.
-async function handleKoreanExchange(exchange: string, companies: KoreanStockMeta[]) {
+async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
   const state = exchangeFeeds[exchange]
   try {
     // KRW 환산 표시는 클라이언트가 담당하므로 환율만 함께 전달
-    const forexRates = await getForexRates().catch((err) => {
-      console.warn(`[market-cap:${exchange}] forex fetch failed, using fallback:`, err)
-      return lastGoodForex
-    })
+    const rate = await getKrwRate()
 
-    // Naver 폭격 방지 — 배치(5개, 200ms)로 조회. 개별 실패는 stale/skip 처리.
-    const rows = await mapInBatches(
-      companies,
-      BATCH_SIZE,
-      BATCH_DELAY_MS,
-      (meta): Promise<Omit<CompanyResult, 'rank'> | null> =>
-        getKRXResult(meta, forexRates.krw).catch((err) => {
-          console.warn(`[market-cap:${exchange}] ${meta.ticker} failed, skipping:`, err)
-          return null
-        }),
-    )
-    const allRows = rows.filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
+    const ds = await getKrxDataset()
+    const suffix = exchange === 'KOSPI' ? 'KS' : 'KQ'
+    const rows = exchange === 'KOSPI' ? ds.kospi : ds.kosdaq  // 이미 시총 내림차순 정렬됨
 
-    const ranked: CompanyResult[] = allRows
-      .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
-      .slice(0, 20)
-      .map((r, i) => ({ ...r, rank: i + 1 }))
-
-    if (state) {
-      state.lastGoodResult = ranked
-      state.lastGoodAt = Date.now()
-    }
-    lastGoodExchangeRate = forexRates.krw
-
-    return NextResponse.json({ exchangeRate: forexRates.krw, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
-  } catch (err) {
-    console.error(`[market-cap:${exchange}] fetch error:`, err)
-
-    if (state?.lastGoodResult) {
-      return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
-        { status: 200 },
-      )
-    }
-
-    return NextResponse.json(
-      { error: String(err) },
-      { status: 503 },
-    )
-  }
-}
-
-// 해외 거래소 전용 핸들러 (JPX/SSE/SZSE 공통) — 하드코딩 유니버스를 텐센트 배치 quote로
-// 한 번에 조회 → currency(jpy/cny) 환율로 USD 환산 후 상위 20개 반환.
-// Finnhub 무료는 아시아 미지원, Naver는 한국 전용이라 handleKoreanExchange와 달리
-// getForeignQuotes(텐센트 배치)를 사용한다. 응답 형태(exchangeRate/data/updatedAt/stale)는 동일.
-// exchangeRate는 클라이언트 원화 토글용이라 항상 KRW를 실어 보낸다.
-async function handleForeignExchange(
-  exchange: string,
-  companies: ForeignStockMeta[],
-  currency: 'jpy' | 'cny',
-) {
-  const state = exchangeFeeds[exchange]
-  try {
-    const forexRates = await getForexRates().catch((err) => {
-      console.warn(`[market-cap:${exchange}] forex fetch failed, using fallback:`, err)
-      return lastGoodForex
-    })
-    const ratePerUsd = forexRates[currency]
-
-    // 티커 → 텐센트 코드 매핑(변환 불가 종목은 제외). 배치 1콜로 전 종목 조회.
-    const codes = companies
-      .map(c => tencentCode(c.ticker))
-      .filter((c): c is string => c !== null)
-    const quotes = await getForeignQuotes(exchange, codes)
-    const allRows = companies.map((meta): Omit<CompanyResult, 'rank'> | null => {
-      const code = tencentCode(meta.ticker)
-      const q    = code ? quotes.get(code) : undefined
-      // 배치에서 누락된 종목은 stale 폴백 → 목록 안정화.
-      if (!q || !q.marketCap || !q.price) {
-        const stale = foreignLastGoodCache.get(meta.ticker)
-        if (stale) console.warn(`[market-cap:${exchange}] ${meta.ticker} missing in batch, using stale`)
-        return stale ?? null
+    const ranked: CompanyResult[] = rows.slice(0, 20).map((row, i) => {
+      const meta = KRX_META[row.code]
+      return {
+        rank:          i + 1,
+        ticker:        `${row.code}.${suffix}`,
+        name:          meta?.name ?? row.name,
+        color:         meta?.color ?? KRX_DEFAULT_COLOR,
+        currentPrice:  row.price,
+        change:        row.change,
+        changePercent: row.changePercent,
+        marketCapUSD:  row.marketCapKRW / rate / 1_000_000_000_000,
       }
-      const row: Omit<CompanyResult, 'rank'> = {
-        ticker:        meta.ticker,
-        name:          meta.name,
-        color:         meta.color,
-        currentPrice:  q.price,
-        change:        q.change,
-        changePercent: q.changePercent,
-        marketCapUSD:  q.marketCap / ratePerUsd / 1_000_000_000_000,
-      }
-      foreignLastGoodCache.set(meta.ticker, row)
-      return row
-    }).filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
-
-    const ranked: CompanyResult[] = allRows
-      .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
-      .slice(0, 20)
-      .map((r, i) => ({ ...r, rank: i + 1 }))
-
-    if (state) {
-      state.lastGoodResult = ranked
-      state.lastGoodAt = Date.now()
-    }
-    lastGoodExchangeRate = forexRates.krw
-
-    return NextResponse.json({ exchangeRate: forexRates.krw, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
-  } catch (err) {
-    console.error(`[market-cap:${exchange}] fetch error:`, err)
-
-    if (state?.lastGoodResult) {
-      return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
-        { status: 200 },
-      )
-    }
-
-    return NextResponse.json(
-      { error: String(err) },
-      { status: 503 },
-    )
-  }
-}
-
-// Yahoo Finance HTML에서 개별 종목 시세·시총을 파싱해 CompanyResult를 만든다.
-// v7 배치가 실패했을 때 Euronext 종목별 폴백으로 사용. 실패 시 foreignLastGoodCache stale 반환.
-async function getEuronextHtmlResult(
-  meta: ForeignStockMeta,
-  eurPerUsd: number,
-): Promise<Omit<CompanyResult, 'rank'> | null> {
-  try {
-    const res = await fetch(
-      `https://finance.yahoo.com/quote/${encodeURIComponent(meta.yahooTicker)}/`,
-      { headers: YF_HTML_HEADERS, redirect: 'follow', cache: 'no-store' },
-    )
-    if (!res.ok) throw new Error(`Euronext HTML ${meta.ticker} → HTTP ${res.status}`)
-    const parsed = parseYahooHtmlQuote(await res.text(), meta.yahooTicker)
-    if (!parsed) throw new Error(`Euronext HTML ${meta.ticker} → quote not found in page`)
-    const row: Omit<CompanyResult, 'rank'> = {
-      ticker:        meta.ticker,
-      name:          meta.name,
-      color:         meta.color,
-      currentPrice:  parsed.price,
-      change:        parsed.change,
-      changePercent: parsed.changePercent,
-      marketCapUSD:  parsed.marketCap / eurPerUsd / 1_000_000_000_000,
-    }
-    foreignLastGoodCache.set(meta.ticker, row)
-    return row
-  } catch (err) {
-    const stale = foreignLastGoodCache.get(meta.ticker)
-    if (stale) {
-      console.warn(`[market-cap:EURONEXT] ${meta.ticker} HTML failed, using stale:`, err)
-      return stale
-    }
-    console.warn(`[market-cap:EURONEXT] ${meta.ticker} HTML failed, skipping:`, err)
-    return null
-  }
-}
-
-// Yahoo v7 기반 해외 거래소 핸들러 (Euronext 등) — crumb 인증 v7 배치 1콜로 전 종목 조회.
-// v7 실패 시 getEuronextHtmlResult 개별 HTML 폴백으로 전환해 데이터 공백을 방지한다.
-// 응답 형태(exchangeRate/data/updatedAt/stale)는 다른 피드와 동일.
-async function handleYahooExchange(
-  exchange: string,
-  companies: ForeignStockMeta[],
-  currency: 'eur',
-) {
-  const state = exchangeFeeds[exchange]
-  try {
-    const forexRates = await getForexRates().catch((err) => {
-      console.warn(`[market-cap:${exchange}] forex fetch failed, using fallback:`, err)
-      return lastGoodForex
     })
-    const ratePerUsd = forexRates[currency]
-
-    // 1차: Yahoo v7 crumb 인증 배치 (1콜). 실패 시 2차 개별 HTML 폴백으로 전환.
-    let allRows: Omit<CompanyResult, 'rank'>[]
-    try {
-      const quotes = await getYahooV7Quotes(exchange, companies.map(c => c.yahooTicker))
-      allRows = companies.map((meta): Omit<CompanyResult, 'rank'> | null => {
-        const q = quotes.get(meta.yahooTicker) ?? yahooV7LastGood.get(meta.yahooTicker)
-        if (!q || !q.marketCap || !q.price) {
-          if (!q) console.warn(`[market-cap:${exchange}] ${meta.ticker} missing in batch`)
-          return null
-        }
-        const row: Omit<CompanyResult, 'rank'> = {
-          ticker:        meta.ticker,
-          name:          meta.name,
-          color:         meta.color,
-          currentPrice:  q.price,
-          change:        q.change,
-          changePercent: q.changePercent,
-          marketCapUSD:  q.marketCap / ratePerUsd / 1_000_000_000_000,
-        }
-        foreignLastGoodCache.set(meta.ticker, row)
-        return row
-      }).filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
-    } catch (v7err) {
-      // v7 crumb 인증 실패(서버 환경 쿠키 제한 등) → 개별 HTML 폴백.
-      // 일부 유럽 심볼은 Yahoo HTML 404지만, stale 캐시로 보완해 목록 안정화.
-      console.warn(`[market-cap:${exchange}] Yahoo v7 failed, falling back to HTML per-symbol:`, v7err)
-      const rows = await mapInBatches(companies, 3, 300,
-        (meta) => getEuronextHtmlResult(meta, ratePerUsd),
-      )
-      allRows = rows.filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
-    }
-
-    // 일부 종목이 누락돼도 직전 성공 랭킹으로 보강해 20개 유지.
-    const ranked = rankWithBackfill(allRows, state?.lastGoodResult)
 
     if (state) {
       state.lastGoodResult = ranked
       state.lastGoodAt = Date.now()
+      state.lastBasDt = ds.basDt
     }
-    lastGoodExchangeRate = forexRates.krw
+    lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: forexRates.krw, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    // basDt: KRX 기준일("YYYYMMDD"). 공공데이터포털은 EOD(D-1)라 클라이언트가 "YYYY.MM.DD 종가 기준"으로 표기한다.
+    return NextResponse.json({ exchangeRate: rate, basDt: ds.basDt, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${exchange}] fetch error:`, err)
 
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, basDt: state.lastBasDt, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
         { status: 200 },
       )
     }
@@ -1510,10 +1063,7 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
     }
 
     // KRW 환산 표시는 클라이언트가 담당하므로 환율만 함께 전달
-    const forexRates = await getForexRates().catch((err) => {
-      console.warn(`[market-cap:${exchange}] forex fetch failed, using fallback:`, err)
-      return lastGoodForex
-    })
+    const rate = await getKrwRate()
 
     const rows = await fetchFinnhubRows(universe)
     const allRows = rows.filter(
@@ -1523,7 +1073,7 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
     // SK Hynix: 나스닥 공식엔 ADR로 상위권이지만 Finnhub 무료엔 US 심볼이 없어 유니버스로 못 잡는다.
     // 한국 상장(000660.KS) 시총을 USD 환산해 나스닥 섹션에 주입 → 공식 순위와 일치시킨다.
     if (exchange === 'NASDAQ') {
-      const hynix = await getKRXResult(SKHYNIX_KRX, forexRates.krw).catch((err) => {
+      const hynix = await getKRXResult(SKHYNIX_KRX, rate).catch((err) => {
         console.warn('[market-cap:NASDAQ] SK Hynix inject failed, skipping:', err)
         return null
       })
@@ -1537,9 +1087,9 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
       state.lastGoodResult = ranked
       state.lastGoodAt = Date.now()
     }
-    lastGoodExchangeRate = forexRates.krw
+    lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: forexRates.krw, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${exchange}] fetch error:`, err)
 

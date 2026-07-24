@@ -1,0 +1,86 @@
+{
+  "source": "app-baseline",
+  "asOf": "2026-07-23T23:50:12.446Z",
+  "top": [
+    {
+      "ticker": "005930.KS",
+      "name": "Samsung Elec."
+    },
+    {
+      "ticker": "000660.KS",
+      "name": "SK Hynix"
+    },
+    {
+      "ticker": "402340.KS",
+      "name": "SK Square"
+    },
+    {
+      "ticker": "009150.KS",
+      "name": "Samsung EM"
+    },
+    {
+      "ticker": "005380.KS",
+      "name": "Hyundai Motor"
+    },
+    {
+      "ticker": "373220.KS",
+      "name": "LG Energy Sol."
+    },
+    {
+      "ticker": "032830.KS",
+      "name": "Samsung Life"
+    },
+    {
+      "ticker": "207940.KS",
+      "name": "Samsung Bio."
+    },
+    {
+      "ticker": "105560.KS",
+      "name": "KB Financial"
+    },
+    {
+      "ticker": "000270.KS",
+      "name": "Kia"
+    },
+    {
+      "ticker": "028260.KS",
+      "name": "Samsung C&T"
+    },
+    {
+      "ticker": "329180.KS",
+      "name": "HD Hyundai HI"
+    },
+    {
+      "ticker": "012450.KS",
+      "name": "Hanwha Aero."
+    },
+    {
+      "ticker": "055550.KS",
+      "name": "Shinhan Fin."
+    },
+    {
+      "ticker": "012330.KS",
+      "name": "Hyundai Mobis"
+    },
+    {
+      "ticker": "034730.KS",
+      "name": "SK Inc."
+    },
+    {
+      "ticker": "034020.KS",
+      "name": "Doosan Enerb."
+    },
+    {
+      "ticker": "068270.KS",
+      "name": "Celltrion"
+    },
+    {
+      "ticker": "006400.KS",
+      "name": "Samsung SDI"
+    },
+    {
+      "ticker": "086790.KS",
+      "name": "Hana Financial"
+    }
+  ]
+}

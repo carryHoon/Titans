@@ -13,6 +13,7 @@ titans-web/.next/
 titans-web/out/
 titans-web/next-env.d.ts
 titans-web/tsconfig.tsbuildinfo
+titans-web/.data/
 
 # Environment / secrets
 .env
