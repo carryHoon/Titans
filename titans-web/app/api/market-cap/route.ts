@@ -1000,7 +1000,7 @@ async function handleAll() {
 }
 
 // 한국거래소 전용 핸들러 (KOSPI/KOSDAQ 공통) — 공공데이터포털 EOD 데이터셋에서 해당 시장의
-// 시총 상위 20개를 동적으로 뽑아 USD 환산 후 반환. 영문명·브랜드색은 KRX_META로 오버레이하고,
+// 시총 상위 100개를 동적으로 뽑아 USD 환산 후 반환. 영문명·브랜드색은 KRX_META로 오버레이하고,
 // 큐레이션에 없는 신규 종목은 한글 종목명 + 기본색으로 폴백한다(JPX 동적 유니버스와 동일 패턴).
 // ALL/미국 피드와 동일한 응답 형태(exchangeRate/data/updatedAt/stale)를 유지.
 async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
@@ -1013,7 +1013,9 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
     const suffix = exchange === 'KOSPI' ? 'KS' : 'KQ'
     const rows = exchange === 'KOSPI' ? ds.kospi : ds.kosdaq  // 이미 시총 내림차순 정렬됨
 
-    const ranked: CompanyResult[] = rows.slice(0, 20).map((row, i) => {
+    // 상위 100개로 확장. getKrxDataset이 이미 전 종목을 1콜로 받아 캐싱하므로
+    // 추가 외부 호출 없이 슬라이스 범위만 넓히면 된다(서버 부하 증가 없음).
+    const ranked: CompanyResult[] = rows.slice(0, 100).map((row, i) => {
       const meta = KRX_META[row.code]
       return {
         rank:          i + 1,

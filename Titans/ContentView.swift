@@ -801,12 +801,19 @@ struct ContentView: View {
                             EmptyMarketView(market: selectedMarket)
                         } else {
                             // 실제 데이터 바인딩 (선택된 거래소로 필터링 + 정렬)
-                            ForEach(sortedFilteredCompanies) { company in
+                            // 기업 20개마다 띠배너 광고 자리(AdBannerSlot)를 삽입 —
+                            // App Store 출시 전 광고 지면 확보(실제 광고 SDK는 출시 직전 연동).
+                            let list = sortedFilteredCompanies
+                            ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
                                 CompanyRow(
                                     company: company,
                                     currency: selectedCurrency,
                                     exchangeRate: exchangeRate
                                 )
+                                // 20·40·60… 번째 기업 뒤에 광고 삽입 (마지막 기업 뒤에는 제외)
+                                if (index + 1) % 20 == 0 && index + 1 < list.count {
+                                    AdBannerSlot()
+                                }
                             }
                         }
                     }
@@ -927,6 +934,45 @@ struct StaleBanner: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Ad Banner Slot (띠배너 광고 자리 — 출시 전 지면 확보용 플레이스홀더)
+
+/// 기업 리스트 20개마다 삽입되는 띠배너(가로 스트립) 광고 자리.
+///
+/// 지금은 실제 광고를 붙이지 않고 "지면(자리)"만 확보한 플레이스홀더다.
+/// App Store 출시 직전에 이 뷰의 내부만 실제 광고 SDK 배너(예: Google Mobile Ads)로
+/// 교체하면 리스트 레이아웃 변경 없이 그대로 활성화된다.
+/// - 표준 모바일 배너 높이(50~60pt)에 맞춰 리스트 흐름을 해치지 않도록 설계.
+struct AdBannerSlot: View {
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        // ▼▼▼ 광고 SDK 연동 지점 ▼▼▼
+        // 출시 시 아래 HStack(플레이스홀더)을 실제 배너 뷰로 교체:
+        //   AdBannerView(adUnitID: "ca-app-pub-…")  // 예: GADBannerView 래퍼
+        // (동의/ATT·PrivacyManifest·Info.plist 광고ID 설정은 SDK 연동 시 함께 진행)
+        // ▲▲▲ 광고 SDK 연동 지점 ▲▲▲
+        HStack(spacing: 8) {
+            Text("AD")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(theme.secondaryLabel)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(theme.fill, in: RoundedRectangle(cornerRadius: 4))
+            Text("광고 자리")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(theme.tertiaryLabel)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 60)
+        .background(theme.fill.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(theme.stroke, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        )
+        .padding(.vertical, 2)
     }
 }
 
@@ -1802,6 +1848,9 @@ struct CompanyRow: View {
                 Text("\(company.rank)")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.tertiaryLabel)
+                    // 세 자리 순위(예: 100)가 컬럼 폭을 넘어 줄바꿈되지 않도록 한 줄 고정
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if let prev = company.previousRank, prev != company.rank {
                     let delta = prev - company.rank  // 양수 = 순위 상승 (숫자 감소)
                     HStack(spacing: 1) {
@@ -1815,7 +1864,8 @@ struct CompanyRow: View {
                         : Color(red: 0.10, green: 0.43, blue: 0.92))
                 }
             }
-            .frame(width: 20, alignment: .center)
+            // 세 자리 순위(100)도 한 줄로 담기도록 폭을 24로. 중앙 정렬 유지.
+            .frame(width: 24, alignment: .center)
 
             BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color)
 
