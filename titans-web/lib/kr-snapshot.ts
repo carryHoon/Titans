@@ -259,9 +259,8 @@ class FileStore implements SnapshotStore {
 // 서버리스 함수는 메모리·파일이 호출마다 사라지므로, 여러 인스턴스가 공유하는 "유일한 냉장고".
 // 의존성 추가 없이 REST(fetch)로만 접근한다(@upstash/redis SDK 불필요).
 class KvStore implements SnapshotStore {
-  // 값에 실수로 감싸인 따옴표(복붙 사고)와 URL 끝 슬래시를 벗겨 안전하게 만든다.
-  private readonly url   = (process.env.UPSTASH_REDIS_REST_URL ?? '').replace(/^["']|["']$/g, '').replace(/\/+$/, '')
-  private readonly token = (process.env.UPSTASH_REDIS_REST_TOKEN ?? '').replace(/^["']|["']$/g, '')
+  private readonly url   = process.env.UPSTASH_REDIS_REST_URL!
+  private readonly token = process.env.UPSTASH_REDIS_REST_TOKEN!
   private readonly key   = 'kr-snapshot'
 
   async load(): Promise<PersistedSnapshot | null> {
