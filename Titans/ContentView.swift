@@ -620,10 +620,6 @@ struct ContentView: View {
     @State private var sortField: SortField = .rank
     @State private var sortOrder: SortOrder = .ascending
 
-    // 섹션 전환 방향(+1: 다음/왼쪽 스와이프, -1: 이전/오른쪽 스와이프).
-    // 기업 리스트가 스와이프 방향과 같은 방향으로 슬라이드되도록 트랜지션 계산에 사용.
-    @State private var navigationDirection: Int = 1
-
     // 화면(윈도우) 전체 높이 — 헤더 세로 간격을 기기별 "동일 비율"로 스케일링하기 위한 기준값.
     // 기준: iPhone 17 Pro(874pt). 모든 기기에서 헤더가 화면의 동일한 세로 비율을 차지하도록 함.
     @State private var viewportHeight: CGFloat = 874
@@ -655,57 +651,26 @@ struct ContentView: View {
     /// 화면이 낮은 기기일수록 여백이 함께 줄어들어, 헤더가 어떤 기기에서도 화면의 동일한 세로 비율을 차지한다.
     private var vScale: CGFloat { min(max(viewportHeight / 874, 0.85), 1.12) }
 
-    /// 섹션 선택을 한 곳으로 모은 진입점. 스와이프·칩 탭 모두 이 함수를 거쳐
-    /// 이동 방향(navigationDirection)을 먼저 확정한 뒤 애니메이션과 함께 섹션을 바꾼다.
     private func selectMarket(_ market: Market) {
-        let all = Market.allCases
-        guard let from = all.firstIndex(of: selectedMarket),
-              let to   = all.firstIndex(of: market),
-              from != to else { return }
-        navigationDirection = to > from ? 1 : -1
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            selectedMarket = market
-        }
+        guard market != selectedMarket else { return }
+        selectedMarket = market
     }
 
-    /// 좌우 스와이프로 인접한 거래소 섹션으로 이동. (왼쪽으로 쓸면 다음, 오른쪽으로 쓸면 이전)
-    private func switchMarket(by offset: Int) {
-        let all = Market.allCases
-        guard let idx = all.firstIndex(of: selectedMarket) else { return }
-        let newIndex = idx + offset
-        guard all.indices.contains(newIndex) else { return }   // 양 끝에서는 멈춤(순환 없음)
-        selectMarket(all[newIndex])
+    // MARK: 섹션별 데이터 헬퍼 — TabView 각 페이지가 자체 상태를 독립적으로 읽는다
+
+    private func feed(for market: Market) -> ExchangeFeed? {
+        guard market.apiExchangeParam != nil else { return nil }
+        return viewModel.exchangeFeeds[market] ?? ExchangeFeed()
     }
 
-    /// 기업 리스트가 스와이프 방향과 같은 방향으로 흐르도록 하는 트랜지션.
-    /// 다음 섹션(왼쪽 스와이프)이면 새 리스트는 오른쪽에서 들어오고 이전 리스트는 왼쪽으로 빠진다.
-    private var listTransition: AnyTransition {
-        let insertionEdge: Edge = navigationDirection >= 0 ? .trailing : .leading
-        let removalEdge:   Edge = navigationDirection >= 0 ? .leading  : .trailing
-        return .asymmetric(
-            insertion: .move(edge: insertionEdge).combined(with: .opacity),
-            removal:   .move(edge: removalEdge).combined(with: .opacity)
-        )
+    private func companies(for market: Market) -> [Company] {
+        if let f = feed(for: market) { return f.companies }
+        guard market != .all else { return viewModel.companies }
+        return viewModel.companies.filter { $0.market == market }
     }
 
-    /// 전용 피드(NASDAQ/NYSE …)를 가진 거래소가 선택된 경우 그 피드를 반환. 아니면 nil.
-    /// 아직 fetch 전이면 기본값(로딩 상태, 빈 리스트)을 돌려 skeleton이 뜨도록 함.
-    private var dedicatedFeed: ExchangeFeed? {
-        guard selectedMarket.apiExchangeParam != nil else { return nil }
-        return viewModel.exchangeFeeds[selectedMarket] ?? ExchangeFeed()
-    }
-
-    /// 선택된 거래소로 필터링된 기업 리스트.
-    /// ALL/기타 거래소는 통합 피드(companies)를 클라이언트에서 필터링,
-    /// NASDAQ·NYSE는 전용 피드(상위 20개)를 그대로 사용.
-    private var filteredCompanies: [Company] {
-        if let feed = dedicatedFeed { return feed.companies }
-        guard selectedMarket != .all else { return viewModel.companies }
-        return viewModel.companies.filter { $0.market == selectedMarket }
-    }
-
-    private var sortedFilteredCompanies: [Company] {
-        let list = filteredCompanies
+    private func sortedCompanies(for market: Market) -> [Company] {
+        let list = companies(for: market)
         switch sortField {
         case .rank:
             return sortOrder == .ascending
@@ -722,137 +687,120 @@ struct ContentView: View {
         }
     }
 
-    /// 현재 선택된 섹션 기준 로딩/에러/Stale 상태 (전용 피드는 자체 상태를 사용)
-    private var isDisplayLoading: Bool {
-        if let feed = dedicatedFeed { return feed.isLoading && feed.companies.isEmpty }
+    private func isLoading(for market: Market) -> Bool {
+        if let f = feed(for: market) { return f.isLoading && f.companies.isEmpty }
         return viewModel.isLoading && viewModel.companies.isEmpty
     }
-    private var isDisplayError: Bool {
-        if let feed = dedicatedFeed { return feed.isError && feed.companies.isEmpty }
+
+    private func isError(for market: Market) -> Bool {
+        if let f = feed(for: market) { return f.isError && f.companies.isEmpty }
         return viewModel.isError && viewModel.companies.isEmpty
     }
-    private var isDisplayStale: Bool {
-        if let feed = dedicatedFeed { return feed.isStale }
+
+    private func isStale(for market: Market) -> Bool {
+        if let f = feed(for: market) { return f.isStale }
         return viewModel.isStale
     }
 
-    var body: some View {
+    private func basDt(for market: Market) -> String? { feed(for: market)?.basDt }
+
+    // MARK: 섹션 페이지 — 각 거래소별 스크롤 가능한 기업 목록
+
+    @ViewBuilder
+    private func marketPage(for market: Market) -> some View {
         ScrollView {
-            VStack(spacing: 0) {
-                LiveIndicatorBar(
-                    market: selectedMarket,
-                    currentTime: currentTime,
-                    basDt: dedicatedFeed?.basDt,
-                    isDarkMode: $isDarkMode,
-                    vScale: vScale,
-                    onSearch: { showSearch = true },
-                    onMenu: { showMenu = true }
-                )
-                .padding(.top, 6 * vScale)
+            LazyVStack(spacing: 8) {
+                if !isError(for: market) && !market.comingSoon {
+                    ColumnHeader(sortField: $sortField, sortOrder: $sortOrder)
+                }
 
-                // 지수 섹션 — 기준 기기(iPhone 17 Pro, 폭 402pt) 레이아웃을 그대로 유지한 채
-                // 좁은 기기에서는 전체를 비례 축소해 한 줄 UI가 깨지지 않도록 함.
-                ProportionalScaledLayout(referenceWidth: 402) {
-                    HStack(alignment: .center, spacing: 12) {
-                        SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                        CurrencyToggle(selected: $selectedCurrency)
+                if market.comingSoon {
+                    ComingSoonView(market: market)
+                } else if isLoading(for: market) {
+                    ForEach(1...20, id: \.self) { rank in
+                        SkeletonCompanyRow(rank: rank)
                     }
-                    .padding(.leading, 6)
-                    .padding(.trailing, 16)
-                }
-                .padding(.top, -4 * vScale)
-                .padding(.bottom, 2 * vScale)
-
-                // Stale 배너 (API 장애 시 캐시 데이터 사용 중 알림)
-                if isDisplayStale {
-                    StaleBanner()
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                }
-
-                // 거래소 카테고리 필터 (가로 스크롤 칩) — 에러 상태가 아닐 때만 표시
-                if !isDisplayError {
-                    MarketFilterBar(selected: selectedMarket, onSelect: selectMarket)
-                        .padding(.bottom, 8 * vScale)
-                }
-
-                LazyVStack(spacing: 8) {
-                    // 컬럼 헤더 (순위 / 기업 / 시가총액) — 에러/출시예정이 아닐 때만 표시
-                    if !isDisplayError && !selectedMarket.comingSoon {
-                        ColumnHeader(sortField: $sortField, sortOrder: $sortOrder)
-                    }
-
-                    // 섹션(거래소)별 기업 리스트. selectedMarket을 id로 묶어 섹션이 바뀌면
-                    // 리스트 전체가 스와이프 방향과 같은 방향으로 슬라이드된다.
-                    VStack(spacing: 8) {
-                        if selectedMarket.comingSoon {
-                            // EODHD 전환 시 활성화될 시장 — 데이터 준비 전 플레이스홀더
-                            ComingSoonView(market: selectedMarket)
-                        } else if isDisplayLoading {
-                            // Skeleton UI — 첫 로드 중
-                            ForEach(1...20, id: \.self) { rank in
-                                SkeletonCompanyRow(rank: rank)
-                            }
-                        } else if isDisplayError {
-                            // 에러 UI — fallback 캐시도 없음
-                            ErrorStateView()
-                        } else if filteredCompanies.isEmpty {
-                            // 선택한 거래소에 해당하는 종목이 없을 때
-                            EmptyMarketView(market: selectedMarket)
-                        } else {
-                            // 실제 데이터 바인딩 (선택된 거래소로 필터링 + 정렬)
-                            // 기업 20개마다 띠배너 광고 자리(AdBannerSlot)를 삽입 —
-                            // App Store 출시 전 광고 지면 확보(실제 광고 SDK는 출시 직전 연동).
-                            let list = sortedFilteredCompanies
-                            ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
-                                CompanyRow(
-                                    company: company,
-                                    currency: selectedCurrency,
-                                    exchangeRate: exchangeRate
-                                )
-                                // 20·40·60… 번째 기업 뒤에 광고 삽입 (마지막 기업 뒤에는 제외)
-                                if (index + 1) % 20 == 0 && index + 1 < list.count {
-                                    AdBannerSlot()
-                                }
-                            }
+                } else if isError(for: market) {
+                    ErrorStateView()
+                } else if companies(for: market).isEmpty {
+                    EmptyMarketView(market: market)
+                } else {
+                    let list = sortedCompanies(for: market)
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
+                        CompanyRow(
+                            company: company,
+                            currency: selectedCurrency,
+                            exchangeRate: exchangeRate
+                        )
+                        if (index + 1) % 20 == 0 && index + 1 < list.count {
+                            AdBannerSlot()
                         }
                     }
-                    .id(selectedMarket)
-                    .transition(listTransition)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
-                // 좌우 스와이프로 거래소 섹션 이동 — 기업 리스트 영역에서만 동작.
-                // (거래소 필터바는 탭으로만 선택되도록 제외. 세로 스크롤과 공존하도록 simultaneousGesture 사용)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 20)
-                        .onEnded { value in
-                            let dx = value.translation.width
-                            let dy = value.translation.height
-                            // 가로 이동이 세로보다 우세하고 충분히 클 때만 섹션 전환
-                            guard abs(dx) > abs(dy), abs(dx) > 50 else { return }
-                            switchMarket(by: dx < 0 ? 1 : -1)
-                        }
-                )
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 32)
         }
-        // 명시적 테마 컬러를 하위 뷰에 주입 → 다크/라이트 전환이 부드럽게 보간됨
+        .background(theme.background)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 고정 헤더 — 섹션을 스와이프해도 항상 화면 상단에 유지
+            LiveIndicatorBar(
+                market: selectedMarket,
+                currentTime: currentTime,
+                basDt: basDt(for: selectedMarket),
+                isDarkMode: $isDarkMode,
+                vScale: vScale,
+                onSearch: { showSearch = true },
+                onMenu: { showMenu = true }
+            )
+            .padding(.top, 6 * vScale)
+
+            ProportionalScaledLayout(referenceWidth: 402) {
+                HStack(alignment: .center, spacing: 12) {
+                    SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
+                    CurrencyToggle(selected: $selectedCurrency)
+                }
+                .padding(.leading, 6)
+                .padding(.trailing, 16)
+            }
+            .padding(.top, -4 * vScale)
+            .padding(.bottom, 2 * vScale)
+
+            if isStale(for: selectedMarket) {
+                StaleBanner()
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+
+            MarketFilterBar(selected: selectedMarket, onSelect: selectMarket)
+                .padding(.bottom, 8 * vScale)
+
+            // 섹션별 페이지 — TabView가 손가락 드래그에 비례한 이동과 스냅을 네이티브로 처리.
+            // 모든 Market.allCases 섹션이 동일하게 좌우 스와이프로 전환된다.
+            TabView(selection: $selectedMarket) {
+                ForEach(Market.allCases) { market in
+                    marketPage(for: market)
+                        .tag(market)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(maxHeight: .infinity)
+        }
         .foregroundStyle(theme.label)
         .environment(\.appTheme, theme)
         .background(theme.background.ignoresSafeArea())
-        // 윈도우 전체 높이를 측정해 vScale(헤더 세로 비례 계수) 계산에 사용.
-        // ignoresSafeArea로 기기 실제 화면 높이(예: iPhone 17 Pro 874pt)를 그대로 읽는다.
         .background(
             GeometryReader { geo in
                 Color.clear
                     .onAppear { viewportHeight = geo.size.height }
-                    .onChange(of: geo.size.height) { viewportHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, h in viewportHeight = h }
             }
             .ignoresSafeArea()
         )
-        // 상단 토글 버튼 선택값에 따라 라이트/다크 모드 적용 (status bar 등 시스템 요소용)
         .preferredColorScheme(isDarkMode ? .dark : .light)
-        // 검색 화면 (돋보기)
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
@@ -862,7 +810,6 @@ struct ContentView: View {
                 onDismiss: { showSearch = false }
             )
         }
-        // 전체 메뉴 화면 (≡)
         .fullScreenCover(isPresented: $showMenu) {
             MenuView(
                 isDarkMode: $isDarkMode,
@@ -870,18 +817,13 @@ struct ContentView: View {
                 onDismiss: { showMenu = false }
             )
         }
-        // isDarkMode 변경으로 인한 테마 색상 변화를 부드럽게 애니메이션
         .animation(.easeInOut(duration: 0.45), value: isDarkMode)
-        // 15초 폴링 — 백엔드 quote 캐시(21초)와 sync, Finnhub rate limit 안전
         .task {
             while !Task.isCancelled {
                 await viewModel.fetch()
                 try? await Task.sleep(for: .seconds(15))
             }
         }
-        // 거래소 전용 피드(NASDAQ/NYSE …) 폴링 — 해당 탭 선택 중에만 15초 주기로 동작.
-        // selectedMarket 변경 시 task가 취소/재시작되므로 다른 탭에서는 호출되지 않아
-        // 기존 ALL 폴링 및 Finnhub rate limit에 영향을 최소화한다.
         .task(id: selectedMarket) {
             guard selectedMarket.apiExchangeParam != nil else { return }
             while !Task.isCancelled {
@@ -889,7 +831,6 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(15))
             }
         }
-        // 30초 폴링 — Yahoo Finance 지수 (서버 15초 캐시)
         .task(id: "market-index") {
             while !Task.isCancelled {
                 if let newIndices = await viewModel.fetchIndices() {
@@ -900,14 +841,12 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(30))
             }
         }
-        // 1초 주기 현재 시각 갱신 (Live 시계)
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 currentTime = Date()
             }
         }
-        // 3초 주기 지수 카드 순환
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
@@ -1094,19 +1033,28 @@ struct MarketFilterBar: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Market.allCases) { market in
-                    chip(market)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Market.allCases) { market in
+                        chip(market)
+                            .id(market)
+                    }
+                }
+                // CompanyRow / ColumnHeader의 좌우 패딩(16)과 시작점을 맞춤
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
+            }
+            // 양 끝을 옅게 페이드시켜 "가로 스크롤 가능"을 직관적으로 안내.
+            // 배경색에 의존하지 않도록 콘텐츠 자체를 마스크로 흐리게 처리한다.
+            .mask(edgeFadeMask)
+            // 선택된 섹션이 바뀌면 해당 칩이 가운데로 스크롤됨 (Toss 스타일)
+            .onChange(of: selected) { _, newValue in
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    proxy.scrollTo(newValue, anchor: .center)
                 }
             }
-            // CompanyRow / ColumnHeader의 좌우 패딩(16)과 시작점을 맞춤
-            .padding(.horizontal, 16)
-            .padding(.vertical, 2)
         }
-        // 양 끝을 옅게 페이드시켜 "가로 스크롤 가능"을 직관적으로 안내.
-        // 배경색에 의존하지 않도록 콘텐츠 자체를 마스크로 흐리게 처리한다.
-        .mask(edgeFadeMask)
     }
 
     /// 좌우 끝 20pt 구간을 투명하게 페이드아웃하는 마스크.
@@ -1309,14 +1257,14 @@ struct LiveIndicatorBar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // 좌측 상단 — 섹션별 데이터 기준 표시 (실시간 시각 / D-1 종가 기준)
+            // market이 바뀌면 텍스트 내용이 교체되고, 그 너비 변화가 스프링으로 자연스럽게 애니메이션됨.
+            // 왼쪽 시작점은 고정, 오른쪽만 텍스트 길이에 맞춰 늘었다 줄었다 함.
             MarketStatusView(market: market, currentTime: currentTime, basDt: basDt)
 
             Spacer()
 
             // 우측 상단 액션 버튼 — 토스 스타일 (다크/화이트 토글 · 검색 · 메뉴)
             HStack(spacing: 20) {
-                // 토스의 AI 버튼 자리 → 다크/화이트 모드 토글
                 Button {
                     withAnimation(.easeInOut(duration: 0.45)) {
                         isDarkMode.toggle()
@@ -1327,14 +1275,12 @@ struct LiveIndicatorBar: View {
                 }
                 .buttonStyle(.plain)
 
-                // 검색 → 토스식 검색 화면
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(theme.label)
                 }
                 .buttonStyle(.plain)
 
-                // 메뉴 → 전체 메뉴 화면
                 Button(action: onMenu) {
                     Image(systemName: "line.3.horizontal")
                         .foregroundStyle(theme.label)
@@ -1343,10 +1289,11 @@ struct LiveIndicatorBar: View {
             }
             .font(.system(size: 20, weight: .medium))
         }
-        // Live 줄 시작점을 지수 섹션(leading 6 + 18 = 24)과 맞춤. 우측 버튼은 기존 20 유지.
         .padding(.leading, 24)
         .padding(.trailing, 20)
         .padding(.vertical, 6 * vScale)
+        // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
     }
 }
 
@@ -1845,8 +1792,8 @@ struct ColumnHeader: View {
 
 // MARK: - Market Cap Formatting
 
-/// 원화 조(兆) 단위 표기용 포매터 — 천 단위 구분(US 메가캡을 원화로 볼 때 6,380조원 등).
-/// 소수 자릿수는 호출부에서 값 크기에 따라 동적으로 설정한다(1000조 미만 1자리, 이상 0자리).
+/// 원화 조(兆)/억(億) 단위 표기용 포매터 — 천 단위 구분(US 메가캡을 원화로 볼 때 6,380조원 등).
+/// 소수 자릿수와 단위는 호출부에서 값 크기에 따라 동적으로 설정한다.
 private let krwTrillionFormatter: NumberFormatter = {
     let f = NumberFormatter()
     f.numberStyle = .decimal
@@ -1854,7 +1801,7 @@ private let krwTrillionFormatter: NumberFormatter = {
 }()
 
 /// 시총 표시 문자열 — 통화별 단위 동적 변환. 목록·검색 화면이 공유한다.
-/// · KRW: 항상 조원, 소수점 1자리 (예: 1.5조원, 0.6조원)
+/// · KRW: 1조원 미만 → 억원 정수; 100조원 미만 → 조원 소수 2자리; 1000조원 미만 → 1자리; 이상 → 정수
 /// · USD: 1T 이상은 T, 1T 미만이면 크기에 맞춰 B(십억)·M(백만)로 동적 전환
 func formatMarketCap(_ marketCapUSD: Double, currency: Currency, exchangeRate: Double) -> String {
     switch currency {
@@ -1869,13 +1816,25 @@ func formatMarketCap(_ marketCapUSD: Double, currency: Currency, exchangeRate: D
         }
     case .krw:
         let krwTrillion = marketCapUSD * exchangeRate   // 조원 단위
-        // 1000조원 미만은 소수 1자리, 1000조원 이상은 소수점 제거(반올림).
-        let digits = krwTrillion >= 1000 ? 0 : 1
-        krwTrillionFormatter.minimumFractionDigits = digits
-        krwTrillionFormatter.maximumFractionDigits = digits
-        let s = krwTrillionFormatter.string(from: NSNumber(value: krwTrillion))
-            ?? String(format: "%.\(digits)f", krwTrillion)
-        return "\(s)조원"
+        if krwTrillion < 1 {
+            // 1조원 미만: 억원 정수로 표시
+            let eok = krwTrillion * 10_000
+            krwTrillionFormatter.minimumFractionDigits = 0
+            krwTrillionFormatter.maximumFractionDigits = 0
+            let s = krwTrillionFormatter.string(from: NSNumber(value: eok))
+                ?? "\(Int(eok.rounded()))"
+            return "\(s)억원"
+        } else {
+            let digits: Int
+            if krwTrillion < 100       { digits = 2 }
+            else if krwTrillion < 1000 { digits = 1 }
+            else                       { digits = 0 }
+            krwTrillionFormatter.minimumFractionDigits = digits
+            krwTrillionFormatter.maximumFractionDigits = digits
+            let s = krwTrillionFormatter.string(from: NSNumber(value: krwTrillion))
+                ?? String(format: "%.\(digits)f", krwTrillion)
+            return "\(s)조원"
+        }
     }
 }
 
