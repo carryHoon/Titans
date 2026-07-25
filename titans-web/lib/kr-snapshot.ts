@@ -371,23 +371,31 @@ export async function getKrIndexDataset(): Promise<KrIndexDataset> {
 }
 
 // ─── 발행 창(window) 폴러 ───────────────────────────────────────────────────────
-// 목표는 실시간이 아니라 "당일 공공데이터포털이 발행한 데이터는 당일 안에 취득"이다.
-// 그래서 여유롭게 — KST 장 마감(15:30) 이후 발행 창 동안 30분, 그 외 시간엔 안전망으로 3시간
-// 간격으로 프로브한다. 새 영업일이 감지되면 refreshIfNew가 스냅샷을 굳힌다(프로브는 1콜뿐이라
-// 이 정도 간격이면 하루 수십 콜 수준 → data.go.kr 한도에 넉넉).
-// 상시 프로세스(next dev/start·VPS)에서만 의미가 있으며, 서버리스에선 Vercel Cron이 대신한다.
+// 목표는 실시간이 아니라 "공공데이터포털이 발행한 데이터를 당일 안에 취득"이다.
+// 공식 갱신 기준(주식·지수 동일): basDt 데이터는 "다음 영업일 13:00 KST 이후" 제공(일 1회).
+//  예) 금요일 데이터 → 차주 월요일. 즉 새 데이터는 '영업일(월~금) 오후'에만 등장하고 주말엔 없다.
+// 그래서 영업일 13:00~21:00 KST에만 조밀(30분)하게, 그 외엔 안전망으로 성기게(3시간) 프로브한다.
+// 상시 프로세스(next dev/start·VPS)에서만 의미가 있으며, 서버리스(Vercel)에선 GitHub Actions
+// 크론(.github/workflows/refresh-kr.yml)이 동일한 발행 창으로 refresh 라우트를 대신 때린다.
 
-const DENSE_MS  = 30 * 60 * 1000       // 발행 창(마감 후): 30분
+const DENSE_MS  = 30 * 60 * 1000       // 발행 창(영업일 오후): 30분
 const SPARSE_MS = 3 * 60 * 60 * 1000   // 그 외: 3시간(안전망)
 
-// KST 기준 시(hour). 발행 창(16:00~23:59) 판정에 사용.
-function kstHour(): number {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours()
+// KST 기준 시(hour)·요일(0=일 … 6=토). 발행 창 판정에 사용.
+function kstParts(): { hour: number; weekday: number } {
+  const k = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return { hour: k.getUTCHours(), weekday: k.getUTCDay() }
+}
+
+// 공식 발행 창: 영업일(월~금) 13:00~21:00 KST. 이 구간만 조밀 폴링.
+function inPublishWindow(): boolean {
+  const { hour, weekday } = kstParts()
+  const isBusinessDay = weekday >= 1 && weekday <= 5
+  return isBusinessDay && hour >= 13 && hour <= 21
 }
 
 function nextPollDelay(): number {
-  const h = kstHour()
-  return h >= 16 ? DENSE_MS : SPARSE_MS   // 16시 이후 = 마감 후 발행 창
+  return inPublishWindow() ? DENSE_MS : SPARSE_MS
 }
 
 // globalThis 싱글턴 가드 — HMR/다중 import 시 폴러가 중복 기동되지 않도록.
