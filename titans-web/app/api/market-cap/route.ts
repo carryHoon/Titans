@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getUsdKrwQuote } from '@/lib/fx'
+import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// 코스피/코스닥 데이터는 스냅샷 레이어(@/lib/kr-snapshot)가 소유한다. 발행 창 폴러를 기동해
+// 새 영업일이 올라오면 백그라운드로 스냅샷을 갱신하고, 아래 getKrxDataset은 그 스냅샷만 읽는다.
+startKrPoller()
 
 const FINNHUB_TOKEN = process.env.FINNHUB_API_KEY ?? ''
 const BASE = 'https://finnhub.io/api/v1'
@@ -176,7 +181,7 @@ const KOREAN_STOCKS: KoreanStockMeta[] = [
 // 순위가 나스닥 공식과 일치한다. (KOSPI 섹션과 중복 노출은 TSM처럼 정상)
 const SKHYNIX_KRX: KoreanStockMeta = { ticker: '000660.KS', yahooTicker: '000660.KS', name: 'SK Hynix', color: '#EA5504' }
 
-// KOSPI 큐레이션 메타 (영문명·브랜드색·우선주 제외 기준). 유니버스·시세·시총은 이제
+// KOSPI 큐레이션 메타 (영문명·브랜드색). 유니버스·시세·시총은 이제
 // 공공데이터포털(금융위 주식시세정보)에서 매일 EOD로 동적으로 뽑으므로(getKrxDataset),
 // 이 배열은 "종목코드 → 영문명/색" 표시 메타의 소스로만 쓰인다.
 // 여기에 없는 신규 상위 종목은 공공데이터포털의 한글 종목명 + 기본색으로 폴백 표시된다.
@@ -286,45 +291,7 @@ export interface CompanyResult {
   marketCapUSD: number  // Trillion USD
 }
 
-// 공공데이터포털(금융위 주식시세정보) 응답 1건 — getStockPriceInfo item.
-interface DataGoStockItem {
-  basDt:      string  // 기준일자 "20260723"
-  srtnCd:     string  // 단축코드 "005930"
-  itmsNm:     string  // 종목명 "삼성전자"
-  mrktCtg:    string  // 시장구분 "KOSPI" | "KOSDAQ" | "KONEX"
-  clpr:       string  // 종가 "70000"
-  vs:         string  // 전일대비 "-500" | "1500"
-  fltRt:      string  // 등락률 "-0.71"
-  mrktTotAmt: string  // 시가총액(KRW) "417..."
-}
-
-interface DataGoResponse {
-  response?: {
-    header?: { resultCode?: string; resultMsg?: string }
-    body?: {
-      totalCount?: number
-      items?: { item?: DataGoStockItem[] } | ''
-    }
-  }
-}
-
-// 공공데이터포털에서 정규화한 KRX 종목 1건 (시장별 배열 + byCode 조회용).
-interface KrxRow {
-  code:          string  // 6자리 단축코드
-  name:          string  // 한글 종목명
-  market:        'KOSPI' | 'KOSDAQ'
-  price:         number
-  change:        number
-  changePercent: number
-  marketCapKRW:  number
-}
-
-interface KrxDataset {
-  basDt:  string
-  kospi:  KrxRow[]
-  kosdaq: KrxRow[]
-  byCode: Map<string, KrxRow>
-}
+// KRX 종목 응답/정규화 타입(DataGoStockItem·KrxRow·KrxDataset)은 스냅샷 레이어(@/lib/kr-snapshot)로 이동했다.
 
 // ─── Aramco-Specific Types ────────────────────────────────────────────────────
 
@@ -343,8 +310,6 @@ const profileCache    = new Map<string, CacheEntry<ProfileData>>()
 // 동시에 조회할 때 Finnhub 호출을 1건으로 합쳐 무료 한도(60/min) 소진을 줄인다.
 const quoteInFlight   = new Map<string, Promise<QuoteData>>()
 const profileInFlight = new Map<string, Promise<ProfileData>>()
-// 공공데이터포털 KRX 데이터셋 캐시 (KOSPI+KOSDAQ 전 종목, EOD). 하루 1회 갱신이라 TTL 여유.
-let krxDatasetCache: CacheEntry<KrxDataset> | null = null
 let aramcoDataCache: CacheEntry<AramcoData> | null = null
 
 // 실패 시 Yahoo Finance에 폭격 방지 — 마지막 실패로부터 60초 쿨다운
@@ -489,126 +454,10 @@ async function getKrwRate(): Promise<number> {
   }
 }
 
-// ─── KRX (한국거래소) Fetcher — 공공데이터포털 금융위 주식시세정보 ────────────────
-// 소스: data.go.kr 금융위원회_주식시세정보 getStockPriceInfo (정부 공식 오픈데이터, 라이선스 클린).
-// Naver/Yahoo 비공식 스크래핑을 대체한다. 단, 이 API는 장 마감 후(EOD) 데이터로 영업일 기준
-// 하루 지연(D-1)이라 장중 실시간 시세는 제공하지 않는다(출시 스펙의 일 1회 갱신과 부합).
-// 한 번의 배치 콜로 시장별 전 종목(종가·등락·시총)을 받아 상위 20개를 동적으로 뽑는다.
-// serviceKey는 data.go.kr 발급 "Decoding(일반)" 인증키를 넣는다(URLSearchParams가 인코딩 처리).
-const DATA_GO_KRX_URL =
-  'https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo'
-const DATA_GO_KR_KEY = process.env.DATA_GO_KR_KEY
-const KRX_DATASET_TTL_MS = 30 * 60 * 1000  // 30분 (EOD 데이터는 하루 1회 갱신이라 여유롭게)
-
-// KST 기준 YYYYMMDD 문자열 (UTC+9로 보정 후 UTC 필드 읽기).
-function kstDateStr(msFromNow: number): string {
-  const kst = new Date(Date.now() + msFromNow + 9 * 60 * 60 * 1000)
-  const y = kst.getUTCFullYear()
-  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(kst.getUTCDate()).padStart(2, '0')
-  return `${y}${m}${d}`
-}
-
-// 우선주·스팩·리츠 등 제외 — 시총 상위 "보통주"만 노출(기존 하드코딩 유니버스 기준과 동일).
-// 우선주 종목명은 대체로 "…우"·"…우B"·"…(전환)"로 끝나고, 스팩은 "스팩"을 포함한다.
-function isCommonStock(name: string): boolean {
-  if (/스팩/.test(name)) return false
-  if (/우[0-9A-Z]?$/.test(name)) return false
-  if (/\(전환\)$/.test(name)) return false
-  return true
-}
-
-// 공공데이터포털에서 특정 시장(mrktCls)·기준일(basDt)의 전 종목을 1콜로 받아 정규화.
-async function fetchKrxMarket(mrktCls: 'KOSPI' | 'KOSDAQ', basDt: string): Promise<KrxRow[]> {
-  const params = new URLSearchParams({
-    serviceKey: DATA_GO_KR_KEY!,
-    resultType: 'json',
-    numOfRows:  '2500',   // KOSDAQ ~1,700 종목도 한 페이지에 수용
-    pageNo:     '1',
-    mrktCls,
-    basDt,
-  })
-  const res = await fetch(`${DATA_GO_KRX_URL}?${params.toString()}`, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`data.go.kr ${mrktCls} ${basDt} → HTTP ${res.status}`)
-
-  const json: DataGoResponse = await res.json()
-  const code = json.response?.header?.resultCode
-  if (code && code !== '00') {
-    throw new Error(`data.go.kr ${mrktCls} → ${code} ${json.response?.header?.resultMsg ?? ''}`)
-  }
-
-  const items = json.response?.body?.items
-  const list = items && typeof items !== 'string' ? items.item ?? [] : []
-
-  const rows: KrxRow[] = []
-  for (const it of list) {
-    if (!isCommonStock(it.itmsNm)) continue
-    const price        = Number(it.clpr)
-    const marketCapKRW = Number(it.mrktTotAmt)
-    if (!price || !marketCapKRW) continue
-    rows.push({
-      code:          it.srtnCd,
-      name:          it.itmsNm,
-      market:        mrktCls,
-      price,
-      change:        Number(it.vs)    || 0,
-      changePercent: Number(it.fltRt) || 0,
-      marketCapKRW,
-    })
-  }
-  return rows
-}
-
-// 최근 거래일(basDt) 탐색 — 오늘부터 최대 8일 뒤로 가며 데이터가 있는 첫 날을 찾는다.
-// (주말·공휴일·데이터 반영 지연 대비). numOfRows=1 프로브로 저렴하게 확인.
-async function resolveLatestBasDt(): Promise<string> {
-  for (let i = 0; i < 8; i++) {
-    const basDt = kstDateStr(-i * 24 * 60 * 60 * 1000)
-    const params = new URLSearchParams({
-      serviceKey: DATA_GO_KR_KEY!,
-      resultType: 'json',
-      numOfRows:  '1',
-      pageNo:     '1',
-      mrktCls:    'KOSPI',
-      basDt,
-    })
-    const res = await fetch(`${DATA_GO_KRX_URL}?${params.toString()}`, { cache: 'no-store' })
-    if (!res.ok) continue
-    const json: DataGoResponse = await res.json()
-    if ((json.response?.body?.totalCount ?? 0) > 0) return basDt
-  }
-  throw new Error('data.go.kr → 최근 8일 내 거래 데이터 없음')
-}
-
-// KOSPI+KOSDAQ 전 종목 데이터셋 (30분 캐시). 실패 시 마지막 성공 캐시로 폴백.
-async function getKrxDataset(): Promise<KrxDataset> {
-  if (!DATA_GO_KR_KEY) throw new Error('DATA_GO_KR_KEY 미설정 — 공공데이터포털 인증키 필요')
-  if (krxDatasetCache && Date.now() - krxDatasetCache.ts < KRX_DATASET_TTL_MS) {
-    return krxDatasetCache.data
-  }
-  try {
-    const basDt = await resolveLatestBasDt()
-    const [kospi, kosdaq] = await Promise.all([
-      fetchKrxMarket('KOSPI', basDt),
-      fetchKrxMarket('KOSDAQ', basDt),
-    ])
-    kospi.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
-    kosdaq.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
-
-    const byCode = new Map<string, KrxRow>()
-    for (const r of [...kospi, ...kosdaq]) byCode.set(r.code, r)
-
-    const data: KrxDataset = { basDt, kospi, kosdaq, byCode }
-    krxDatasetCache = { data, ts: Date.now() }
-    return data
-  } catch (err) {
-    if (krxDatasetCache) {
-      console.warn('[market-cap:KRX] dataset fetch failed, using stale cache:', err)
-      return krxDatasetCache.data
-    }
-    throw err
-  }
-}
+// ─── KRX (한국거래소) — 스냅샷 레이어에서 조회 ─────────────────────────────────
+// 코스피/코스닥 종목 데이터셋은 @/lib/kr-snapshot 이 소유한다(발행 창 폴러가 새 영업일마다
+// 스냅샷을 굳히고, getKrxDataset은 업스트림 호출 없이 그 스냅샷만 읽는다). data.go.kr 접근·
+// basDt 탐색·정규화 로직은 전부 그 모듈에 있다.
 
 // ALL·NASDAQ 피드가 특정 KRX 종목(삼성전자·SK하이닉스)을 코드로 조회할 때 사용.
 // 공유 데이터셋에서 조회하므로 추가 API 콜 없이 큐레이션 메타(영문명/색)로 매핑한다.

@@ -236,7 +236,7 @@ interface SnapshotStore {
   save(snap: PersistedSnapshot): Promise<void>
 }
 
-// 로컬/상시 프로세스용 파일 저장소. 서버리스 전환 시 KvStore로 교체(같은 인터페이스).
+// 로컬/상시 프로세스용 파일 저장소. Mac(next dev/start)·VPS에서 스냅샷을 .data/에 보관한다.
 class FileStore implements SnapshotStore {
   private readonly file = path.join(process.cwd(), '.data', 'kr-snapshot.json')
 
@@ -255,7 +255,47 @@ class FileStore implements SnapshotStore {
   }
 }
 
-const store: SnapshotStore = new FileStore()
+// 서버리스(Vercel)용 클라우드 저장소 — Upstash Redis REST API.
+// 서버리스 함수는 메모리·파일이 호출마다 사라지므로, 여러 인스턴스가 공유하는 "유일한 냉장고".
+// 의존성 추가 없이 REST(fetch)로만 접근한다(@upstash/redis SDK 불필요).
+class KvStore implements SnapshotStore {
+  private readonly url   = process.env.UPSTASH_REDIS_REST_URL!
+  private readonly token = process.env.UPSTASH_REDIS_REST_TOKEN!
+  private readonly key   = 'kr-snapshot'
+
+  async load(): Promise<PersistedSnapshot | null> {
+    const res = await fetch(`${this.url}/get/${this.key}`, {
+      headers: { Authorization: `Bearer ${this.token}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const json = await res.json() as { result?: string | null }
+    if (!json.result) return null
+    try { return JSON.parse(json.result) as PersistedSnapshot } catch { return null }
+  }
+
+  async save(snap: PersistedSnapshot): Promise<void> {
+    // Upstash REST SET: 값은 요청 본문으로 전달(큰 JSON도 안전).
+    const res = await fetch(`${this.url}/set/${this.key}`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${this.token}` },
+      body:    JSON.stringify(snap),
+      cache:   'no-store',
+    })
+    if (!res.ok) throw new Error(`Upstash set → HTTP ${res.status}`)
+  }
+}
+
+// 저장소 선택: Upstash 환경변수가 있으면 클라우드(KvStore), 없으면 로컬 파일(FileStore).
+// → 코드 변경 없이 배포처만 바뀐다(로컬은 파일, Vercel은 KV).
+const store: SnapshotStore =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new KvStore()
+    : new FileStore()
+
+// 스냅샷에 보관할 시장별 상위 종목 수. 앱은 상위 100개만 쓰고 byCode 조회 대상(삼성·SK하이닉스)도
+// 상위권이라, 여유 있게 상위 300개만 저장한다(전 종목 ~2,700개 → 스냅샷 크기·KV 전송량 대폭 절감).
+const SNAPSHOT_TOP_N = 300
 
 // ─── 인메모리 현재 스냅샷 + 부트스트랩 ──────────────────────────────────────────
 
@@ -266,6 +306,10 @@ let bootstrapping: Promise<void> | null = null
 // 이미 최신이면 아무것도 안 한다(프로브 1콜만 소모). 폴러/콜드 부트스트랩 공용.
 export async function refreshIfNew(): Promise<boolean> {
   if (!DATA_GO_KR_KEY) throw new Error('DATA_GO_KR_KEY 미설정 — 공공데이터포털 인증키 필요')
+
+  // 서버리스(Vercel)는 함수 호출마다 메모리가 비어 current가 null이다. 저장소(KV)의 현재 스냅샷을
+  // 먼저 읽어와 비교해야 "이미 최신이면 스킵"이 성립한다(안 그러면 크론마다 불필요하게 전체 재fetch).
+  if (!current) current = await store.load()
 
   const latest = await resolveLatestStockBasDt()
   if (current && current.stock.basDt >= latest) return false  // 이미 최신 — 스킵
@@ -280,7 +324,8 @@ export async function refreshIfNew(): Promise<boolean> {
 
   const snap: PersistedSnapshot = {
     fetchedAt: Date.now(),
-    stock: { basDt: latest, kospi, kosdaq },
+    // 앱은 상위 100개만 쓰므로 상위 N개만 저장(KV 전송량·크기 절감). byCode 조회 대상도 상위권.
+    stock: { basDt: latest, kospi: kospi.slice(0, SNAPSHOT_TOP_N), kosdaq: kosdaq.slice(0, SNAPSHOT_TOP_N) },
     index,
   }
   current = snap
@@ -326,12 +371,14 @@ export async function getKrIndexDataset(): Promise<KrIndexDataset> {
 }
 
 // ─── 발행 창(window) 폴러 ───────────────────────────────────────────────────────
-// KST 장 마감(15:30) 이후 발행 창 동안 촘촘히(10분), 그 외 시간엔 안전망으로 성기게(60분)
-// 프로브한다. 새 영업일이 감지되면 refreshIfNew가 스냅샷을 굳힌다.
+// 목표는 실시간이 아니라 "당일 공공데이터포털이 발행한 데이터는 당일 안에 취득"이다.
+// 그래서 여유롭게 — KST 장 마감(15:30) 이후 발행 창 동안 30분, 그 외 시간엔 안전망으로 3시간
+// 간격으로 프로브한다. 새 영업일이 감지되면 refreshIfNew가 스냅샷을 굳힌다(프로브는 1콜뿐이라
+// 이 정도 간격이면 하루 수십 콜 수준 → data.go.kr 한도에 넉넉).
 // 상시 프로세스(next dev/start·VPS)에서만 의미가 있으며, 서버리스에선 Vercel Cron이 대신한다.
 
-const DENSE_MS  = 10 * 60 * 1000
-const SPARSE_MS = 60 * 60 * 1000
+const DENSE_MS  = 30 * 60 * 1000       // 발행 창(마감 후): 30분
+const SPARSE_MS = 3 * 60 * 60 * 1000   // 그 외: 3시간(안전망)
 
 // KST 기준 시(hour). 발행 창(16:00~23:59) 판정에 사용.
 function kstHour(): number {
@@ -351,6 +398,9 @@ export function startKrPoller(): void {
   if (!DATA_GO_KR_KEY) return
   if (process.env.KR_POLLER === 'off') return
   if (process.env.NEXT_PHASE === 'phase-production-build') return  // 빌드 중 기동 방지
+  // 서버리스(Vercel)에선 in-process 타이머가 함수 종료와 함께 사라져 무의미하다.
+  // 그쪽은 GitHub Actions 크론이 /api/internal/refresh-kr을 때려 refreshIfNew를 구동한다.
+  if (process.env.VERCEL) return
   g.__krPollerStarted = true
 
   // 기동 즉시 1회 워밍(파일 스냅샷이 없거나 오래됐으면 새로 받음).

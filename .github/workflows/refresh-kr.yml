@@ -1,0 +1,23 @@
+name: Refresh KR snapshot
+
+# 코스피/코스닥 스냅샷 갱신 알람(무료 스케줄러).
+# Vercel Hobby 크론은 하루 1회 한계라, 대신 GitHub Actions 크론으로 발행 창(KST 저녁)에
+# 매시간 refresh 라우트를 때린다 → 새 영업일이면 refreshIfNew가 스냅샷(Upstash)을 굳힌다.
+# refresh 라우트는 새 영업일이 아니면 아무것도 안 하므로(프로브 1콜) 매시간 호출해도 저렴하다.
+
+on:
+  schedule:
+    # cron은 UTC 기준. KST = UTC+9.
+    # 08~13 UTC = 17:00~22:00 KST 매시 정각(장 마감 15:30 이후 발행 창) → 하루 6회.
+    - cron: '0 8-13 * * *'
+  workflow_dispatch: {}   # 필요할 때 수동 실행(Actions 탭에서 버튼)
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping refresh endpoint
+        run: |
+          curl -fsS --max-time 120 -X POST \
+            -H "x-refresh-secret: ${{ secrets.REFRESH_SECRET }}" \
+            "${{ secrets.APP_BASE_URL }}/api/internal/refresh-kr"
