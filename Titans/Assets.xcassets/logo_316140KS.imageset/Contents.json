@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "woori-logo.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

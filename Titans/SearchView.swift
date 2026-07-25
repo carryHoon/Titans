@@ -381,13 +381,7 @@ struct SearchView: View {
     }
 
     private func marketCapText(_ c: Company) -> String {
-        switch currency {
-        case .usd:
-            return String(format: "$%.2fT", c.marketCapUSD)
-        case .krw:
-            let krwTrillion = c.marketCapUSD * exchangeRate
-            return "\(Int(krwTrillion.rounded()))조원"
-        }
+        formatMarketCap(c.marketCapUSD, currency: currency, exchangeRate: exchangeRate)
     }
 
     private var nowLabel: String {

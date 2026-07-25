@@ -132,7 +132,7 @@ private let tickerMarket: [String: Market] = [
     "CAT": .nyse, "GE": .nyse, "MS": .nyse, "GS": .nyse, "PM": .nyse,
     "RTX": .nyse, "AXP": .nyse, "C": .nyse, "HSBC": .nyse,
     // KOSPI (KRX)
-    "005930.KS": .kospi, "000660.KS": .kospi,
+    "005930.KS": .kospi, "000660.KS": .kospi, "005935.KS": .kospi,
 ]
 
 // MARK: - Market Data
@@ -1587,6 +1587,34 @@ private let tickerLocalLogo: [String: String] = [
     "108490.KQ":  "logo_108490KQ",
     "095610.KQ":  "logo_095610KQ",
     "141080.KQ":  "logo_141080KQ",
+    // KOSPI — 추가 종목
+    "035420.KS":  "logo_035420KS",  // 네이버
+    "010120.KS":  "logo_010120KS",  // LS Electric
+    "267260.KS":  "logo_267260KS",  // HD현대일렉트릭
+    "066570.KS":  "logo_066570KS",  // LG전자
+    "000810.KS":  "logo_000810KS",  // 삼성화재
+    "042660.KS":  "logo_042660KS",  // 한화오션
+    "009540.KS":  "logo_009540KS",  // HD한국조선해양
+    "005490.KS":  "logo_005490KS",  // POSCO홀딩스
+    "015760.KS":  "logo_015760KS",  // 한국전력
+    "316140.KS":  "logo_316140KS",  // 우리금융지주
+    "096770.KS":  "logo_096770KS",  // SK이노베이션
+    "006800.KS":  "logo_006800KS",  // 미래에셋증권
+    "010130.KS":  "logo_010130KS",  // 고려아연
+    "017670.KS":  "logo_017670KS",  // SK텔레콤
+    "010140.KS":  "logo_010140KS",  // 삼성중공업
+    "000150.KS":  "logo_000150KS",  // 두산
+    "011200.KS":  "logo_011200KS",  // HMM
+    "051910.KS":  "logo_051910KS",  // LG화학
+    "267250.KS":  "logo_267250KS",  // HD현대
+    "064350.KS":  "logo_064350KS",  // 현대로템
+    "018260.KS":  "logo_018260KS",  // 삼성SDS
+    "010950.KS":  "logo_010950KS",  // S-Oil
+    "024110.KS":  "logo_024110KS",  // 기업은행
+    "035720.KS":  "logo_035720KS",  // 카카오
+    "377300.KS":  "logo_377300KS",  // 카카오페이
+    "298040.KS":  "logo_298040KS",  // 효성중공업
+    "005935.KS":  "logo_005935KS",  // 삼성전자우
 ]
 
 /// 로컬 PNG에 검정 배경이 포함된 로고 — 표시 시 배경을 자동 제거.
@@ -1815,6 +1843,42 @@ struct ColumnHeader: View {
     }
 }
 
+// MARK: - Market Cap Formatting
+
+/// 원화 조(兆) 단위 표기용 포매터 — 천 단위 구분(US 메가캡을 원화로 볼 때 6,380조원 등).
+/// 소수 자릿수는 호출부에서 값 크기에 따라 동적으로 설정한다(1000조 미만 1자리, 이상 0자리).
+private let krwTrillionFormatter: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .decimal
+    return f
+}()
+
+/// 시총 표시 문자열 — 통화별 단위 동적 변환. 목록·검색 화면이 공유한다.
+/// · KRW: 항상 조원, 소수점 1자리 (예: 1.5조원, 0.6조원)
+/// · USD: 1T 이상은 T, 1T 미만이면 크기에 맞춰 B(십억)·M(백만)로 동적 전환
+func formatMarketCap(_ marketCapUSD: Double, currency: Currency, exchangeRate: Double) -> String {
+    switch currency {
+    case .usd:
+        let t = marketCapUSD                       // 조(兆) 달러(trillion USD) 단위
+        if t >= 1 {
+            return String(format: "$%.2fT", t)
+        } else if t >= 0.001 {                     // 1B = 0.001T
+            return String(format: "$%.2fB", t * 1_000)
+        } else {
+            return String(format: "$%.2fM", t * 1_000_000)
+        }
+    case .krw:
+        let krwTrillion = marketCapUSD * exchangeRate   // 조원 단위
+        // 1000조원 미만은 소수 1자리, 1000조원 이상은 소수점 제거(반올림).
+        let digits = krwTrillion >= 1000 ? 0 : 1
+        krwTrillionFormatter.minimumFractionDigits = digits
+        krwTrillionFormatter.maximumFractionDigits = digits
+        let s = krwTrillionFormatter.string(from: NSNumber(value: krwTrillion))
+            ?? String(format: "%.\(digits)f", krwTrillion)
+        return "\(s)조원"
+    }
+}
+
 // MARK: - Company Row
 
 struct CompanyRow: View {
@@ -1823,23 +1887,8 @@ struct CompanyRow: View {
     let exchangeRate: Double
     @Environment(\.appTheme) private var theme
 
-    private static let krwFormatter: NumberFormatter = {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.maximumFractionDigits = 0
-        f.minimumFractionDigits = 0
-        return f
-    }()
-
     private var formattedMarketCap: String {
-        switch currency {
-        case .usd:
-            return String(format: "$%.2fT", company.marketCapUSD)
-        case .krw:
-            let krwTrillion = company.marketCapUSD * exchangeRate
-            let formatted = Self.krwFormatter.string(from: NSNumber(value: krwTrillion)) ?? "\(Int(krwTrillion))"
-            return "\(formatted)조원"
-        }
+        formatMarketCap(company.marketCapUSD, currency: currency, exchangeRate: exchangeRate)
     }
 
     var body: some View {
