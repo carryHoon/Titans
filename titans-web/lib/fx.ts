@@ -40,14 +40,15 @@ export interface FxProvider {
 // 모든 소스가 죽었을 때의 최종 폴백 상수 (통화당 USD 근사값).
 const FALLBACK: Record<Currency, number> = { KRW: 1450, JPY: 155, CNY: 7.2, EUR: 0.92 }
 
-// 수출입은행 발행 창: 영업일 11:00~12:00 KST 구간 → 10분 TTL로 새 데이터를 빠르게 포착.
+// 수출입은행 발행 창: 영업일 10:00~12:00 KST 구간 → 10분 TTL로 새 데이터를 빠르게 포착.
+// "11시 전후" 갱신이라 11시 이전 여유를 1시간 두어 안정적으로 포착한다.
 // 그 외(발행 없는 시간대·주말)는 24시간 TTL → 이미 받은 일환율을 재사용해 API 호출 최소화.
 function isFxCacheFresh(ts: number): boolean {
   const age = Date.now() - ts
   const kst = toKST(new Date())
   const h   = kst.getUTCHours()
   const wd  = kst.getUTCDay()
-  const inPublishWindow = wd >= 1 && wd <= 5 && h >= 11 && h < 12
+  const inPublishWindow = wd >= 1 && wd <= 5 && h >= 10 && h < 12
   return age < (inPublishWindow ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000)
 }
 
