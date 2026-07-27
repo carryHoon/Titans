@@ -110,31 +110,6 @@ enum Market: String, CaseIterable, Identifiable {
 enum SortField: Equatable { case rank, name, marketCap }
 enum SortOrder: Equatable { case ascending, descending }
 
-/// Ticker → 상장 거래소 매핑. 신규 종목 추가 시 여기에 등록.
-private let tickerMarket: [String: Market] = [
-    // NASDAQ
-    "NVDA": .nasdaq, "AAPL": .nasdaq, "MSFT": .nasdaq, "GOOGL": .nasdaq,
-    "AMZN": .nasdaq, "META": .nasdaq, "TSLA": .nasdaq, "AVGO": .nasdaq,
-    "COST": .nasdaq, "NFLX": .nasdaq, "PLTR": .nasdaq, "AMD": .nasdaq, "MU": .nasdaq,
-    "SPCX": .nasdaq,
-    "CSCO": .nasdaq, "ADBE": .nasdaq, "TMUS": .nasdaq, "INTU": .nasdaq, "QCOM": .nasdaq,
-    "AMAT": .nasdaq, "TXN": .nasdaq, "AMGN": .nasdaq, "ISRG": .nasdaq, "BKNG": .nasdaq,
-    "GILD": .nasdaq,
-    "INTC": .nasdaq, "LRCX": .nasdaq, "ARM": .nasdaq, "KLAC": .nasdaq, "PANW": .nasdaq,
-    "LIN": .nasdaq, "ASML": .nasdaq,
-    // Walmart는 Finnhub·나스닥 공식 모두 NASDAQ으로 분류
-    "WMT": .nasdaq,
-    // NYSE
-    "BRK.B": .nyse, "JPM": .nyse, "TSM": .nyse, "LLY": .nyse,
-    "V": .nyse, "ORCL": .nyse, "XOM": .nyse, "MA": .nyse, "UNH": .nyse,
-    "JNJ": .nyse, "HD": .nyse, "PG": .nyse, "ABBV": .nyse, "KO": .nyse,
-    "BAC": .nyse, "CVX": .nyse, "CRM": .nyse, "WFC": .nyse, "MRK": .nyse,
-    "ACN": .nyse, "MCD": .nyse,
-    "CAT": .nyse, "GE": .nyse, "MS": .nyse, "GS": .nyse, "PM": .nyse,
-    "RTX": .nyse, "AXP": .nyse, "C": .nyse, "HSBC": .nyse,
-    // KOSPI (KRX)
-    "005930.KS": .kospi, "000660.KS": .kospi, "005935.KS": .kospi,
-]
 
 // MARK: - Market Data
 
@@ -211,117 +186,6 @@ struct MarketIndexResponse: Decodable {
 // 앱의 다음 폴백(파비콘→이니셜)이 동작하게 한다.
 private let logoDevToken = "pk_J8vaeyLSSxewXruh0z5O9g"
 
-private let tickerDomain: [String: String] = [
-    "NVDA":    "nvidia.com",
-    "AAPL":    "apple.com",
-    "MSFT":    "microsoft.com",
-    "GOOGL":   "google.com",
-    "AMZN":    "amazon.com",
-    "META":    "meta.com",
-    "TSLA":    "tesla.com",
-    "BRK.B":   "berkshirehathaway.com",
-    "AVGO":    "broadcom.com",
-    "JPM":     "jpmorganchase.com",
-    "TSM":     "tsmc.com",
-    "LLY":     "lilly.com",
-    "WMT":     "walmart.com",
-    "V":       "visa.com",
-    "ORCL":    "oracle.com",
-    "XOM":     "exxonmobil.com",
-    "MA":      "mastercard.com",
-    "COST":    "costco.com",
-    "NFLX":    "netflix.com",
-    "UNH":     "unitedhealthgroup.com",
-    "PLTR":      "palantir.com",
-    "SPCX":      "spacex.com",
-    "AMD":       "amd.com",
-    "MU":        "micron.com",
-    // 추가 NASDAQ 종목
-    "CSCO":      "cisco.com",
-    "ADBE":      "adobe.com",
-    "TMUS":      "t-mobile.com",
-    "INTU":      "intuit.com",
-    "QCOM":      "qualcomm.com",
-    "AMAT":      "appliedmaterials.com",
-    "TXN":       "ti.com",
-    "AMGN":      "amgen.com",
-    "ISRG":      "intuitive.com",
-    "BKNG":      "bookingholdings.com",
-    "GILD":      "gilead.com",
-    // 추가 NYSE 종목
-    "JNJ":       "jnj.com",
-    "HD":        "homedepot.com",
-    "PG":        "pg.com",
-    "ABBV":      "abbvie.com",
-    "KO":        "coca-cola.com",
-    "BAC":       "bankofamerica.com",
-    "CVX":       "chevron.com",
-    "CRM":       "salesforce.com",
-    "WFC":       "wellsfargo.com",
-    "MRK":       "merck.com",
-    "ACN":       "accenture.com",
-    "MCD":       "mcdonalds.com",
-    // 추가 NASDAQ 종목 (시총 상위 유니버스 확장)
-    "INTC":      "intel.com",
-    "LRCX":      "lamresearch.com",
-    "ARM":       "arm.com",
-    "KLAC":      "kla.com",
-    "PANW":      "paloaltonetworks.com",
-    "LIN":       "linde.com",
-    "ASML":      "asml.com",
-    // 추가 NYSE 종목 (시총 상위 유니버스 확장)
-    "CAT":       "caterpillar.com",
-    "GE":        "geaerospace.com",
-    "MS":        "morganstanley.com",
-    "GS":        "goldmansachs.com",
-    "PM":        "pmi.com",
-    "RTX":       "rtx.com",
-    "AXP":       "americanexpress.com",
-    "C":         "citi.com",
-    "HSBC":      "hsbc.com",
-    "2222.SR":   "aramco.com",
-    // KRX (Korea) — KOSPI
-    "005930.KS": "samsung.com",
-    "000660.KS": "skhynix.com",
-    "402340.KS": "sksquare.com",
-    "009150.KS": "samsungsem.com",
-    "005380.KS": "hyundai.com",
-    "373220.KS": "lgensol.com",
-    "032830.KS": "samsunglife.com",
-    "207940.KS": "samsungbiologics.com",
-    "105560.KS": "kbfg.com",
-    "028260.KS": "samsungcnt.com",
-    "000270.KS": "kia.com",
-    "055550.KS": "shinhangroup.com",
-    "012330.KS": "mobis.co.kr",
-    "012450.KS": "hanwhaaerospace.com",
-    "034730.KS": "sk.com",
-    "034020.KS": "doosanenerbility.com",
-    "068270.KS": "celltrion.com",
-    "086790.KS": "hanafn.com",
-    "006400.KS": "samsungsdi.com",
-    "000250.KQ": "scd.co.kr",
-    // KRX (Korea) — KOSDAQ
-    "214450.KQ": "pharmaresearch.co.kr",
-    "196170.KQ": "alteogen.com",
-    "247540.KQ": "ecoprobm.co.kr",
-    "086520.KQ": "ecopro.co.kr",
-    "277810.KQ": "rainbow-robotics.com",
-    "036930.KQ": "jseng.com",
-    "240810.KQ": "wonikips.com",
-    "058470.KQ": "leeno.co.kr",
-    "298380.KQ": "ablbio.com",
-    "039030.KQ": "eotechnics.com",
-    "028300.KQ": "hlb.co.kr",
-    "319660.KQ": "pskinc.com",
-    "222800.KQ": "simmtech.com",
-    "141080.KQ": "ligachembio.com",
-    "108490.KQ": "robotis.com",
-    "403870.KQ": "hpsp.co.kr",
-    "440110.KQ": "fadu.io",
-    "095340.KQ": "iscmfg.com",
-    "095610.KQ": "tes.co.kr",
-]
 
 // MARK: - Color(hex:) Extension
 
@@ -360,6 +224,66 @@ private extension UIImage {
             let hi = max(r, g, b), lo = min(r, g, b)
             let sat = hi == 0 ? 0.0 : (hi - lo) / hi
             if sat < 0.3 && hi < 0.3 { // 어둡고 무채색인 픽셀 → 투명 처리
+                buf[i*4] = 0; buf[i*4+1] = 0; buf[i*4+2] = 0; buf[i*4+3] = 0
+            }
+        }
+        return ctx.makeImage().map { UIImage(cgImage: $0) }
+    }
+
+    /// 밝은 회색/흰색 배경 픽셀을 투명하게 만든다.
+    /// 채도가 낮고(무채색) 밝기가 높은(회색·흰색) 픽셀만 제거해 채색된 로고 요소는 보존한다.
+    func removingLightBackground() -> UIImage? {
+        guard let cg = cgImage else { return nil }
+        let w = cg.width, h = cg.height
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        for i in 0..<(w * h) {
+            let r = CGFloat(buf[i*4]) / 255,
+                g = CGFloat(buf[i*4+1]) / 255,
+                b = CGFloat(buf[i*4+2]) / 255
+            let hi = max(r, g, b), lo = min(r, g, b)
+            let sat = hi == 0 ? 0.0 : (hi - lo) / hi
+            if sat < 0.12 && hi > 0.50 { // 밝고 무채색인 픽셀(회색·흰색) → 투명 처리
+                buf[i*4] = 0; buf[i*4+1] = 0; buf[i*4+2] = 0; buf[i*4+3] = 0
+            }
+        }
+        return ctx.makeImage().map { UIImage(cgImage: $0) }
+    }
+
+    /// 네 귀퉁이 픽셀의 평균색을 배경색으로 간주하고, 그 색에 가까운 픽셀을 투명하게 만든다.
+    /// 녹색(네이버)·노랑(KB금융) 같은 단색 컬러 배경 로고에 적용.
+    func removingDominantBackground(tolerance: CGFloat = 0.22) -> UIImage? {
+        guard let cg = cgImage else { return nil }
+        let w = cg.width, h = cg.height
+        guard w > 1, h > 1 else { return nil }
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        let corners = [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]
+        var bgR: CGFloat = 0, bgG: CGFloat = 0, bgB: CGFloat = 0
+        for (cx, cy) in corners {
+            let idx = cy * w + cx
+            bgR += CGFloat(buf[idx*4])   / 255
+            bgG += CGFloat(buf[idx*4+1]) / 255
+            bgB += CGFloat(buf[idx*4+2]) / 255
+        }
+        bgR /= 4; bgG /= 4; bgB /= 4
+        let tol2 = tolerance * tolerance
+        for i in 0..<(w * h) {
+            let r = CGFloat(buf[i*4])   / 255
+            let g = CGFloat(buf[i*4+1]) / 255
+            let b = CGFloat(buf[i*4+2]) / 255
+            let d2 = (r-bgR)*(r-bgR) + (g-bgG)*(g-bgG) + (b-bgB)*(b-bgB)
+            if d2 < tol2 {
                 buf[i*4] = 0; buf[i*4+1] = 0; buf[i*4+2] = 0; buf[i*4+3] = 0
             }
         }
@@ -1006,7 +930,7 @@ struct SkeletonCompanyRow: View {
 
             RoundedRectangle(cornerRadius: 14)
                 .fill(theme.fill)
-                .frame(width: 50, height: 50)
+                .frame(width: logoTileSize, height: logoTileSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 RoundedRectangle(cornerRadius: 5)
@@ -1216,7 +1140,7 @@ struct ComingSoonView: View {
             Image(systemName: "clock.badge.checkmark")
                 .font(.system(size: 38))
                 .foregroundStyle(theme.tertiaryLabel)
-            Text("\(market.title) 준비 중입니다")
+            Text("\(market.title) 준비 중")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(theme.secondaryLabel)
             Text("하트가 많은 증권거래소부터 출시돼요")
@@ -1385,7 +1309,7 @@ struct MarketStatusView: View {
     private var detail: String {
         if market.comingSoon { return "출시 준비 중" }
         if isEOD { return basDt.map { "\(formatBasDt($0)) 종가 기준" } ?? "불러오는 중" }
-        return "실시간 \(Self.timeFormatter.string(from: currentTime))"
+        return "\(Self.timeFormatter.string(from: currentTime))"
     }
 
     var body: some View {
@@ -1516,115 +1440,6 @@ struct MarketIndexRow: View {
 /// 해당 기업은 URL 대신 로컬 이미지를 우선 표시함.
 /// 예: "TSLA": "logo_TSLA"
 // 로고 파일을 Assets.xcassets에 추가한 뒤 여기에 "TICKER": "asset_name" 형태로 매핑
-private let tickerLocalLogo: [String: String] = [
-    "AVGO":       "logo_AVGO",
-    "NVDA":       "logo_NVDA",
-    "TSM":        "logo_TSM",
-    "AMZN":       "logo_AMZN",
-    "2222.SR":    "logo_2222SR",
-    "LLY":        "logo_LLY",
-    "BRK.B":      "logo_BRKB",
-    "000660.KS":  "logo_000660KS",
-    "AMD":        "logo_AMD",
-    "V":          "logo_V",
-    "WMT":        "logo_WMT",
-    "005930.KS":  "logo_005930KS",
-    "402340.KS":  "logo_402340KS",
-    "006400.KS":  "logo_006400KS",
-    "034020.KS":  "logo_034020KS",
-    "034730.KS":  "logo_034730KS",
-    "012330.KS":  "logo_012330KS",
-    "000270.KS":  "logo_000270KS",
-    "207940.KS":  "logo_207940KS",
-    "105560.KS":  "logo_105560KS",
-    "028260.KS":  "logo_028260KS",
-    "329180.KS":  "logo_329180KS",
-    "032830.KS":  "logo_032830KS",
-    "373220.KS":  "logo_373220KS",
-    "005380.KS":  "logo_005380KS",
-    "009150.KS":  "logo_009150KS",
-    "META":       "logo_META",
-    "AAPL":       "logo_AAPL",
-    "GOOGL":      "logo_GOOGL",
-    "SPCX":       "logo_SPCX",
-    "COST":       "logo_COST",
-    "PLTR":       "logo_PLTR",
-    "CSCO":       "logo_CSCO",
-    "NFLX":       "logo_NFLX",
-    "TMUS":       "logo_TMUS",
-    "TXN":        "logo_TXN",
-    "AMGN":       "logo_AMGN",
-    "QCOM":       "logo_QCOM",
-    "MSFT":       "logo_MSFT",
-    "XOM":        "logo_XOM",
-    "BAC":        "logo_BAC",
-    "JNJ":        "logo_JNJ",
-    "ABBV":       "logo_ABBV",
-    "MA":         "logo_MA",
-    "UNH":        "logo_UNH",
-    "KO":         "logo_KO",
-    "CVX":        "logo_CVX",
-    "ORCL":       "logo_ORCL",
-    "HD":         "logo_HD",
-    "ARM":        "logo_ARM",
-    "INTC":       "logo_INTC",
-    "ASML":       "logo_ASML",
-    "CAT":        "logo_CAT",
-    "GE":         "logo_GE",
-    "247540.KQ":  "logo_247540KQ",
-    "086520.KQ":  "logo_086520KQ",
-    "277810.KQ":  "logo_277810KQ",
-    "036930.KQ":  "logo_036930KQ",
-    "240810.KQ":  "logo_240810KQ",
-    "058470.KQ":  "logo_058470KQ",
-    "298380.KQ":  "logo_298380KQ",
-    "039030.KQ":  "logo_039030KQ",
-    "028300.KQ":  "logo_028300KQ",
-    "319660.KQ":  "logo_319660KQ",
-    "214450.KQ":  "logo_214450KQ",
-    "000250.KQ":  "logo_000250KQ",
-    "440110.KQ":  "logo_440110KQ",
-    "222800.KQ":  "logo_222800KQ",
-    "095340.KQ":  "logo_095340KQ",
-    "403870.KQ":  "logo_403870KQ",
-    "108490.KQ":  "logo_108490KQ",
-    "095610.KQ":  "logo_095610KQ",
-    "141080.KQ":  "logo_141080KQ",
-    // KOSPI — 추가 종목
-    "035420.KS":  "logo_035420KS",  // 네이버
-    "010120.KS":  "logo_010120KS",  // LS Electric
-    "267260.KS":  "logo_267260KS",  // HD현대일렉트릭
-    "066570.KS":  "logo_066570KS",  // LG전자
-    "000810.KS":  "logo_000810KS",  // 삼성화재
-    "042660.KS":  "logo_042660KS",  // 한화오션
-    "009540.KS":  "logo_009540KS",  // HD한국조선해양
-    "005490.KS":  "logo_005490KS",  // POSCO홀딩스
-    "015760.KS":  "logo_015760KS",  // 한국전력
-    "316140.KS":  "logo_316140KS",  // 우리금융지주
-    "096770.KS":  "logo_096770KS",  // SK이노베이션
-    "006800.KS":  "logo_006800KS",  // 미래에셋증권
-    "010130.KS":  "logo_010130KS",  // 고려아연
-    "017670.KS":  "logo_017670KS",  // SK텔레콤
-    "010140.KS":  "logo_010140KS",  // 삼성중공업
-    "000150.KS":  "logo_000150KS",  // 두산
-    "011200.KS":  "logo_011200KS",  // HMM
-    "051910.KS":  "logo_051910KS",  // LG화학
-    "267250.KS":  "logo_267250KS",  // HD현대
-    "064350.KS":  "logo_064350KS",  // 현대로템
-    "018260.KS":  "logo_018260KS",  // 삼성SDS
-    "010950.KS":  "logo_010950KS",  // S-Oil
-    "024110.KS":  "logo_024110KS",  // 기업은행
-    "035720.KS":  "logo_035720KS",  // 카카오
-    "377300.KS":  "logo_377300KS",  // 카카오페이
-    "298040.KS":  "logo_298040KS",  // 효성중공업
-    "005935.KS":  "logo_005935KS",  // 삼성전자우
-]
-
-/// 로컬 PNG에 검정 배경이 포함된 로고 — 표시 시 배경을 자동 제거.
-private let tickersNeedDarkBgRemoval: Set<String> = [
-    "000270.KS",   // Kia — dark navy background
-    "207940.KS",   // Samsung Biologics — dark blue background
-]
 
 private struct LogoImage: View {
     let localAssetName: String?    // Xcode Assets 로컬 이미지 (우선)
@@ -1639,11 +1454,27 @@ private struct LogoImage: View {
 
     var body: some View {
         if let assetName = localAssetName, let raw = UIImage(named: assetName) {
+            let cacheKey = ticker as NSString
             if tickersNeedDarkBgRemoval.contains(ticker) {
-                let cacheKey = ticker as NSString
                 let processed: UIImage = {
                     if let cached = LogoProcessingCache.shared.object(forKey: cacheKey) { return cached }
                     guard let p = raw.removingDarkBackground() else { return raw }
+                    LogoProcessingCache.shared.setObject(p, forKey: cacheKey)
+                    return p
+                }()
+                styledLogo(Image(uiImage: processed))
+            } else if tickersNeedLightBgRemoval.contains(ticker) {
+                let processed: UIImage = {
+                    if let cached = LogoProcessingCache.shared.object(forKey: cacheKey) { return cached }
+                    guard let p = raw.removingLightBackground() else { return raw }
+                    LogoProcessingCache.shared.setObject(p, forKey: cacheKey)
+                    return p
+                }()
+                styledLogo(Image(uiImage: processed))
+            } else if tickersNeedColoredBgRemoval.contains(ticker) {
+                let processed: UIImage = {
+                    if let cached = LogoProcessingCache.shared.object(forKey: cacheKey) { return cached }
+                    guard let p = raw.removingDominantBackground() else { return raw }
                     LogoProcessingCache.shared.setObject(p, forKey: cacheKey)
                     return p
                 }()
@@ -1715,34 +1546,6 @@ private struct LogoImage: View {
     }
 }
 
-/// SVG viewBox 편심으로 인해 시각적 중심이 어긋나는 로고 — (x, y) 오프셋으로 보정.
-/// 양수 x = 오른쪽, 음수 x = 왼쪽 / 양수 y = 아래, 음수 y = 위
-private let tickerLogoOffset: [String: CGPoint] = [
-    "NVDA":       CGPoint(x: -3, y: 0),
-    "AAPL":       CGPoint(x:  -1, y: -1),
-    "MCD":        CGPoint(x:  1, y: 0),
-    "TSLA":       CGPoint(x:  0, y: 3),
-]
-
-/// 기본 padding(8)과 다른 로고 — 작은 값일수록 로고가 더 크게 표시됨.
-private let tickerLogoPadding: [String: CGFloat] = [
-    "005930.KS": 3,
-    "000660.KS": 4,
-    "034020.KS": 2,
-    "006400.KS": 2,
-    "012330.KS": 2,
-    "NFLX":      0,
-    "SPCX":      2,
-    "MA":        2,
-]
-
-/// 흰색 원 배경 대신 다른 색상을 사용할 티커 (예: 검정 배경 로고)
-private let tickerCircleBackground: [String: Color] = [
-    "NFLX": Color.black,
-    "SPCX": Color.black,
-    "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
-    "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
-]
 
 struct BrandLogoTile: View {
     let ticker: String
@@ -1778,7 +1581,7 @@ struct BrandLogoTile: View {
             )
             .offset(x: offset.x, y: offset.y)
         }
-        .frame(width: 50, height: 50)
+        .frame(width: logoTileSize, height: logoTileSize)
         .clipShape(Circle())
     }
 }
@@ -1795,7 +1598,7 @@ struct ColumnHeader: View {
             sortButton("순위", field: .rank)
 
             // CompanyRow의 로고(폭 50) 자리만큼 비워서 '기업'을 기업명 라인에 맞춤
-            Color.clear.frame(width: 50, height: 0)
+            Color.clear.frame(width: logoTileSize, height: 0)
 
             sortButton("기업", field: .name)
 

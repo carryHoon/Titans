@@ -2,7 +2,16 @@
   "images" : [
     {
       "filename" : "LG Energy Sol. : 전자 : 화학 : LG : 유플러스 : 씨엔에스.png",
-      "idiom" : "universal"
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "3x"
     }
   ],
   "info" : {
