@@ -77,6 +77,28 @@ struct MenuView: View {
                                 title: "데이터 출처",
                                 value: "Finnhub · Naver")
                         divider
+                        // logo.dev 무료 플랜 상업적 이용 요건: 눈에 보이는 링크백(어트리뷰션) 필수.
+                        Link(destination: URL(string: "https://logo.dev")!) {
+                            HStack(spacing: 14) {
+                                iconBadge("checkmark.seal.fill", .indigo)
+                                Text("로고 제공")
+                                    .font(.system(size: 15, weight: .medium))
+                                Spacer()
+                                HStack(spacing: 4) {
+                                    Text("Logo.dev")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(theme.secondaryLabel)
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(theme.tertiaryLabel)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        divider
                         infoRow(icon: "info.circle.fill", iconColor: .gray,
                                 title: "앱 버전", value: appVersion)
                     }

@@ -322,7 +322,7 @@ struct SearchView: View {
                     commitSearch(company.name)
                 } label: {
                     HStack(spacing: 12) {
-                        BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color)
+                        BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color, domain: company.domain)
                             .frame(width: 42, height: 42)
 
                         VStack(alignment: .leading, spacing: 3) {

@@ -17,6 +17,7 @@
 
 import { promises as fs } from 'fs'
 import path from 'path'
+import { enrichDomains } from './dart-domain'
 
 // ─── data.go.kr 공통 ───────────────────────────────────────────────────────────
 
@@ -64,6 +65,7 @@ export interface KrxRow {
   change:        number
   changePercent: number
   marketCapKRW:  number
+  domain?:       string   // DART 홈페이지 도메인(로고 폴백용) — 해석 실패/미설정 시 없음
 }
 
 export interface KrxDataset {
@@ -297,6 +299,10 @@ const store: SnapshotStore =
 // 상위권이라, 여유 있게 상위 300개만 저장한다(전 종목 ~2,700개 → 스냅샷 크기·KV 전송량 대폭 절감).
 const SNAPSHOT_TOP_N = 300
 
+// 로고 도메인을 자동 해석할 상위 종목 수(시장별). 앱은 상위 100개만 노출하므로 그보다 살짝
+// 넉넉히만 해석해 DART 호출을 최소화한다(캐시가 차면 대부분 신규 진입분만 실제 호출된다).
+const DOMAIN_TOP_N = 120
+
 // ─── 인메모리 현재 스냅샷 + 부트스트랩 ──────────────────────────────────────────
 
 let current: PersistedSnapshot | null = null
@@ -322,10 +328,27 @@ export async function refreshIfNew(): Promise<boolean> {
   kospi.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
   kosdaq.sort((a, b) => b.marketCapKRW - a.marketCapKRW)
 
+  // 앱은 상위 100개만 쓰므로 상위 N개만 저장(KV 전송량·크기 절감). byCode 조회 대상도 상위권.
+  const kospiTop  = kospi.slice(0, SNAPSHOT_TOP_N)
+  const kosdaqTop = kosdaq.slice(0, SNAPSHOT_TOP_N)
+
+  // 로고 도메인 자동 해석(best-effort) — DART로 신규 진입 종목의 홈페이지 도메인을 채운다.
+  // 실패해도(키 미설정·네트워크·한도) 스냅샷 자체는 그대로 굳힌다(가격/시총 파이프라인 무영향).
+  try {
+    const codes = [
+      ...kospiTop.slice(0, DOMAIN_TOP_N).map(r => r.code),
+      ...kosdaqTop.slice(0, DOMAIN_TOP_N).map(r => r.code),
+    ]
+    const domains = await enrichDomains(codes)
+    for (const r of kospiTop)  { const d = domains.get(r.code); if (d) r.domain = d }
+    for (const r of kosdaqTop) { const d = domains.get(r.code); if (d) r.domain = d }
+  } catch (err) {
+    console.warn('[kr-snapshot] domain enrichment failed (non-fatal):', err)
+  }
+
   const snap: PersistedSnapshot = {
     fetchedAt: Date.now(),
-    // 앱은 상위 100개만 쓰므로 상위 N개만 저장(KV 전송량·크기 절감). byCode 조회 대상도 상위권.
-    stock: { basDt: latest, kospi: kospi.slice(0, SNAPSHOT_TOP_N), kosdaq: kosdaq.slice(0, SNAPSHOT_TOP_N) },
+    stock: { basDt: latest, kospi: kospiTop, kosdaq: kosdaqTop },
     index,
   }
   current = snap

@@ -289,6 +289,7 @@ export interface CompanyResult {
   change: number
   changePercent: number
   marketCapUSD: number  // Trillion USD
+  domain?: string       // 홈페이지 도메인(로고 폴백용) — 현재 KOSPI/KOSDAQ에서만 채워진다
 }
 
 // KRX 종목 응답/정규화 타입(DataGoStockItem·KrxRow·KrxDataset)은 스냅샷 레이어(@/lib/kr-snapshot)로 이동했다.
@@ -875,6 +876,7 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
         change:        row.change,
         changePercent: row.changePercent,
         marketCapUSD:  row.marketCapKRW / rate / 1_000_000_000_000,
+        domain:        row.domain,   // DART 해석 도메인(있으면) → 앱 로고 폴백에 사용
       }
     })
 

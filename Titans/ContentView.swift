@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine   // ObservableObject / @Published
+import CryptoKit // 로고 디스크 캐시 파일명 해시(SHA256)
 
 // MARK: - Currency
 
@@ -164,6 +165,7 @@ struct Company: Identifiable {
     let marketCapUSD: Double   // USD 조(trillion) 단위
     let change: Double         // changePercent (%) — API의 dp 값
     let color: Color
+    let domain: String?        // 백엔드(DART) 해석 홈페이지 도메인 — 큐레이션 미등록 종목 로고 폴백용
 
     /// Ticker 기반 상장 거래소. 미등록 종목은 필터에서 ALL에만 노출됨.
     var market: Market? { tickerMarket[ticker] }
@@ -178,6 +180,7 @@ struct APICompanyResult: Decodable {
     let color: String          // hex 문자열 e.g. "#78BB17"
     let changePercent: Double  // % change → Company.change 에 매핑
     let marketCapUSD: Double   // trillion USD
+    let domain: String?        // 홈페이지 도메인(로고 폴백용) — KOSPI/KOSDAQ만 내려옴, 없으면 nil
 }
 
 struct MarketCapResponse: Decodable {
@@ -201,9 +204,12 @@ struct MarketIndexResponse: Decodable {
     let stale: Bool?
 }
 
-// MARK: - Brandfetch
+// MARK: - Logo Source
 
-private let brandfetchClientId = "1idj1IMRGO60qnHErBy"
+// logo.dev publishable token — 도메인으로 공식 브랜드 로고를 받는다(Clearbit 후속 표준).
+// publishable(pk_) 키라 클라이언트 노출용으로 안전. fallback=404로 미보유 시 404를 받아
+// 앱의 다음 폴백(파비콘→이니셜)이 동작하게 한다.
+private let logoDevToken = "pk_J8vaeyLSSxewXruh0z5O9g"
 
 private let tickerDomain: [String: String] = [
     "NVDA":    "nvidia.com",
@@ -365,6 +371,55 @@ private enum LogoProcessingCache {
     static let shared = NSCache<NSString, UIImage>()
 }
 
+/// 원격 로고(logo.dev·파비콘) 영구 캐시 — 메모리(NSCache) + 디스크(Caches/LogoCache).
+///
+/// logo.dev 응답은 `max-age=86400`(24h)이라 기본 URLCache로는 유저가 매일 재호출한다.
+/// 로고는 거의 안 바뀌므로 이 캐시가 24h 만료를 무시하고 폰에 오래(기본 60일) 보관해
+/// logo.dev 무료 플랜(월 50만) 호출을 최소화한다. device-side 캐싱이라 약관을 준수한다
+/// (서버 캐싱/self-host는 logo.dev Pro 전용이라 여기선 절대 하지 않는다).
+final class LogoStore {
+    static let shared = LogoStore()
+
+    private let memory = NSCache<NSString, UIImage>()
+    private let directory: URL
+    private let ttl: TimeInterval = 60 * 24 * 60 * 60   // 60일
+
+    private init() {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        directory = caches.appendingPathComponent("LogoCache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    private func fileURL(for url: URL) -> URL {
+        let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
+        let name = digest.map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent(name)
+    }
+
+    /// 메모리 → 디스크(TTL 이내) → 네트워크 순. 200이 아니면 nil을 반환해 다음 폴백을 유도한다.
+    func image(for url: URL) async -> UIImage? {
+        let key = url.absoluteString as NSString
+        if let hit = memory.object(forKey: key) { return hit }
+
+        let file = fileURL(for: url)
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
+           let modified = attrs[.modificationDate] as? Date,
+           Date().timeIntervalSince(modified) < ttl,
+           let data = try? Data(contentsOf: file),
+           let img = UIImage(data: data) {
+            memory.setObject(img, forKey: key)
+            return img
+        }
+
+        guard let (data, resp) = try? await URLSession.shared.data(from: url),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let img = UIImage(data: data) else { return nil }
+        try? data.write(to: file, options: .atomic)
+        memory.setObject(img, forKey: key)
+        return img
+    }
+}
+
 // MARK: - App Theme (부드러운 다크/라이트 전환)
 
 /// 시스템 시맨틱 컬러(`Color(.systemBackground)` 등)는 colorScheme가 바뀌면 즉시 스냅되어
@@ -512,7 +567,8 @@ final class MarketCapViewModel: ObservableObject {
                 ticker:       api.ticker,
                 marketCapUSD: api.marketCapUSD,
                 change:       api.changePercent,
-                color:        Color(hex: api.color)
+                color:        Color(hex: api.color),
+                domain:       api.domain
             )
         }
         return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.basDt)
@@ -1572,12 +1628,14 @@ private let tickersNeedDarkBgRemoval: Set<String> = [
 
 private struct LogoImage: View {
     let localAssetName: String?    // Xcode Assets 로컬 이미지 (우선)
-    let clearbitURL: URL?
-    let brandfetchURL: URL?
-    let faviconURL: URL?
+    let logoDevURL: URL?           // logo.dev 공식 로고 (도메인 기반)
+    let faviconURL: URL?           // logo.dev 미보유 시 파비콘 폴백
     let ticker: String
     let name: String
     let color: Color
+
+    @State private var remoteImage: UIImage?
+    @State private var remoteResolved = false
 
     var body: some View {
         if let assetName = localAssetName, let raw = UIImage(named: assetName) {
@@ -1594,32 +1652,41 @@ private struct LogoImage: View {
                 styledLogo(Image(assetName))
             }
         } else {
-            AsyncImage(url: clearbitURL) { phase in
-                switch phase {
-                case .success(let image):
-                    styledLogo(image)
-                case .failure:
-                    AsyncImage(url: brandfetchURL) { phase2 in
-                        switch phase2 {
-                        case .success(let image):
-                            styledLogo(image)
-                        case .failure:
-                            AsyncImage(url: faviconURL) { phase3 in
-                                if case .success(let img) = phase3 {
-                                    styledLogo(img)
-                                } else {
-                                    textFallback
-                                }
-                            }
-                        default:
-                            Color.clear
-                        }
-                    }
-                default:
-                    Color.clear
-                }
+            remoteBody
+        }
+    }
+
+    // 폴백 순서: logo.dev(공식 로고) → 파비콘 → 이니셜 타일.
+    // AsyncImage 대신 LogoStore(영구 캐시)로 로드해 logo.dev 재호출을 최소화한다.
+    @ViewBuilder private var remoteBody: some View {
+        Group {
+            if let img = remoteImage {
+                styledLogo(Image(uiImage: img))
+            } else if remoteResolved {
+                textFallback
+            } else {
+                Color.clear
             }
         }
+        // 행이 다른 종목으로 재사용되면(URL 변경) 다시 로드. 캐시 히트는 네트워크 없이 즉시.
+        .task(id: remoteKey) { await loadRemote() }
+    }
+
+    private var remoteKey: String {
+        (logoDevURL?.absoluteString ?? "") + "|" + (faviconURL?.absoluteString ?? "")
+    }
+
+    private func loadRemote() async {
+        remoteImage = nil
+        remoteResolved = false
+        for url in [logoDevURL, faviconURL].compactMap({ $0 }) {
+            if let img = await LogoStore.shared.image(for: url) {
+                remoteImage = img
+                remoteResolved = true
+                return
+            }
+        }
+        remoteResolved = true
     }
 
     @ViewBuilder
@@ -1681,19 +1748,20 @@ struct BrandLogoTile: View {
     let ticker: String
     let name: String
     let color: Color
+    var domain: String? = nil   // 백엔드(DART) 해석 도메인 — 큐레이션(tickerDomain) 미등록 신규 종목 폴백
 
-    private var domain: String? { tickerDomain[ticker] }
+    // 큐레이션 도메인이 있으면 그대로 우선(기존 로고 표시 불변), 없을 때만 백엔드 도메인을 쓴다.
+    private var resolvedDomain: String? { tickerDomain[ticker] ?? domain }
 
-    private var clearbitURL: URL? {
-        domain.flatMap { URL(string: "https://logo.clearbit.com/\($0)?size=200") }
-    }
-
-    private var brandfetchURL: URL? {
-        domain.flatMap { URL(string: "https://asset.brandfetch.io/\($0)?c=\(brandfetchClientId)") }
+    // logo.dev 공식 로고. fallback=404로 미보유 시 404 → LogoImage가 파비콘→이니셜로 폴백.
+    private var logoDevURL: URL? {
+        resolvedDomain.flatMap {
+            URL(string: "https://img.logo.dev/\($0)?token=\(logoDevToken)&size=200&format=png&retina=true&fallback=404")
+        }
     }
 
     private var faviconURL: URL? {
-        domain.flatMap { URL(string: "https://www.google.com/s2/favicons?domain=\($0)&sz=128") }
+        resolvedDomain.flatMap { URL(string: "https://www.google.com/s2/favicons?domain=\($0)&sz=128") }
     }
 
     var body: some View {
@@ -1702,8 +1770,7 @@ struct BrandLogoTile: View {
             Circle().fill(tickerCircleBackground[ticker] ?? .white)
             LogoImage(
                 localAssetName: tickerLocalLogo[ticker],
-                clearbitURL: clearbitURL,
-                brandfetchURL: brandfetchURL,
+                logoDevURL: logoDevURL,
                 faviconURL: faviconURL,
                 ticker: ticker,
                 name: name,
@@ -1875,7 +1942,7 @@ struct CompanyRow: View {
             // 세 자리 순위(100)도 한 줄로 담기도록 폭을 24로. 중앙 정렬 유지.
             .frame(width: 24, alignment: .center)
 
-            BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color)
+            BrandLogoTile(ticker: company.ticker, name: company.name, color: company.color, domain: company.domain)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(company.name)
