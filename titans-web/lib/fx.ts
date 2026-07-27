@@ -12,8 +12,9 @@
 // ▷ 환율 표기 규약: rate = "1 USD 당 해당 통화 금액" (KRW/USD, JPY/USD …).
 //   Eximbank 매매기준율·OXR latest.json 모두 이 방향이라 그대로 호환된다.
 //
-// ▷ 캐시: 통화별 1시간 TTL + last-good carry-forward + 최종 상수 폴백.
-//   호출 제한(Eximbank 1,000/일, OXR 1,000/월) 보호 + 소스 장애 시 목록 안정성 확보.
+// ▷ 캐시: 시간대 인식 TTL + last-good carry-forward + 최종 상수 폴백.
+//   수출입은행은 영업일 11시경 1회 갱신 → 11:00~12:00 KST에만 10분 TTL로 촘촘히 확인하고,
+//   그 외 시간은 24시간 TTL로 불필요한 API 호출을 차단한다(일 1,000회·월 1,000회 한도 보호).
 
 export type Currency = 'KRW' | 'JPY' | 'CNY' | 'EUR'
 export const ALL_CURRENCIES: Currency[] = ['KRW', 'JPY', 'CNY', 'EUR']
@@ -38,7 +39,17 @@ export interface FxProvider {
 
 // 모든 소스가 죽었을 때의 최종 폴백 상수 (통화당 USD 근사값).
 const FALLBACK: Record<Currency, number> = { KRW: 1450, JPY: 155, CNY: 7.2, EUR: 0.92 }
-const FX_TTL_MS = 60 * 60 * 1000   // 통화별 캐시 1시간
+
+// 수출입은행 발행 창: 영업일 11:00~12:00 KST 구간 → 10분 TTL로 새 데이터를 빠르게 포착.
+// 그 외(발행 없는 시간대·주말)는 24시간 TTL → 이미 받은 일환율을 재사용해 API 호출 최소화.
+function isFxCacheFresh(ts: number): boolean {
+  const age = Date.now() - ts
+  const kst = toKST(new Date())
+  const h   = kst.getUTCHours()
+  const wd  = kst.getUTCDay()
+  const inPublishWindow = wd >= 1 && wd <= 5 && h >= 11 && h < 12
+  return age < (inPublishWindow ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000)
+}
 
 function fallbackQuote(c: Currency): FxQuote {
   return { currency: c, rate: FALLBACK[c], change: 0, changePercent: 0, asOf: Date.now(), source: 'fallback' }
@@ -177,7 +188,7 @@ class FxService {
     // 1) 신선한 캐시 히트는 그대로 사용
     for (const c of currencies) {
       const hit = this.cache.get(c)
-      if (hit && now - hit.ts < FX_TTL_MS) out[c] = hit.quote
+      if (hit && isFxCacheFresh(hit.ts)) out[c] = hit.quote
       else miss.push(c)
     }
 
