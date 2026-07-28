@@ -235,14 +235,22 @@ let tickerLocalLogo: [String: String] = [
     "009540.KS":  "logo_009540KS",  // HD한국조선해양
     "009830.KS":  "logo_009830KS",  // 한화솔루션
     "010120.KS":  "logo_010120KS",  // LS Electric
+    "010130.KS":  "logo_010130KS",  // 고려아연
+    "010140.KS":  "logo_010140KS",  // 삼성중공업
     "010950.KS":  "logo_010950KS",  // S-Oil
     "011070.KS":  "logo_011070KS",  // LG이노텍
+    "011200.KS":  "logo_011200KS",  // HMM
     "012330.KS":  "logo_012330KS",
     "012450.KS":  "logo_012450KS",  // Hanwha Aero.
+    "0126Z0.KS":  "logo_0126Z0KS",  // 삼성에피스홀딩스
     "015760.KS":  "logo_015760KS",  // 한국전력
+    "016360.KS":  "logo_016360KS",  // 삼성증권
+    "017670.KS":  "logo_017670KS",  // SK텔레콤
     "018260.KS":  "logo_018260KS",  // 삼성SDS
     "024110.KS":  "logo_024110KS",  // 기업은행
+    "028050.KS":  "logo_028050KS",  // 삼성E&A
     "028260.KS":  "logo_028260KS",
+    "029780.KS":  "logo_029780KS",  // 삼성카드
     "032640.KS":  "logo_032640KS",  // LG유플러스
     "032830.KS":  "logo_032830KS",
     "034020.KS":  "logo_034020KS",
@@ -255,10 +263,6 @@ let tickerLocalLogo: [String: String] = [
     "086280.KS":  "logo_086280KS",  // 현대글로비스
     "090430.KS":  "logo_090430KS",  // 아모레퍼시픽
     "096770.KS":  "logo_096770KS",  // SK이노베이션
-    "010130.KS":  "logo_010130KS",  // 고려아연
-    "010140.KS":  "logo_010140KS",  // 삼성중공업
-    "011200.KS":  "logo_011200KS",  // HMM
-    "017670.KS":  "logo_017670KS",  // SK텔레콤
     "051910.KS":  "logo_373220KS",  // LG화학 — LG 공통 로고
     "055550.KS":  "logo_055550KS",  // Shinhan Fin.
     "064400.KS":  "logo_373220KS",  // LG씨엔에스 — LG 공통 로고
@@ -337,8 +341,14 @@ let tickerLogoPadding: [String: CGFloat] = [
     "009150.KS": 0,   // Samsung EM
     "010120.KS": 4,   // LS ELECTRIC
     "010130.KS": 0,   // 고려아연
+    "010140.KS": 0,   // 삼성중공업
+    "0126Z0.KS": 0,   // 삼성에피스홀딩스
+    "018260.KS": 0,   // 삼성에스디에스
     "015760.KS": 4,   // 한국전력
+    "016360.KS": 0,   // 삼성증권
+    "028050.KS": 0,   // 삼성E&A
     "028260.KS": 0,   // Samsung C&T
+    "029780.KS": 0,   // 삼성카드
     "032830.KS": 0,   // Samsung Life
     "035420.KS": 0,   // 네이버
     "068270.KS": 0,   // Celltrion
@@ -359,6 +369,17 @@ let tickerCircleBackground: [String: Color] = [
     "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
     "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
     // 브랜드 배경색으로 원을 채우는 로고
+    // 삼성 계열 — 로고 PNG가 #25279D 네이비 배경 정사각형이라 clipShape 안티앨리어싱 시 흰 원이 비침
+    "006400.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성SDI
+    "009150.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // Samsung EM
+    "010140.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성중공업
+    "016360.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성증권
+    "018260.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성SDS
+    "0126Z0.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성에피스홀딩스
+    "028050.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성E&A
+    "028260.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // Samsung C&T
+    "029780.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성카드
+    "032830.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성생명
     "000270.KS": Color(red: 0.02,  green: 0.078, blue: 0.122), // Kia — dark navy #05141F
     "035420.KS": Color(red: 0.012, green: 0.780, blue: 0.353), // 네이버 — green #03C75A
     "105560.KS": Color(red: 0.969, green: 0.678, blue: 0.0),   // KB Financial — yellow #F7AD00
