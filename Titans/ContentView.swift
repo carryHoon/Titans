@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine   // ObservableObject / @Published
 import CryptoKit // 로고 디스크 캐시 파일명 해시(SHA256)
+import UIKit
 
 // MARK: - Currency
 
@@ -684,6 +685,16 @@ struct ContentView: View {
 
     private func basDt(for market: Market) -> String? { feed(for: market)?.basDt }
 
+    // preferredColorScheme 대신 UIKit window 직접 설정.
+    // preferredColorScheme은 UIKit snapshot 기반 crossfade를 유발해 withAnimation과 충돌함.
+    // window.overrideUserInterfaceStyle은 부드러운 trait 업데이트만 수행하므로 충돌 없음.
+    private func setWindowColorScheme(_ isDark: Bool) {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .forEach { $0.overrideUserInterfaceStyle = isDark ? .dark : .light }
+    }
+
     // MARK: 섹션 페이지 — 각 거래소별 스크롤 가능한 기업 목록
 
     @ViewBuilder
@@ -725,6 +736,7 @@ struct ContentView: View {
     }
 
     var body: some View {
+        ZStack {
         VStack(spacing: 0) {
             // 고정 헤더 — 섹션을 스와이프해도 항상 화면 상단에 유지
             LiveIndicatorBar(
@@ -734,7 +746,7 @@ struct ContentView: View {
                 isDarkMode: $isDarkMode,
                 vScale: vScale,
                 onSearch: { showSearch = true },
-                onMenu: { showMenu = true }
+                onMenu: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = true } }
             )
             .padding(.top, 6 * vScale)
 
@@ -780,7 +792,8 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
         )
-        .preferredColorScheme(isDarkMode ? .dark : .light)
+        .onAppear { setWindowColorScheme(isDarkMode) }
+        .onChange(of: isDarkMode) { _, value in setWindowColorScheme(value) }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
@@ -788,13 +801,6 @@ struct ContentView: View {
                 exchangeRate: exchangeRate,
                 isDarkMode: isDarkMode,
                 onDismiss: { showSearch = false }
-            )
-        }
-        .fullScreenCover(isPresented: $showMenu) {
-            MenuView(
-                isDarkMode: $isDarkMode,
-                selectedCurrency: $selectedCurrency,
-                onDismiss: { showMenu = false }
             )
         }
         .animation(.easeInOut(duration: 0.45), value: isDarkMode)
@@ -835,6 +841,16 @@ struct ContentView: View {
                 }
             }
         }
+
+        if showMenu {
+            MenuView(
+                isDarkMode: $isDarkMode,
+                onDismiss: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = false } }
+            )
+            .transition(.move(edge: .trailing))
+            .zIndex(2)
+        }
+        } // ZStack
     }
 }
 
@@ -974,10 +990,12 @@ struct CurrencyToggle: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 0) {
             pill("$", currency: .usd)
             pill("원", currency: .krw)
         }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 10).stroke(theme.stroke, lineWidth: 1))
     }
 
     @ViewBuilder
@@ -990,14 +1008,14 @@ struct CurrencyToggle: View {
         } label: {
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? theme.label : theme.secondaryLabel)
+                .foregroundStyle(isSelected ? theme.background : theme.secondaryLabel)
                 .frame(minWidth: 32)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(theme.stroke, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(theme.label)
                     }
                 }
         }
@@ -1232,7 +1250,7 @@ struct LiveIndicatorBar: View {
     @Binding var isDarkMode: Bool
     var vScale: CGFloat = 1                 // 헤더 세로 비례 계수 (기기별 동일 비율)
     var onSearch: () -> Void = {}           // 돋보기 → 검색 화면
-    var onMenu: () -> Void = {}             // ≡ → 전체 메뉴
+    var onMenu: () -> Void = {}             // ≡ → 메뉴
     @Environment(\.appTheme) private var theme
 
     var body: some View {
@@ -1246,7 +1264,7 @@ struct LiveIndicatorBar: View {
             // 우측 상단 액션 버튼 — 토스 스타일 (다크/화이트 토글 · 검색 · 메뉴)
             HStack(spacing: 20) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.45)) {
+                    withAnimation(.easeInOut(duration: 0.3)) {
                         isDarkMode.toggle()
                     }
                 } label: {

@@ -164,7 +164,6 @@ let tickerLocalLogo: [String: String] = [
     "2222.SR":    "logo_2222SR",
     "LLY":        "logo_LLY",
     "BRK.B":      "logo_BRKB",
-    "000660.KS":  "logo_000660KS",
     "AMD":        "logo_AMD",
     "V":          "logo_V",
     "WMT":        "logo_WMT",
@@ -196,32 +195,34 @@ let tickerLocalLogo: [String: String] = [
     "ASML":       "logo_ASML",
     "CAT":        "logo_CAT",
     "GE":         "logo_GE",
-    "247540.KQ":  "logo_247540KQ",
-    "086520.KQ":  "logo_086520KQ",
-    "277810.KQ":  "logo_277810KQ",
-    "036930.KQ":  "logo_036930KQ",
-    "240810.KQ":  "logo_240810KQ",
-    "058470.KQ":  "logo_058470KQ",
-    "298380.KQ":  "logo_298380KQ",
-    "039030.KQ":  "logo_039030KQ",
-    "028300.KQ":  "logo_028300KQ",
-    "319660.KQ":  "logo_319660KQ",
-    "214450.KQ":  "logo_214450KQ",
     "000250.KQ":  "logo_000250KQ",
-    "440110.KQ":  "logo_440110KQ",
-    "222800.KQ":  "logo_222800KQ",
+    "028300.KQ":  "logo_028300KQ",
+    "036930.KQ":  "logo_036930KQ",
+    "039030.KQ":  "logo_039030KQ",
+    "058470.KQ":  "logo_058470KQ",
+    "086520.KQ":  "logo_086520KQ",
     "095340.KQ":  "logo_095340KQ",
-    "403870.KQ":  "logo_403870KQ",
-    "108490.KQ":  "logo_108490KQ",
     "095610.KQ":  "logo_095610KQ",
+    "108490.KQ":  "logo_108490KQ",
     "141080.KQ":  "logo_141080KQ",
+    "214450.KQ":  "logo_214450KQ",
+    "222800.KQ":  "logo_222800KQ",
+    "240810.KQ":  "logo_240810KQ",
+    "247540.KQ":  "logo_247540KQ",
+    "277810.KQ":  "logo_277810KQ",
+    "298380.KQ":  "logo_298380KQ",
+    "319660.KQ":  "logo_319660KQ",
+    "403870.KQ":  "logo_403870KQ",
+    "440110.KQ":  "logo_440110KQ",
     // KOSPI — 추가 종목
     "000100.KS":  "logo_000100KS",  // 유한양행
     "000150.KS":  "logo_000150KS",  // 두산
     "000270.KS":  "logo_000270KS",
     "000500.KS":  "logo_000500KS",  // 가온전선
+    "000660.KS":  "logo_000660KS",  // SK Hynix
     "000810.KS":  "logo_000810KS",  // 삼성화재
     "000880.KS":  "logo_000880KS",  // 한화
+    "003550.KS":  "logo_373220KS",  // LG (지주) — LG 공통 로고
     "004170.KS":  "logo_004170KS",  // 신세계
     "005380.KS":  "logo_005380KS",  // Hyundai Motor
     "005387.KS":  "logo_005387KS",  // 현대차2우B
@@ -230,14 +231,17 @@ let tickerLocalLogo: [String: String] = [
     "005935.KS":  "logo_005935KS",  // 삼성전자우
     "006400.KS":  "logo_006400KS",
     "006800.KS":  "logo_006800KS",  // 미래에셋증권
-    "009150.KS":  "logo_009150KS",
+    "009150.KS":  "logo_009150KS",  // Samsung EM
     "009540.KS":  "logo_009540KS",  // HD한국조선해양
     "009830.KS":  "logo_009830KS",  // 한화솔루션
     "010120.KS":  "logo_010120KS",  // LS Electric
+    "010950.KS":  "logo_010950KS",  // S-Oil
     "011070.KS":  "logo_011070KS",  // LG이노텍
     "012330.KS":  "logo_012330KS",
     "012450.KS":  "logo_012450KS",  // Hanwha Aero.
     "015760.KS":  "logo_015760KS",  // 한국전력
+    "018260.KS":  "logo_018260KS",  // 삼성SDS
+    "024110.KS":  "logo_024110KS",  // 기업은행
     "028260.KS":  "logo_028260KS",
     "032640.KS":  "logo_032640KS",  // LG유플러스
     "032830.KS":  "logo_032830KS",
@@ -252,16 +256,14 @@ let tickerLocalLogo: [String: String] = [
     "090430.KS":  "logo_090430KS",  // 아모레퍼시픽
     "096770.KS":  "logo_096770KS",  // SK이노베이션
     "010130.KS":  "logo_010130KS",  // 고려아연
-    "017670.KS":  "logo_017670KS",  // SK텔레콤
     "010140.KS":  "logo_010140KS",  // 삼성중공업
     "011200.KS":  "logo_011200KS",  // HMM
+    "017670.KS":  "logo_017670KS",  // SK텔레콤
     "051910.KS":  "logo_373220KS",  // LG화학 — LG 공통 로고
-    "003550.KS":  "logo_373220KS",  // LG (지주) — LG 공통 로고
+    "055550.KS":  "logo_055550KS",  // Shinhan Fin.
     "064400.KS":  "logo_373220KS",  // LG씨엔에스 — LG 공통 로고
     "064350.KS":  "logo_064350KS",  // 현대로템
-    "018260.KS":  "logo_018260KS",  // 삼성SDS
-    "010950.KS":  "logo_010950KS",  // S-Oil
-    "024110.KS":  "logo_024110KS",  // 기업은행
+    "068270.KS":  "logo_068270KS",  // Celltrion
     "105560.KS":  "logo_105560KS",
     "128940.KS":  "logo_128940KS",  // 한미약품
     "138930.KS":  "logo_138930KS",  // BNK금융지주
@@ -271,10 +273,10 @@ let tickerLocalLogo: [String: String] = [
     "272210.KS":  "logo_272210KS",  // 한화시스템
     "298040.KS":  "logo_298040KS",  // 효성중공업
     "316140.KS":  "logo_316140KS",  // 우리금융지주
-    "377300.KS":  "logo_377300KS",  // 카카오페이
     "326030.KS":  "logo_326030KS",  // SK바이오팜
     "329180.KS":  "logo_329180KS",
     "373220.KS":  "logo_373220KS",
+    "377300.KS":  "logo_377300KS",  // 카카오페이
     "402340.KS":  "logo_402340KS",
 ]
 
@@ -290,6 +292,8 @@ let tickersNeedLightBgRemoval: Set<String> = [
     "138930.KS",   // BNK금융지주 — gray background
     "005930.KS",   // 삼성전자 — gray background
     "005935.KS",   // 삼성전자우 — gray background
+    "047810.KS",   // 한국항공우주 — gray background
+    "068270.KS",   // Celltrion — gray background
     
 ]
 
@@ -304,17 +308,19 @@ let tickerLogoOffset: [String: CGPoint] = [
     "AAPL": CGPoint(x: -1, y: -1),
     "MCD":  CGPoint(x:  1, y:  0),
     "TSLA": CGPoint(x:  0, y:  3),
+    "009540.KS": CGPoint(x:  3, y:  0), // HD한국조선해양
     "034730.KS": CGPoint(x:  2, y:  -1),
     "096770.KS": CGPoint(x:  2, y:  -1),
+    "267250.KS": CGPoint(x:  3, y:  0), // HD현대
+    "267260.KS": CGPoint(x:  3, y:  0), // HD현대일렉트릭
     "326030.KS": CGPoint(x:  2, y:  -1),
 ]
 
 /// 기본 padding(8)과 다른 로고 — 작은 값일수록 로고가 원 안에서 더 크게 표시됨.
 let tickerLogoPadding: [String: CGFloat] = [
     "000100.KS": 5,   // 유한양행
-    "000660.KS": 4,
+    "000660.KS": 0,   // SK Hynix
     "034020.KS": 2,
-    "006400.KS": 2,
     "012330.KS": 2,
     "017670.KS": 2,
     "086280.KS": 0,   // 현대글로비스
@@ -323,13 +329,27 @@ let tickerLogoPadding: [String: CGFloat] = [
     "MA":        2,
     // 원 전체를 브랜드 색상으로 채우는 로고 — 패딩 0으로 로고가 꽉 차게
     "000270.KS": 0,   // Kia
+    "005380.KS": 6,   // Hyundai Motor
+    "005930.KS": 6,   // Samsung Elec.
+    "005935.KS": 6,   // 삼성전자우
+    "006400.KS": 0,   // Samsung SDI
+    "006800.KS": 2,   // 미래에셋증권
+    "009150.KS": 0,   // Samsung EM
+    "010120.KS": 4,   // LS ELECTRIC
+    "010130.KS": 0,   // 고려아연
+    "015760.KS": 4,   // 한국전력
+    "028260.KS": 0,   // Samsung C&T
+    "032830.KS": 0,   // Samsung Life
     "035420.KS": 0,   // 네이버
+    "068270.KS": 0,    // Celltrion
     "105560.KS": 0,   // KB Financial
     "128940.KS": 4,   // 한미약품
     "207940.KS": 0,   // 삼성바이오로직스
     "035720.KS": 0,   // 카카오
     "271560.KS": 4,   // 오리온
     "377300.KS": 0,   // 카카오페이
+    "329180.KS": 0,   // HD Hyundai HI
+    "402340.KS": 2,   // SK Square
 ]
 
 /// 흰색 원 배경 대신 다른 색상을 사용할 티커.
