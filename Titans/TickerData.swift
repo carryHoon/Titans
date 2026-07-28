@@ -341,7 +341,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "028260.KS": 0,   // Samsung C&T
     "032830.KS": 0,   // Samsung Life
     "035420.KS": 0,   // 네이버
-    "068270.KS": 0,    // Celltrion
+    "068270.KS": 0,   // Celltrion
     "105560.KS": 0,   // KB Financial
     "128940.KS": 4,   // 한미약품
     "207940.KS": 0,   // 삼성바이오로직스

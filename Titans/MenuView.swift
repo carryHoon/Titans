@@ -46,14 +46,13 @@ struct MenuView: View {
                     // MARK: 기능
                     sectionLabel("기능")
                     menuRow(icon: "star.fill", iconColor: .yellow,
-                            title: "관심 기업", subtitle: "준비 중", disabled: true)
-                    rowDivider
+                            title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가", disabled: true)
                     NavigationLink {
                         DividendCalendarView(companies: [], isDarkMode: isDarkMode)
                             .environment(\.appTheme, theme)
                     } label: {
                         menuRow(icon: "calendar", iconColor: .pink,
-                                title: "배당 캘린더", subtitle: "관심 기업의 배당 일정")
+                                title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인")
                     }
                     .buttonStyle(.plain)
                     sectionDivider
@@ -61,7 +60,7 @@ struct MenuView: View {
                     // MARK: 고객센터
                     sectionLabel("고객센터")
                     Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
-                        menuRow(icon: "envelope.fill", iconColor: .blue, title: "피드백 보내기")
+                        menuRow(icon: "envelope.fill", iconColor: .blue, title: "의견 보내기", subtitle: "오류 신고 및 개선 요청")
                     }
                     .buttonStyle(.plain)
                     sectionDivider
@@ -69,16 +68,25 @@ struct MenuView: View {
                     // MARK: 정보
                     sectionLabel("정보")
                     NavigationLink {
+                        DeveloperNoteView()
+                            .environment(\.appTheme, theme)
+                            .preferredColorScheme(isDarkMode ? .dark : .light)
+                    } label: {
+                        menuRow(icon: "quote.bubble.fill", iconColor: .indigo,
+                                title: "개발자 노트",
+                                subtitle: "Titans를 만든 이야기")
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink {
                         SourcesDetailView()
                             .environment(\.appTheme, theme)
                             .preferredColorScheme(isDarkMode ? .dark : .light)
                     } label: {
                         menuRow(icon: "chart.bar.doc.horizontal", iconColor: .teal,
                                 title: "데이터 출처",
-                                subtitle: "공공데이터포털 · 수출입은행 · DART 외")
+                                subtitle: "공공데이터포털 · 한국수출입은행 · DART 외")
                     }
                     .buttonStyle(.plain)
-                    rowDivider
                     HStack(spacing: 14) {
                         iconBadge("info.circle.fill", Color(.systemGray))
                         Text("앱 버전")
@@ -110,7 +118,7 @@ struct MenuView: View {
                     Spacer()
 
                     Text("메뉴")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(theme.label)
 
                     Spacer()
@@ -164,7 +172,7 @@ struct MenuView: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(theme.secondaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -208,18 +216,11 @@ struct MenuView: View {
             .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    // 아이템 사이 얇은 구분선 (아이콘 너비만큼 indent)
-    private var rowDivider: some View {
-        Rectangle()
-            .fill(theme.stroke.opacity(0.5))
-            .frame(height: 0.5)
-            .padding(.leading, 66)
-    }
-
-    // 섹션 사이 전체 너비 구분선
+    // 섹션 사이 구분선 (섹션 라벨 시작점 ~ 오른쪽 화살표 끝점에 맞춤)
     private var sectionDivider: some View {
         Rectangle()
             .fill(theme.stroke.opacity(0.5))
             .frame(height: 0.5)
+            .padding(.horizontal, 20)
     }
 }
