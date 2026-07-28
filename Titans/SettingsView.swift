@@ -117,13 +117,17 @@ struct SourcesDetailView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
-            Text("각 서비스의 이용약관 및 라이선스 정책을 준수하여 활용합니다.")
-                .font(.system(size: 12))
-                .foregroundStyle(theme.tertiaryLabel)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 32)
+            VStack(spacing: 10) {
+                Text("각 서비스의 이용약관 및 라이선스 정책을 준수하여 활용합니다.")
+
+                Text("본 앱에 표시되는 기업 로고 및 명칭은 각 상표권자의 자산이며, 종목 식별 목적으로만 사용됩니다. 본 앱은 해당 기업과 제휴·후원 관계가 없습니다.")
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(theme.tertiaryLabel)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
         }
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("데이터 출처")
