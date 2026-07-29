@@ -200,6 +200,7 @@ let tickerLocalLogo: [String: String] = [
     "036930.KQ":  "logo_036930KQ",
     "039030.KQ":  "logo_039030KQ",
     "058470.KQ":  "logo_058470KQ",
+    "068760.KQ":  "logo_068760KQ", // 셀트리온제약
     "086520.KQ":  "logo_086520KQ",
     "095340.KQ":  "logo_095340KQ",
     "095610.KQ":  "logo_095610KQ",
@@ -299,6 +300,8 @@ let tickersNeedLightBgRemoval: Set<String> = [
     "047810.KS",   // 한국항공우주 — gray background
     "068270.KS",   // Celltrion — gray background
     
+    "068760.KQ",   // 셀트리온제약 — gray background
+    
 ]
 
 /// 로컬 PNG에 단색 컬러 배경(녹색·노랑 등)이 있는 로고 — 귀퉁이 픽셀 샘플링으로 배경색을 자동 제거.
@@ -360,6 +363,8 @@ let tickerLogoPadding: [String: CGFloat] = [
     "377300.KS": 0,   // 카카오페이
     "329180.KS": 0,   // HD Hyundai HI
     "402340.KS": 2,   // SK Square
+    
+    "068760.KQ": 0,   // 셀트리온제약
 ]
 
 /// 흰색 원 배경 대신 다른 색상을 사용할 티커.

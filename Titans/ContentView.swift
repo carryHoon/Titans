@@ -404,10 +404,22 @@ struct ExchangeFeed {
 
 /// 당일 첫 fetch 시 확정되는 기준 순위. UserDefaults에 영속 저장되며 날짜가 바뀌면 자동 리셋.
 /// ALL 피드와 거래소별 피드를 분리 저장해 서로 다른 rank 체계를 혼용하지 않는다.
+/// KR 종목(KOSPI/KOSDAQ)은 basDt 기반인 KRRankBaseline을 사용하므로 여기에 저장하지 않는다.
 private struct DailyBaseline: Codable {
     var date: String                           // "yyyy-MM-dd"
     var allRanks: [String: Int]                // ALL 피드 전역 순위
-    var exchangeRanks: [String: [String: Int]] // apiExchangeParam → 거래소 내 순위
+    var exchangeRanks: [String: [String: Int]] // apiExchangeParam → 거래소 내 순위 (비KR)
+}
+
+// MARK: - KR Rank Baseline (basDt 기준)
+
+/// KOSPI/KOSDAQ 전용. 공공데이터포털 EOD 스냅샷의 basDt(기준일)가 바뀔 때마다 롤오버.
+/// previousRanks = 직전 basDt 스냅샷 순위 → 화살표 비교 기준으로 사용.
+/// 언제 앱을 처음 열어도 "이전 종가 vs 현재 종가" 비교가 항상 성립한다.
+private struct KRExchangeBaseline: Codable {
+    var currentBasDt: String         // 가장 최근에 수신한 basDt ("YYYYMMDD")
+    var currentRanks: [String: Int]  // currentBasDt 기준 순위
+    var previousRanks: [String: Int] // 직전 basDt 기준 순위 (rank change 비교 대상)
 }
 
 // MARK: - ViewModel
@@ -423,8 +435,11 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
     @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
-    // 일별 기준 순위 — 앱 재실행 후에도 당일이면 복원
+    // 일별 기준 순위 (비KR) — 앱 재실행 후에도 당일이면 복원
     private var dailyBaseline = DailyBaseline(date: "", allRanks: [:], exchangeRanks: [:])
+
+    // KR 종목 basDt 기준 스냅샷 — 영속 저장, 만료 없음(basDt 변경 시 자동 롤오버)
+    private var krBaselines: [String: KRExchangeBaseline] = [:]  // exchangeParam → baseline
 
     // 시뮬레이터는 Mac의 localhost로, 실제 기기는 같은 Wi-Fi의 Mac LAN IP로 자동 연결
     #if targetEnvironment(simulator)
@@ -443,6 +458,10 @@ final class MarketCapViewModel: ObservableObject {
            saved.date == today {
             dailyBaseline = saved
         }
+        if let data = UserDefaults.standard.data(forKey: "krRankBaselines"),
+           let saved = try? JSONDecoder().decode([String: KRExchangeBaseline].self, from: data) {
+            krBaselines = saved
+        }
     }
 
     private static func todayDateString() -> String {
@@ -451,7 +470,7 @@ final class MarketCapViewModel: ObservableObject {
         return f.string(from: Date())
     }
 
-    /// 당일 기준 순위가 아직 없을 때만 설정. 날짜가 바뀌면 전체 리셋 후 새로 설정.
+    /// 당일 기준 순위가 아직 없을 때만 설정. 날짜가 바뀌면 전체 리셋 후 새로 설정. (비KR 전용)
     private func setBaselineIfNeeded(ranks: [String: Int], exchangeParam: String?) {
         let today = Self.todayDateString()
         if dailyBaseline.date != today {
@@ -469,8 +488,23 @@ final class MarketCapViewModel: ObservableObject {
         }
     }
 
+    /// KR 전용. basDt가 변경될 때마다 currentRanks → previousRanks 롤오버 후 저장.
+    /// 같은 basDt가 반복 수신되면 아무것도 하지 않는다.
+    private func updateKRBaseline(param: String, newBasDt: String, newRanks: [String: Int]) {
+        var bl = krBaselines[param] ?? KRExchangeBaseline(currentBasDt: "", currentRanks: [:], previousRanks: [:])
+        guard bl.currentBasDt != newBasDt else { return }
+        bl.previousRanks = bl.currentRanks
+        bl.currentRanks  = newRanks
+        bl.currentBasDt  = newBasDt
+        krBaselines[param] = bl
+        if let data = try? JSONEncoder().encode(krBaselines) {
+            UserDefaults.standard.set(data, forKey: "krRankBaselines")
+        }
+    }
+
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
     /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
+    /// KR 종목(basDt 존재)은 basDt 기반 롤오버 baseline을 사용하고, 비KR은 DailyBaseline을 사용한다.
     private func loadCompanies(from url: URL, exchangeParam: String?) async throws
         -> (companies: [Company], stale: Bool, rate: Double?, basDt: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
@@ -482,8 +516,16 @@ final class MarketCapViewModel: ObservableObject {
             throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
         }
         let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-        setBaselineIfNeeded(ranks: todayRanks, exchangeParam: exchangeParam)
-        let baseline = exchangeParam.map { dailyBaseline.exchangeRanks[$0] ?? [:] } ?? dailyBaseline.allRanks
+        let baseline: [String: Int]
+        if let basDt = decoded.basDt, let param = exchangeParam {
+            // KR 종목: 이전 basDt 스냅샷 순위와 비교 (언제 앱을 열어도 "이전 종가 vs 현재 종가")
+            updateKRBaseline(param: param, newBasDt: basDt, newRanks: todayRanks)
+            baseline = krBaselines[param]?.previousRanks ?? [:]
+        } else {
+            // 비KR 종목: 당일 첫 fetch 기준
+            setBaselineIfNeeded(ranks: todayRanks, exchangeParam: exchangeParam)
+            baseline = exchangeParam.map { dailyBaseline.exchangeRanks[$0] ?? [:] } ?? dailyBaseline.allRanks
+        }
         let mapped: [Company] = decoded.data.map { api in
             Company(
                 rank:         api.rank,

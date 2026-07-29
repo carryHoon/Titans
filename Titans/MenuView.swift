@@ -25,84 +25,104 @@ struct MenuView: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // MARK: 계정
-                    sectionLabel("계정")
-                    accountCard
-                    sectionDivider
+                    sectionCard {
+                        accountCard
+                    }
+                    .padding(.top, 16)
 
                     // MARK: 알림
                     sectionLabel("알림")
-                    HStack(spacing: 14) {
-                        iconBadge("bell.fill", .red)
-                        Text("앱 알림")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(theme.label)
-                        Spacer()
-                        SlideToggle(isOn: $notificationsEnabled, theme: theme)
+                    sectionCard {
+                        HStack(spacing: 14) {
+                            iconBadge("bell.fill", Color(red: 1.0, green: 0.23, blue: 0.19))
+                            Text("앱 알림")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundStyle(theme.label)
+                            Spacer()
+                            SlideToggle(isOn: $notificationsEnabled, theme: theme)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
-                    sectionDivider
 
                     // MARK: 기능
                     sectionLabel("기능")
-                    menuRow(icon: "star.fill", iconColor: .yellow,
-                            title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가", disabled: true)
-                    NavigationLink {
-                        DividendCalendarView(companies: [], isDarkMode: isDarkMode)
-                            .environment(\.appTheme, theme)
-                    } label: {
-                        menuRow(icon: "calendar", iconColor: .pink,
-                                title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인")
+                    sectionCard {
+                        NavigationLink {
+                            WatchlistPlaceholderView()
+                                .environment(\.appTheme, theme)
+                                .preferredColorScheme(isDarkMode ? .dark : .light)
+                        } label: {
+                            menuRow(icon: "heart.fill", iconColor: .pink,
+                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가")
+                        }
+                        .buttonStyle(.plain)
+                        rowDivider
+                        NavigationLink {
+                            DividendCalendarView(companies: [], isDarkMode: isDarkMode)
+                                .environment(\.appTheme, theme)
+                        } label: {
+                            menuRow(icon: "calendar", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35),
+                                    title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    sectionDivider
 
                     // MARK: 고객센터
                     sectionLabel("고객센터")
-                    Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
-                        menuRow(icon: "envelope.fill", iconColor: .blue, title: "의견 보내기", subtitle: "오류 신고 및 개선 요청")
+                    sectionCard {
+                        Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
+                            menuRow(icon: "envelope.fill",
+                                    iconColor: Color(red: 0.35, green: 0.78, blue: 0.98),
+                                    title: "의견 보내기", subtitle: "오류 신고 및 개선 요청")
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    sectionDivider
 
                     // MARK: 정보
                     sectionLabel("정보")
-                    NavigationLink {
-                        DeveloperNoteView()
-                            .environment(\.appTheme, theme)
-                            .preferredColorScheme(isDarkMode ? .dark : .light)
-                    } label: {
-                        menuRow(icon: "quote.bubble.fill", iconColor: .indigo,
-                                title: "개발자 노트",
-                                subtitle: "Titans를 만든 이야기")
+                    sectionCard {
+                        NavigationLink {
+                            DeveloperNoteView()
+                                .environment(\.appTheme, theme)
+                                .preferredColorScheme(isDarkMode ? .dark : .light)
+                        } label: {
+                            menuRow(icon: "quote.bubble.fill",
+                                    iconColor: Color(red: 0.345, green: 0.337, blue: 0.839),
+                                    title: "개발자 노트", subtitle: "Titans를 만든 이야기")
+                        }
+                        .buttonStyle(.plain)
+                        rowDivider
+                        NavigationLink {
+                            SourcesDetailView()
+                                .environment(\.appTheme, theme)
+                                .preferredColorScheme(isDarkMode ? .dark : .light)
+                        } label: {
+                            menuRow(icon: "chart.bar.doc.horizontal",
+                                    iconColor: Color(red: 0.18, green: 0.69, blue: 0.78),
+                                    title: "데이터 출처",
+                                    subtitle: "공공데이터포털 · 한국수출입은행 · DART 외")
+                        }
+                        .buttonStyle(.plain)
+                        rowDivider
+                        HStack(spacing: 14) {
+                            iconBadge("info.circle.fill", Color(.systemGray))
+                            Text("앱 버전")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundStyle(theme.label)
+                            Spacer()
+                            Text(appVersion)
+                                .font(.system(size: 15))
+                                .foregroundStyle(theme.secondaryLabel)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
                     }
-                    .buttonStyle(.plain)
-                    NavigationLink {
-                        SourcesDetailView()
-                            .environment(\.appTheme, theme)
-                            .preferredColorScheme(isDarkMode ? .dark : .light)
-                    } label: {
-                        menuRow(icon: "chart.bar.doc.horizontal", iconColor: .teal,
-                                title: "데이터 출처",
-                                subtitle: "공공데이터포털 · 한국수출입은행 · DART 외")
-                    }
-                    .buttonStyle(.plain)
-                    HStack(spacing: 14) {
-                        iconBadge("info.circle.fill", Color(.systemGray))
-                        Text("앱 버전")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(theme.label)
-                        Spacer()
-                        Text(appVersion)
-                            .font(.system(size: 15))
-                            .foregroundStyle(theme.secondaryLabel)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
                 }
+                .padding(.horizontal, 16)
                 .padding(.bottom, 48)
             }
-            .background(theme.background.ignoresSafeArea())
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
@@ -126,7 +146,7 @@ struct MenuView: View {
                     Color.clear.frame(width: 52, height: 52)
                 }
                 .padding(.horizontal, 8)
-                .background(theme.background)
+                .background(Color(.systemGroupedBackground))
             }
         }
         .environment(\.appTheme, theme)
@@ -134,7 +154,7 @@ struct MenuView: View {
         .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 
-    // MARK: - Account Card (Apple Settings 스타일)
+    // MARK: - Account Card
 
     private var accountCard: some View {
         HStack(spacing: 16) {
@@ -162,7 +182,7 @@ struct MenuView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(theme.tertiaryLabel)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .contentShape(Rectangle())
         .opacity(0.55)
@@ -170,26 +190,33 @@ struct MenuView: View {
 
     // MARK: - Helpers
 
+    @ViewBuilder
+    private func sectionCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 15, weight: .semibold))
+            .font(.system(size: 13))
             .foregroundStyle(theme.secondaryLabel)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 10)
+            .padding(.top, 24)
+            .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private func menuRow(icon: String, iconColor: Color,
-                          title: String, subtitle: String? = nil,
-                          disabled: Bool = false) -> some View {
+                          title: String, subtitle: String? = nil) -> some View {
         HStack(spacing: 14) {
             iconBadge(icon, iconColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(disabled ? theme.secondaryLabel : theme.label)
+                    .foregroundStyle(theme.label)
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 13))
@@ -197,13 +224,11 @@ struct MenuView: View {
                 }
             }
             Spacer()
-            if !disabled {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(theme.tertiaryLabel)
-            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.tertiaryLabel)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .contentShape(Rectangle())
     }
@@ -211,16 +236,42 @@ struct MenuView: View {
     private func iconBadge(_ icon: String, _ color: Color) -> some View {
         Image(systemName: icon)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(color)
+            .foregroundStyle(.white)
             .frame(width: 32, height: 32)
-            .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+            .background(color, in: RoundedRectangle(cornerRadius: 8))
     }
 
-    // 섹션 사이 구분선 (섹션 라벨 시작점 ~ 오른쪽 화살표 끝점에 맞춤)
-    private var sectionDivider: some View {
-        Rectangle()
-            .fill(theme.stroke.opacity(0.5))
-            .frame(height: 0.5)
-            .padding(.horizontal, 20)
+    // 카드 내 행 사이 구분선 — leading은 아이콘 이후, trailing은 화살표 끝점에 맞춤
+    private var rowDivider: some View {
+        Divider()
+            .padding(.leading, 62)
+            .padding(.trailing, 16)
+    }
+}
+
+// MARK: - 관심기업 준비 중 플레이스홀더
+
+private struct WatchlistPlaceholderView: View {
+    @Environment(\.appTheme) private var theme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "heart.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.pink)
+            Text("관심 기업")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(theme.label)
+            Text("곧 업데이트될 예정이에요")
+                .font(.system(size: 15))
+                .foregroundStyle(theme.secondaryLabel)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.background.ignoresSafeArea())
+        .navigationTitle("관심 기업")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
