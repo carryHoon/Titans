@@ -1,0 +1,40 @@
+name: Refresh US market-cap stats
+
+# US 시총 기준값(/statistics) 스냅샷을 Upstash에 갱신한다.
+# Vercel Hobby의 함수 시간/크론 제약을 우회해 러너에서 직접 페칭→Upstash write.
+on:
+  schedule:
+    # 22:00 UTC 평일 — 미국 정규장 마감(16:00 ET) 후 약 1시간(서머타임 무관하게 마감 후).
+    # GitHub Actions 예약은 UTC이며 부하에 따라 다소 지연될 수 있다(일 1회 데이터라 무방).
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch: {}  # 수동 실행 허용
+
+# 동시 중복 실행 방지(이전 실행이 남아있으면 취소).
+concurrency:
+  group: refresh-us-stats
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # top-100 확장으로 stats 대상 ~230종목 × 6s ≈ 23분 → 여유 확보
+    defaults:
+      run:
+        working-directory: titans-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: titans-web/package-lock.json
+
+      - run: npm ci
+
+      - name: Refresh us-stats snapshot
+        run: npm run refresh:us
+        env:
+          TWELVE_DATA_API_KEY:     ${{ secrets.TWELVE_DATA_API_KEY }}
+          UPSTASH_REDIS_REST_URL:  ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

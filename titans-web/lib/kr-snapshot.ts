@@ -15,9 +15,8 @@
 // ▷ 트리거 추상화: 로컬/상시 프로세스는 in-process 창 폴러(startKrPoller)로 refreshIfNew()를
 //   호출한다. 서버리스 전환 시 이 호출을 Vercel Cron 라우트가 대신 하도록 바꾸면 된다.
 
-import { promises as fs } from 'fs'
-import path from 'path'
 import { enrichDomains } from './dart-domain'
+import { createSnapshotStore } from './snapshot-store'
 
 // ─── data.go.kr 공통 ───────────────────────────────────────────────────────────
 
@@ -225,7 +224,9 @@ async function fetchLatestIndex(preferredBasDt: string): Promise<{ basDt: string
   throw new Error('data.go.kr index → 최근 8일 내 지수 데이터 없음')
 }
 
-// ─── 스냅샷 저장소(SnapshotStore) — 지금은 FileStore ───────────────────────────
+// ─── 스냅샷 저장소(SnapshotStore) ─────────────────────────────────────────────
+// 저장소 계층은 lib/snapshot-store.ts로 추출(US 시총 스냅샷과 공유). 배포처에 따라
+// FileStore(로컬)/KvStore(Vercel+Upstash)가 자동 선택된다. key로 스냅샷을 분리 저장.
 
 interface PersistedSnapshot {
   fetchedAt: number
@@ -233,67 +234,7 @@ interface PersistedSnapshot {
   index: { basDt: string; rows: PersistedIndexRow[] }
 }
 
-interface SnapshotStore {
-  load(): Promise<PersistedSnapshot | null>
-  save(snap: PersistedSnapshot): Promise<void>
-}
-
-// 로컬/상시 프로세스용 파일 저장소. Mac(next dev/start)·VPS에서 스냅샷을 .data/에 보관한다.
-class FileStore implements SnapshotStore {
-  private readonly file = path.join(process.cwd(), '.data', 'kr-snapshot.json')
-
-  async load(): Promise<PersistedSnapshot | null> {
-    try {
-      const raw = await fs.readFile(this.file, 'utf8')
-      return JSON.parse(raw) as PersistedSnapshot
-    } catch {
-      return null
-    }
-  }
-
-  async save(snap: PersistedSnapshot): Promise<void> {
-    await fs.mkdir(path.dirname(this.file), { recursive: true })
-    await fs.writeFile(this.file, JSON.stringify(snap), 'utf8')
-  }
-}
-
-// 서버리스(Vercel)용 클라우드 저장소 — Upstash Redis REST API.
-// 서버리스 함수는 메모리·파일이 호출마다 사라지므로, 여러 인스턴스가 공유하는 "유일한 냉장고".
-// 의존성 추가 없이 REST(fetch)로만 접근한다(@upstash/redis SDK 불필요).
-class KvStore implements SnapshotStore {
-  private readonly url   = process.env.UPSTASH_REDIS_REST_URL!
-  private readonly token = process.env.UPSTASH_REDIS_REST_TOKEN!
-  private readonly key   = 'kr-snapshot'
-
-  async load(): Promise<PersistedSnapshot | null> {
-    const res = await fetch(`${this.url}/get/${this.key}`, {
-      headers: { Authorization: `Bearer ${this.token}` },
-      cache: 'no-store',
-    })
-    if (!res.ok) return null
-    const json = await res.json() as { result?: string | null }
-    if (!json.result) return null
-    try { return JSON.parse(json.result) as PersistedSnapshot } catch { return null }
-  }
-
-  async save(snap: PersistedSnapshot): Promise<void> {
-    // Upstash REST SET: 값은 요청 본문으로 전달(큰 JSON도 안전).
-    const res = await fetch(`${this.url}/set/${this.key}`, {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${this.token}` },
-      body:    JSON.stringify(snap),
-      cache:   'no-store',
-    })
-    if (!res.ok) throw new Error(`Upstash set → HTTP ${res.status}`)
-  }
-}
-
-// 저장소 선택: Upstash 환경변수가 있으면 클라우드(KvStore), 없으면 로컬 파일(FileStore).
-// → 코드 변경 없이 배포처만 바뀐다(로컬은 파일, Vercel은 KV).
-const store: SnapshotStore =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new KvStore()
-    : new FileStore()
+const store = createSnapshotStore<PersistedSnapshot>('kr-snapshot')
 
 // 스냅샷에 보관할 시장별 상위 종목 수. 앱은 상위 100개만 쓰고 byCode 조회 대상(삼성·SK하이닉스)도
 // 상위권이라, 여유 있게 상위 300개만 저장한다(전 종목 ~2,700개 → 스냅샷 크기·KV 전송량 대폭 절감).

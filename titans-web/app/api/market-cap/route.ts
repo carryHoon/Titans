@@ -1,150 +1,30 @@
 import { NextResponse } from 'next/server'
-import fs   from 'fs'
-import path from 'path'
 import { getUsdKrwQuote } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
+import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
+import {
+  COMPANIES,
+  NASDAQ_COMPANIES,
+  NYSE_COMPANIES,
+  ADR_SHARE_OUTSTANDING_M,
+  type CompanyMeta,
+} from '@/lib/us-universe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // KR 스냅샷 폴러 기동 (market-cap / market-index 공유 싱글턴)
 startKrPoller()
+// US stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+startUsStatsWarm()
 
-// ─── Twelve Data ──────────────────────────────────────────────────────────────
-// Venture 플랜: 610 credits/min, 무제한 daily.
-// /quote 1 credit/종목 (20s TTL) · /statistics ~10 credits/종목 (24h TTL + 디스크 영속)
-// 정상 운용: ~80 credits/min (quotes only). 재시작 시 디스크 캐시 복원 → cold-start burst 없음.
-// 429 시 statsErrUntil(5분 쿨다운)으로 재시도 폭주 차단.
+// ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
+// Venture 플랜: 610 credits/min. 이 라우트(유저 경로)는 /quote(1 credit/종목, 20s TTL)만 쓴다.
+// 시총 기준값(/statistics)은 lib/us-stats 스냅샷 레이어가 마감 후 1회 갱신 → 유저 경로는 read만.
+// ⇒ 정상 운용 ~80 credits/min, 유저 요청이 stats fetch 지연·버스트를 절대 떠안지 않는다.
 
 const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? ''
 const TD_BASE         = 'https://api.twelvedata.com'
-
-// ─── 가격 기반 시총 계산 (stats 없이 발행주수 × 가격으로 직접 계산) ───────────────
-// 대상: ADR(USD가격) + SAR 종목(Tadawul). /statistics가 부정확하거나 미지원인 종목.
-// 합병·분할 없는 한 발행주수는 거의 변하지 않음. (최근 갱신: 2026-07)
-
-// ADR: 발행주수(M) × ADR가격(USD) / 1,000,000 = 시총(T USD)
-const ADR_SHARE_RATIO: Record<string, number> = {
-  TSM:  5,  // TSMC: 1 ADR = 5 대만 보통주
-  HSBC: 5,  // HSBC: 1 ADR = 5 런던 보통주
-}
-const ADR_SHARE_OUTSTANDING_M: Record<string, number> = {
-  TSM:  5165,  // 보통주 25825M ÷ ADR비율 5 = 5165M ADR
-  HSBC: 3437,  // 보통주 17183M ÷ ADR비율 5 = 3437M ADR
-}
-
-// SAR 종목 (Tadawul): /statistics가 market_capitalization을 SAR로 반환 → USD 변환 필요.
-// SAR/USD 법정 고정환율(3.75)로 나누면 정확한 USD 시총.
-// EOD 가격 기반 라이브 스케일링(stats × close/prev_close)은 일반 종목과 동일.
-const SAR_PER_USD = 3.75  // 사우디 리얄 법정 고정환율 (1946년~)
-const SAR_STATS_TICKERS = new Set(['2222:TADAWUL'])
-
-// ─── 유니버스 ──────────────────────────────────────────────────────────────────
-// NASDAQ·NYSE 유니버스는 정적 큐레이션 리스트로 관리한다.
-// 실시간 스크리너 없이도 상위 20개가 항상 포함되도록 여유 있게 구성하고,
-// 실시간 시총(Twelve Data /statistics + /quote 스케일링)으로 재정렬해 상위 20개를 뽑는다.
-
-const COMPANIES: CompanyMeta[] = [
-  // Top 10 (US)
-  { ticker: 'NVDA',           name: 'NVIDIA',        color: '#78BB17' },
-  { ticker: 'AAPL',           name: 'Apple',         color: '#8E8E93' },
-  { ticker: 'MSFT',           name: 'Microsoft',     color: '#0078D4' },
-  { ticker: 'GOOGL',          name: 'Alphabet',      color: '#EA4335' },
-  { ticker: 'AMZN',           name: 'Amazon',        color: '#FF9900' },
-  { ticker: 'META',           name: 'Meta',          color: '#4267B2' },
-  { ticker: 'TSLA',           name: 'Tesla',         color: '#CC1C1C' },
-  { ticker: 'BRK.B',          name: 'Berkshire',     color: '#8B5E20' },
-  { ticker: 'AVGO',           name: 'Broadcom',      color: '#CC0000' },
-  { ticker: 'JPM',            name: 'JPMorgan',      color: '#005EB8' },
-  // 글로벌 (ADR + Tadawul EOD)
-  { ticker: 'TSM',            name: 'TSMC',          color: '#0073CE' },
-  { ticker: '2222:TADAWUL',   name: 'Saudi Aramco',  color: '#007A3D' },
-  // 11–20위권 (US)
-  { ticker: 'LLY',            name: 'Eli Lilly',     color: '#8B5CF6' },
-  { ticker: 'WMT',            name: 'Walmart',       color: '#007DC6' },
-  { ticker: 'V',              name: 'Visa',          color: '#1A1F71' },
-  { ticker: 'ORCL',           name: 'Oracle',        color: '#F80000' },
-  { ticker: 'XOM',            name: 'ExxonMobil',    color: '#1A1A1A' },
-  { ticker: 'MA',             name: 'Mastercard',    color: '#EB001B' },
-  { ticker: 'COST',           name: 'Costco',        color: '#005DAA' },
-  { ticker: 'NFLX',           name: 'Netflix',       color: '#E50914' },
-  { ticker: 'UNH',            name: 'UnitedHealth',  color: '#002677' },
-  { ticker: 'PLTR',           name: 'Palantir',      color: '#101828' },
-  { ticker: 'SPCX',           name: 'SpaceX',        color: '#005288' },
-  { ticker: 'AMD',            name: 'AMD',           color: '#ED1C24' },
-  { ticker: 'MU',             name: 'Micron',        color: '#00AEEF' },
-]
-
-// NASDAQ 유니버스 (큐레이션, top-20 상위집합).
-// ⚠️ Walmart(WMT) 등 NASDAQ 공식 상장 종목은 NYSE가 아닌 여기에 둔다.
-const NASDAQ_COMPANIES: CompanyMeta[] = [
-  { ticker: 'NVDA',  name: 'NVIDIA',             color: '#78BB17' },
-  { ticker: 'AAPL',  name: 'Apple',              color: '#8E8E93' },
-  { ticker: 'MSFT',  name: 'Microsoft',          color: '#0078D4' },
-  { ticker: 'GOOGL', name: 'Alphabet',           color: '#EA4335' },
-  { ticker: 'AMZN',  name: 'Amazon',             color: '#FF9900' },
-  { ticker: 'META',  name: 'Meta',               color: '#4267B2' },
-  { ticker: 'AVGO',  name: 'Broadcom',           color: '#CC0000' },
-  { ticker: 'TSLA',  name: 'Tesla',              color: '#CC1C1C' },
-  { ticker: 'SPCX',  name: 'SpaceX',             color: '#005288' },
-  { ticker: 'MU',    name: 'Micron',             color: '#00AEEF' },
-  { ticker: 'WMT',   name: 'Walmart',            color: '#007DC6' },
-  { ticker: 'AMD',   name: 'AMD',                color: '#ED1C24' },
-  { ticker: 'INTC',  name: 'Intel',              color: '#0068B5' },
-  { ticker: 'ASML',  name: 'ASML',               color: '#0B5394' },
-  { ticker: 'CSCO',  name: 'Cisco',              color: '#1BA0D7' },
-  { ticker: 'AMAT',  name: 'Applied Materials',  color: '#1A6DB4' },
-  { ticker: 'COST',  name: 'Costco',             color: '#005DAA' },
-  { ticker: 'LRCX',  name: 'Lam Research',       color: '#6EBE44' },
-  { ticker: 'ARM',   name: 'Arm Holdings',       color: '#1BA8DF' },
-  { ticker: 'PLTR',  name: 'Palantir',           color: '#101828' },
-  { ticker: 'NFLX',  name: 'Netflix',            color: '#E50914' },
-  { ticker: 'KLAC',  name: 'KLA',                color: '#0033A0' },
-  { ticker: 'PANW',  name: 'Palo Alto Networks', color: '#FA582D' },
-  { ticker: 'TXN',   name: 'Texas Instruments',  color: '#CC0000' },
-  { ticker: 'LIN',   name: 'Linde',              color: '#005591' },
-  { ticker: 'TMUS',  name: 'T-Mobile',           color: '#E20074' },
-  { ticker: 'AMGN',  name: 'Amgen',              color: '#0063C3' },
-  { ticker: 'ADBE',  name: 'Adobe',              color: '#FA0F00' },
-  { ticker: 'INTU',  name: 'Intuit',             color: '#365EBF' },
-  { ticker: 'QCOM',  name: 'Qualcomm',           color: '#3253DC' },
-  { ticker: 'ISRG',  name: 'Intuitive Surgical', color: '#486B92' },
-]
-
-// NYSE 유니버스 (큐레이션, top-20 상위집합).
-// 보통주 + 미국 상장 ADR(TSM·HSBC 등) 포함. 우선주·파생상품 제외.
-const NYSE_COMPANIES: CompanyMeta[] = [
-  { ticker: 'BRK.B', name: 'Berkshire',         color: '#8B5E20' },
-  { ticker: 'LLY',   name: 'Eli Lilly',         color: '#8B5CF6' },
-  { ticker: 'JPM',   name: 'JPMorgan',          color: '#005EB8' },
-  { ticker: 'V',     name: 'Visa',              color: '#1A1F71' },
-  { ticker: 'JNJ',   name: 'J&J',               color: '#D51900' },
-  { ticker: 'XOM',   name: 'ExxonMobil',        color: '#1A1A1A' },
-  { ticker: 'MA',    name: 'Mastercard',        color: '#EB001B' },
-  { ticker: 'ABBV',  name: 'AbbVie',            color: '#071D49' },
-  { ticker: 'BAC',   name: 'Bank of America',   color: '#E31837' },
-  { ticker: 'CAT',   name: 'Caterpillar',       color: '#FFCD11' },
-  { ticker: 'UNH',   name: 'UnitedHealth',      color: '#002677' },
-  { ticker: 'CVX',   name: 'Chevron',           color: '#0066B2' },
-  { ticker: 'ORCL',  name: 'Oracle',            color: '#F80000' },
-  { ticker: 'GE',    name: 'GE Aerospace',      color: '#005EB8' },
-  { ticker: 'KO',    name: 'Coca-Cola',         color: '#F40000' },
-  { ticker: 'PG',    name: 'P&G',               color: '#003DA5' },
-  { ticker: 'MS',    name: 'Morgan Stanley',    color: '#002855' },
-  { ticker: 'HD',    name: 'Home Depot',        color: '#F96302' },
-  { ticker: 'GS',    name: 'Goldman Sachs',     color: '#002F6C' },
-  { ticker: 'MRK',   name: 'Merck',             color: '#00857C' },
-  { ticker: 'PM',    name: 'Philip Morris',     color: '#005CB9' },
-  { ticker: 'RTX',   name: 'RTX',               color: '#E4002B' },
-  { ticker: 'WFC',   name: 'Wells Fargo',       color: '#D71E28' },
-  { ticker: 'CRM',   name: 'Salesforce',        color: '#00A1E0' },
-  { ticker: 'AXP',   name: 'American Express',  color: '#006FCF' },
-  { ticker: 'C',     name: 'Citigroup',         color: '#056DAE' },
-  { ticker: 'MCD',   name: "McDonald's",        color: '#FFC72C' },
-  { ticker: 'ACN',   name: 'Accenture',         color: '#A100FF' },
-  { ticker: 'TSM',   name: 'TSMC',              color: '#0073CE' },
-  { ticker: 'HSBC',  name: 'HSBC',              color: '#DB0011' },
-]
 
 // ─── KRX (한국거래소) ──────────────────────────────────────────────────────────
 // 공공데이터포털 금융위원회_주식시세정보 — EOD D-1 데이터, 무료·라이선스 클린.
@@ -224,21 +104,11 @@ const KRX_DEFAULT_COLOR = '#3182F6'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface CompanyMeta {
-  ticker: string
-  name:   string
-  color:  string
-}
-
 interface QuoteData {
   c:  number  // current price
   d:  number  // change
   dp: number  // change percent
   pc: number  // previous close — 시총 라이브 스케일링(stats × c/pc)에 사용
-}
-
-interface StatsData {
-  marketCapUSD: number  // trillion USD
 }
 
 interface CacheEntry<T> {
@@ -247,26 +117,27 @@ interface CacheEntry<T> {
 }
 
 export interface CompanyResult {
-  rank:          number
-  ticker:        string
-  name:          string
-  color:         string
-  currentPrice:  number
-  change:        number
-  changePercent: number
-  marketCapUSD:  number  // trillion USD
-  domain?:       string  // 홈페이지 도메인 (KRX 종목 로고 폴백용)
+  rank:            number
+  previousRank?:   number  // 전일 종가 기준 순위 (US 계산; KR은 클라이언트가 basDt로 계산)
+  ticker:          string
+  name:            string
+  color:           string
+  currentPrice:    number
+  change:          number
+  changePercent:   number
+  marketCapUSD:    number  // trillion USD — 라이브 시총(랭킹 기준)
+  prevCloseCapUSD: number  // trillion USD — 전일 종가 기준 시총(previousRank 계산용). 응답엔 포함되나 클라이언트는 무시.
+  domain?:         string  // 홈페이지 도메인 (KRX 종목 로고 폴백용)
 }
 
 // ─── In-Memory Caches ─────────────────────────────────────────────────────────
 
-const QUOTE_TTL_MS = 20_000
-const STATS_TTL_MS = 24 * 3_600_000  // 24h — 하루 1회만 갱신. 디스크 영속으로 재시작 후에도 유지.
+// 60s: NASDAQ/NYSE top-100 확장으로 활성 티커 합집합이 커져도 읽기 크레딧을 예산 내로 유지.
+// (분당 크레딧 = 합집합 × 60/TTL초 → 60s면 합집합~230이 ~230/min, Venture 610 대비 여유.)
+const QUOTE_TTL_MS = 60_000
 
 const quoteCache    = new Map<string, CacheEntry<QuoteData>>()
 const quoteInFlight = new Map<string, Promise<QuoteData>>()
-const statsCache    = new Map<string, CacheEntry<StatsData>>()
-const statsInFlight = new Map<string, Promise<StatsData>>()
 
 // 종목별 마지막 성공 데이터. 레이트리밋 등 일시 실패 시 stale 데이터로 빈자리 없이 유지.
 const lastGoodCompanyCache = new Map<string, Omit<CompanyResult, 'rank'>>()
@@ -287,50 +158,7 @@ const exchangeFeeds: Record<string, ExchangeFeedState> = {
   KOSDAQ: { lastGoodResult: null, lastGoodAt: 0 },
 }
 
-// ─── Stats 디스크 영속 ─────────────────────────────────────────────────────────
-// 서버 재시작 후에도 24h TTL stats가 파일에서 복원되어 cold-start burst(~550 credits) 원천 차단.
-// 경로: titans-web/.data/stats-cache.json (root .gitignore에서 제외됨)
-
-const STATS_PERSIST_PATH = path.join(process.cwd(), '.data', 'stats-cache.json')
-let   statsCacheLoaded   = false
-
-function loadStatsCacheFromDisk(): void {
-  if (statsCacheLoaded) return
-  statsCacheLoaded = true
-  try {
-    const raw = JSON.parse(fs.readFileSync(STATS_PERSIST_PATH, 'utf-8')) as
-      Record<string, { marketCapUSD: number; ts: number }>
-    const now = Date.now()
-    let n = 0
-    for (const [ticker, { marketCapUSD, ts }] of Object.entries(raw)) {
-      if (now - ts < STATS_TTL_MS) {
-        statsCache.set(ticker, { data: { marketCapUSD }, ts })
-        n++
-      }
-    }
-    if (n > 0) console.log(`[market-cap] stats 디스크 캐시 복원: ${n}개`)
-  } catch { /* 파일 없음 또는 파싱 오류 — 무시하고 빈 캐시로 시작 */ }
-}
-
-function saveStatsCacheToDisk(): void {
-  try {
-    fs.mkdirSync(path.dirname(STATS_PERSIST_PATH), { recursive: true })
-    const out: Record<string, { marketCapUSD: number; ts: number }> = {}
-    for (const [ticker, { data, ts }] of statsCache) {
-      out[ticker] = { marketCapUSD: data.marketCapUSD, ts }
-    }
-    fs.writeFileSync(STATS_PERSIST_PATH, JSON.stringify(out, null, 2), 'utf-8')
-  } catch (err) {
-    console.warn('[market-cap] stats 디스크 저장 실패:', err)
-  }
-}
-
-// ─── Stats 429 쿨다운 ─────────────────────────────────────────────────────────
-// 429 발생 시 5분 쿨다운으로 재시도 폭주(최대 8,181 credits/min) 차단.
-const STATS_ERR_COOLDOWN_MS = 5 * 60_000
-let   statsErrUntil          = 0
-
-// ─── Twelve Data Fetchers ─────────────────────────────────────────────────────
+// ─── Twelve Data Fetchers (quote 전용) ─────────────────────────────────────────
 
 async function getQuote(ticker: string): Promise<QuoteData> {
   const hit = quoteCache.get(ticker)
@@ -362,67 +190,6 @@ async function getQuote(ticker: string): Promise<QuoteData> {
   return task
 }
 
-// 시총 기준값: /statistics → market_capitalization(절대 USD 정수, e.g. AAPL ≈ 4.99 × 10^12).
-// 24h TTL + 디스크 영속. ALL/NASDAQ/NYSE 피드가 동시에 같은 티커를 요청해도 statsInFlight로 1회만 호출.
-async function getStats(ticker: string): Promise<StatsData> {
-  const hit = statsCache.get(ticker)
-  if (hit && Date.now() - hit.ts < STATS_TTL_MS) return hit.data
-
-  const pending = statsInFlight.get(ticker)
-  if (pending) return pending
-
-  const task = (async (): Promise<StatsData> => {
-    const res = await fetch(
-      `${TD_BASE}/statistics?symbol=${encodeURIComponent(ticker)}&apikey=${TWELVE_DATA_KEY}`,
-      { cache: 'no-store' },
-    )
-    if (!res.ok) throw new Error(`stats ${ticker} → HTTP ${res.status}`)
-    const data = await res.json()
-    if (data.status === 'error') throw new Error(`stats ${ticker} → ${data.message}`)
-    const mc = data?.statistics?.valuations_metrics?.market_capitalization as number | undefined
-    if (!mc) throw new Error(`stats ${ticker} → market_capitalization 없음`)
-    // SAR 종목: TD가 market_capitalization을 현지 통화(SAR)로 반환 → USD 변환 후 저장
-    const mcUsd = SAR_STATS_TICKERS.has(ticker) ? mc / SAR_PER_USD : mc
-    const result: StatsData = { marketCapUSD: mcUsd / 1_000_000_000_000 }
-    statsCache.set(ticker, { data: result, ts: Date.now() })
-    setImmediate(saveStatsCacheToDisk)  // 성공마다 즉시 저장 — 프로세스 중단 시에도 보존
-    return result
-  })().finally(() => statsInFlight.delete(ticker))
-
-  statsInFlight.set(ticker, task)
-  return task
-}
-
-// ADR 및 캐시 유효 종목 스킵. 429 시 5분 쿨다운으로 폭주 차단. 성공 후 디스크 저장.
-async function refreshTdStats(tickers: string[]): Promise<void> {
-  loadStatsCacheFromDisk()
-  if (Date.now() < statsErrUntil) return
-
-  const now     = Date.now()
-  const toFetch = tickers.filter(t => {
-    if (ADR_SHARE_RATIO[t]) return false  // ADR: 발행주수 × USD가격으로 직접 계산 (stats 불필요)
-    const hit = statsCache.get(t)
-    return !hit || now - hit.ts > STATS_TTL_MS
-    // SAR 종목(2222:TADAWUL)은 stats를 사용 — SAR→USD 변환은 getStats() 내부에서 처리
-  })
-  if (toFetch.length === 0) return
-
-  let rateLimitCount = 0
-  await Promise.all(
-    toFetch.map(t =>
-      getStats(t).catch((err: unknown) => {
-        if (err instanceof Error && err.message.includes('429')) rateLimitCount++
-      }),
-    ),
-  )
-
-  // 25% 이상 429: 계획적 rate limit → 5분 쿨다운. 소수 실패는 일시 오류로 허용.
-  if (rateLimitCount > 0 && rateLimitCount >= Math.ceil(toFetch.length * 0.25)) {
-    statsErrUntil = Date.now() + STATS_ERR_COOLDOWN_MS
-    console.warn(`[market-cap] stats 429 (${rateLimitCount}/${toFetch.length}) → 5분 쿨다운`)
-  }
-}
-
 // ─── FX ──────────────────────────────────────────────────────────────────────
 
 async function getKrwRate(): Promise<number> {
@@ -443,26 +210,29 @@ async function getKRXResult(
   const ds   = await getKrxDataset()
   const row  = ds.byCode.get(code)
   if (!row || !row.marketCapKRW) throw new Error(`KRX ${meta.ticker} → marketCap 없음`)
+  const capT = row.marketCapKRW / krwPerUsd / 1_000_000_000_000
   return {
-    ticker:        meta.ticker,
-    name:          meta.name,
-    color:         meta.color,
-    currentPrice:  row.price,
-    change:        row.change,
-    changePercent: row.changePercent,
-    marketCapUSD:  row.marketCapKRW / krwPerUsd / 1_000_000_000_000,
+    ticker:          meta.ticker,
+    name:            meta.name,
+    color:           meta.color,
+    currentPrice:    row.price,
+    change:          row.change,
+    changePercent:   row.changePercent,
+    marketCapUSD:    capT,
+    prevCloseCapUSD: capT,  // KR은 EOD(D-1) — 장중 변동 없음. ALL 피드 상대순위 비교용으로만 사용.
   }
 }
 
 // ─── 종목 행 생성 (ALL / NASDAQ / NYSE 공통) ──────────────────────────────────
-// 시총 = stats 기준값(24h 캐시) × (현재가 / 전일종가) 라이브 스케일링.
+// 시총 = stats 기준값(us-stats 스냅샷) × (현재가 / 전일종가) 라이브 스케일링.
 // ADR(TSM·HSBC): 하드코딩된 발행주수 × ADR가격으로 직접 계산(stats 사용 안 함).
 // quote 실패 시: 만료 캐시 → lastGoodCompanyCache(직전 성공) 순으로 폴백.
 
 async function fetchRows(
   companies: CompanyMeta[],
 ): Promise<(Omit<CompanyResult, 'rank'> | null)[]> {
-  await refreshTdStats(companies.map(c => c.ticker))
+  // stats 기준값은 스냅샷(크론이 마감 후 1회 갱신)에서 read — 유저 경로는 업스트림 호출 없음.
+  const stats = await getUsStats()
 
   const quotes = await Promise.all(
     companies.map(async (co): Promise<QuoteData | null> => {
@@ -473,20 +243,24 @@ async function fetchRows(
 
   return companies.map((co, i): Omit<CompanyResult, 'rank'> | null => {
     const quote  = quotes[i]
-    const tdCapT = statsCache.get(co.ticker)?.data?.marketCapUSD
+    const tdCapT = stats[co.ticker]
 
     if (!quote && tdCapT == null) return lastGoodCompanyCache.get(co.ticker) ?? null
 
     const adrShares = ADR_SHARE_OUTSTANDING_M[co.ticker]
-    let marketCapUSD: number
+    let marketCapUSD:    number  // 라이브 시총(현재가 기준)
+    let prevCloseCapUSD: number  // 전일 종가 기준 시총(previousRank 계산용)
 
     if (adrShares) {
-      // ADR: 발행주수(M) × ADR가격(USD) / 1M → 시총(T USD)
-      marketCapUSD = quote ? adrShares * quote.c / 1_000_000 : 0
+      // ADR: 발행주수(M) × 가격(USD) / 1M → 시총(T USD). 라이브=현재가, 전일=전일종가.
+      marketCapUSD    = quote ? adrShares * quote.c  / 1_000_000 : 0
+      prevCloseCapUSD = quote ? adrShares * quote.pc / 1_000_000 : 0
     } else {
-      // 일반 + SAR 종목: stats 기준값(SAR→USD 변환은 getStats 내부에서 완료) × 당일 등락 비율
-      const ratio  = quote && quote.pc > 0 ? quote.c / quote.pc : 1
-      marketCapUSD = (tdCapT ?? 0) * ratio
+      // 일반 + SAR: stats 기준값(≈발행주수×전일종가) 자체가 전일 종가 시총.
+      // 라이브 = 그 값 × 당일 등락 비율(현재가/전일종가).
+      const ratio     = quote && quote.pc > 0 ? quote.c / quote.pc : 1
+      prevCloseCapUSD = tdCapT ?? 0
+      marketCapUSD    = prevCloseCapUSD * ratio
     }
 
     if (marketCapUSD <= 0) {
@@ -495,13 +269,14 @@ async function fetchRows(
     }
 
     const result: Omit<CompanyResult, 'rank'> = {
-      ticker:        co.ticker,
-      name:          co.name,
-      color:         co.color,
-      currentPrice:  quote?.c  ?? 0,
-      change:        quote?.d  ?? 0,
-      changePercent: quote?.dp ?? 0,
+      ticker:          co.ticker,
+      name:            co.name,
+      color:           co.color,
+      currentPrice:    quote?.c  ?? 0,
+      change:          quote?.d  ?? 0,
+      changePercent:   quote?.dp ?? 0,
       marketCapUSD,
+      prevCloseCapUSD,
     }
     lastGoodCompanyCache.set(co.ticker, result)
     return result
@@ -530,10 +305,18 @@ function rankWithBackfill(
     }
   }
 
+  // 전일 종가 기준 순위: 같은 후보 풀을 prevCloseCap 내림차순으로 정렬해 티커→순위 맵 구성.
+  // 라이브 순위(marketCapUSD)와 비교해 클라이언트가 화살표(delta)를 그린다.
+  const prevRankMap = new Map<string, number>()
+  ;[...merged]
+    .filter(r => r.prevCloseCapUSD > 0)
+    .sort((a, b) => b.prevCloseCapUSD - a.prevCloseCapUSD)
+    .forEach((r, i) => prevRankMap.set(r.ticker, i + 1))
+
   return merged
     .sort((a, b) => b.marketCapUSD - a.marketCapUSD)
     .slice(0, limit)
-    .map((r, i) => ({ ...r, rank: i + 1 }))
+    .map((r, i) => ({ ...r, rank: i + 1, previousRank: prevRankMap.get(r.ticker) }))
 }
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
@@ -605,7 +388,7 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
       if (hynix) allRows.push(hynix)
     }
 
-    const ranked = rankWithBackfill(allRows, state?.lastGoodResult)
+    const ranked = rankWithBackfill(allRows, state?.lastGoodResult, 100)  // NASDAQ/NYSE는 top-100
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
@@ -638,11 +421,12 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
         ticker:        `${row.code}.${suffix}`,
         name:          meta?.name ?? row.name,
         color:         meta?.color ?? KRX_DEFAULT_COLOR,
-        currentPrice:  row.price,
-        change:        row.change,
-        changePercent: row.changePercent,
-        marketCapUSD:  row.marketCapKRW / rate / 1_000_000_000_000,
-        domain:        row.domain,  // DART 해석 도메인 → 앱 로고 폴백
+        currentPrice:    row.price,
+        change:          row.change,
+        changePercent:   row.changePercent,
+        marketCapUSD:    row.marketCapKRW / rate / 1_000_000_000_000,
+        prevCloseCapUSD: row.marketCapKRW / rate / 1_000_000_000_000,  // KR previousRank는 클라이언트가 basDt로 계산
+        domain:          row.domain,  // DART 해석 도메인 → 앱 로고 폴백
       }
     })
 
@@ -661,30 +445,5 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
   }
 }
 
-// ─── 서버 기동 시 선제 Warm-up ────────────────────────────────────────────────
-// 1) 디스크 캐시 복원 → statsCache 즉시 채워짐 (재시작 = 0 credits)
-// 2) 미캐시 종목은 3개씩 4초 간격으로 stagger 발사 → 450 credits/min (한도 610 내 유지)
-//    전량 병렬 발사 시: 59개 × 10 credits = 590 credits 순간 버스트 → 429 유발
-//    stagger 시: 3 × 4s = 450/min → quote 55/min 포함 505/min → 여유 105/min
-
-const ALL_US_TICKERS = [
-  ...new Set([
-    ...COMPANIES.map(c => c.ticker),
-    ...NASDAQ_COMPANIES.map(c => c.ticker),
-    ...NYSE_COMPANIES.map(c => c.ticker),
-  ]),
-]
-
-void (async () => {
-  loadStatsCacheFromDisk()
-  const now = Date.now()
-  const toFetch = ALL_US_TICKERS.filter(t => {
-    if (ADR_SHARE_RATIO[t]) return false
-    const hit = statsCache.get(t)
-    return !hit || now - hit.ts > STATS_TTL_MS
-  })
-  for (let i = 0; i < toFetch.length; i += 3) {
-    await Promise.all(toFetch.slice(i, i + 3).map(t => getStats(t).catch(() => null)))
-    if (i + 3 < toFetch.length) await new Promise(r => setTimeout(r, 4_000))
-  }
-})()
+// stats 기준값의 선제 워밍은 lib/us-stats 의 startUsStatsWarm()(로컬)·크론(Vercel)이 담당한다.
+// 이 라우트(유저 경로)는 stats를 스냅샷에서 read 만 하므로 여기서 별도 warm-up 을 돌리지 않는다.

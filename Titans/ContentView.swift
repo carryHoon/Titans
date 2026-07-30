@@ -150,6 +150,7 @@ struct Company: Identifiable {
 
 struct APICompanyResult: Decodable {
     let rank: Int
+    let previousRank: Int?     // 전일 종가 기준 순위 (US만 내려옴; KR은 basDt로 클라이언트가 계산)
     let ticker: String
     let name: String
     let color: String          // hex 문자열 e.g. "#78BB17"
@@ -399,17 +400,6 @@ struct ExchangeFeed {
     var basDt: String? = nil   // KRX 기준일("YYYYMMDD") — 코스피/코스닥 "종가 기준" 표기용
 }
 
-// MARK: - Daily Baseline (일별 기준 순위)
-
-/// 당일 첫 fetch 시 확정되는 기준 순위. UserDefaults에 영속 저장되며 날짜가 바뀌면 자동 리셋.
-/// ALL 피드와 거래소별 피드를 분리 저장해 서로 다른 rank 체계를 혼용하지 않는다.
-/// KR 종목(KOSPI/KOSDAQ)은 basDt 기반인 KRRankBaseline을 사용하므로 여기에 저장하지 않는다.
-private struct DailyBaseline: Codable {
-    var date: String                           // "yyyy-MM-dd"
-    var allRanks: [String: Int]                // ALL 피드 전역 순위
-    var exchangeRanks: [String: [String: Int]] // apiExchangeParam → 거래소 내 순위 (비KR)
-}
-
 // MARK: - KR Rank Baseline (basDt 기준)
 
 /// KOSPI/KOSDAQ 전용. 공공데이터포털 EOD 스냅샷의 basDt(기준일)가 바뀔 때마다 롤오버.
@@ -434,9 +424,6 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
     @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
-    // 일별 기준 순위 (비KR) — 앱 재실행 후에도 당일이면 복원
-    private var dailyBaseline = DailyBaseline(date: "", allRanks: [:], exchangeRanks: [:])
-
     // KR 종목 basDt 기준 스냅샷 — 영속 저장, 만료 없음(basDt 변경 시 자동 롤오버)
     private var krBaselines: [String: KRExchangeBaseline] = [:]  // exchangeParam → baseline
 
@@ -451,39 +438,9 @@ final class MarketCapViewModel: ObservableObject {
     private let indexEndpoint = URL(string: "http://\(host):3000/api/market-index")!
 
     init() {
-        let today = Self.todayDateString()
-        if let data = UserDefaults.standard.data(forKey: "dailyBaseline"),
-           let saved = try? JSONDecoder().decode(DailyBaseline.self, from: data),
-           saved.date == today {
-            dailyBaseline = saved
-        }
         if let data = UserDefaults.standard.data(forKey: "krRankBaselines"),
            let saved = try? JSONDecoder().decode([String: KRExchangeBaseline].self, from: data) {
             krBaselines = saved
-        }
-    }
-
-    private static func todayDateString() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: Date())
-    }
-
-    /// 당일 기준 순위가 아직 없을 때만 설정. 날짜가 바뀌면 전체 리셋 후 새로 설정. (비KR 전용)
-    private func setBaselineIfNeeded(ranks: [String: Int], exchangeParam: String?) {
-        let today = Self.todayDateString()
-        if dailyBaseline.date != today {
-            dailyBaseline = DailyBaseline(date: today, allRanks: [:], exchangeRanks: [:])
-        }
-        if let param = exchangeParam {
-            guard dailyBaseline.exchangeRanks[param] == nil else { return }
-            dailyBaseline.exchangeRanks[param] = ranks
-        } else {
-            guard dailyBaseline.allRanks.isEmpty else { return }
-            dailyBaseline.allRanks = ranks
-        }
-        if let data = try? JSONEncoder().encode(dailyBaseline) {
-            UserDefaults.standard.set(data, forKey: "dailyBaseline")
         }
     }
 
@@ -503,7 +460,7 @@ final class MarketCapViewModel: ObservableObject {
 
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
     /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
-    /// KR 종목(basDt 존재)은 basDt 기반 롤오버 baseline을 사용하고, 비KR은 DailyBaseline을 사용한다.
+    /// 순위변동 기준(previousRank)은 "전일 종가 순위 대비"로 통일: KR은 basDt 롤오버 baseline, 비KR은 서버 previousRank.
     private func loadCompanies(from url: URL, exchangeParam: String?) async throws
         -> (companies: [Company], stale: Bool, rate: Double?, basDt: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
@@ -514,21 +471,20 @@ final class MarketCapViewModel: ObservableObject {
         if let apiError = decoded.error, decoded.data.isEmpty {
             throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
         }
-        let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-        let baseline: [String: Int]
+        // 순위변동 기준(previousRank) = "전일 종가 순위 대비"로 US/KR 통일.
+        //  · KR(basDt 존재): 직전 basDt 스냅샷 순위와 비교 (클라이언트가 basDt 롤오버로 보관)
+        //  · 비KR(US): 서버가 전일 종가 시총으로 계산해 내려준 previousRank를 그대로 사용
+        var krBaseline: [String: Int] = [:]
         if let basDt = decoded.basDt, let param = exchangeParam {
-            // KR 종목: 이전 basDt 스냅샷 순위와 비교 (언제 앱을 열어도 "이전 종가 vs 현재 종가")
+            let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
             updateKRBaseline(param: param, newBasDt: basDt, newRanks: todayRanks)
-            baseline = krBaselines[param]?.previousRanks ?? [:]
-        } else {
-            // 비KR 종목: 당일 첫 fetch 기준
-            setBaselineIfNeeded(ranks: todayRanks, exchangeParam: exchangeParam)
-            baseline = exchangeParam.map { dailyBaseline.exchangeRanks[$0] ?? [:] } ?? dailyBaseline.allRanks
+            krBaseline = krBaselines[param]?.previousRanks ?? [:]
         }
+        let isKR = decoded.basDt != nil
         let mapped: [Company] = decoded.data.map { api in
             Company(
                 rank:         api.rank,
-                previousRank: baseline[api.ticker],
+                previousRank: isKR ? krBaseline[api.ticker] : api.previousRank,
                 name:         api.name,
                 ticker:       api.ticker,
                 marketCapUSD: api.marketCapUSD,
@@ -768,6 +724,11 @@ struct ContentView: View {
                             AdBannerSlot()
                         }
                     }
+                    // v1은 ALL 섹션을 상위 20개만 노출. v2에서 100개로 확대 예정이라
+                    // 마지막 종목 아래에 "확장 준비 중" 안내를 붙인다.
+                    if market == .all {
+                        ExpansionFooter()
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -848,14 +809,16 @@ struct ContentView: View {
         .task {
             while !Task.isCancelled {
                 await viewModel.fetch()
-                try? await Task.sleep(for: .seconds(15))
+                // 서버 quote 캐시(20초)와 정렬. sleep이 fetch 뒤라 실제 간격은 항상 20초 초과 → 매 호출 신선.
+                try? await Task.sleep(for: .seconds(20))
             }
         }
         .task(id: selectedMarket) {
             guard selectedMarket.apiExchangeParam != nil else { return }
             while !Task.isCancelled {
                 await viewModel.fetchExchange(selectedMarket)
-                try? await Task.sleep(for: .seconds(15))
+                // 서버 quote 캐시(20초)와 정렬. sleep이 fetch 뒤라 실제 간격은 항상 20초 초과 → 매 호출 신선.
+                try? await Task.sleep(for: .seconds(20))
             }
         }
         .task(id: "market-index") {
@@ -1279,6 +1242,30 @@ struct EmptyMarketView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
+    }
+}
+
+// MARK: - Expansion Footer (ALL 섹션 하단 — v2 확대 예고)
+
+/// ALL 섹션은 v1에서 상위 20개만 노출한다. 마지막 종목 아래에 붙어
+/// "더 많은 기업이 곧 추가된다"는 것을 알려주는 안내 푸터. (v2에서 100개로 확대 예정)
+struct ExpansionFooter: View {
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 26))
+                .foregroundStyle(theme.tertiaryLabel)
+            Text("확장 준비 중이에요")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(theme.secondaryLabel)
+            Text("Coming Soon 2026.09.01")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.tertiaryLabel)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
     }
 }
 
