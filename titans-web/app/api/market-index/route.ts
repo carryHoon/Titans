@@ -11,19 +11,12 @@ startKrPoller()
 
 // 지수 카드 데이터 소스(선언적):
 //   · 달러 환율        = 통합 FX 레이어(@/lib/fx) — 수출입은행 우선, OXR·상수 자동 폴백
-//   · 나스닥          = Yahoo Finance v8/finance/chart (실시간, crumb 불필요)
-//   · 코스피/코스닥 …  = 공공데이터포털 금융위원회_지수시세정보(getStockMarketIndex, EOD/D-1)
+//   · 코스피/코스닥 …  = 공공데이터포털 금융위원회_지수시세정보(EOD/D-1)
 //
-// 한국 지수는 라이선스 클린한 정부 공식 오픈데이터로 통일한다(Yahoo 비공식 스크래핑 제거).
-// KRX 종목 시총 섹션(market-cap)이 이미 공공데이터포털 D-1 EOD라 기준이 일치한다.
-// 새 한국 지수는 KR_INDICES 배열에 한 줄 추가하면 카드가 자동으로 늘어난다(추가 API 콜 없음 —
-// 한 번의 배치 콜로 전 지수를 받아 이름으로 골라 쓴다).
+// ※ NASDAQ 지수: TD Venture 플랜 미지원, 상업 라이선스 소스 미확보로 제거.
+//   향후 TD 지수 지원 확인(Bogdan) 시 IndexData 추가 가능.
+// 새 한국 지수는 KR_INDICES 배열에 한 줄 추가하면 카드가 자동으로 늘어난다.
 const CACHE_TTL_MS = 15_000
-
-// 나스닥(+달러 환율)은 실시간 소스. 한국 지수는 아래 KR_INDICES(공공데이터포털)로 분리.
-const YAHOO_INDICES = [
-  { id: 'nasdaq', name: '나스닥', symbol: '^IXIC' },
-] as const
 
 // 공공데이터포털 지수시세정보에서 가져올 한국 지수 카드.
 // idxNm(지수명)+idxCsf(지수분류)로 해당 API의 지수를 특정한다(이름 충돌 방지).
@@ -36,20 +29,6 @@ const KR_INDICES: { id: string; name: string; idxNm: string; idxCsf: string }[] 
 ]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface YahooMeta {
-  regularMarketPrice: number
-  chartPreviousClose?: number
-  previousClose?: number
-  regularMarketTime?: number
-}
-
-interface YahooChartResponse {
-  chart: {
-    result: Array<{ meta: YahooMeta }> | null
-    error: { code: string; description: string } | null
-  }
-}
 
 export interface IndexData {
   id: string
@@ -69,40 +48,6 @@ interface CacheEntry {
 
 let cache: CacheEntry | null = null
 let lastGoodCache: CacheEntry | null = null
-
-// ─── Yahoo Fetcher ──────────────────────────────────────────────────────────
-
-async function fetchYahooChart(id: string): Promise<IndexData> {
-  const idx = YAHOO_INDICES.find(i => i.id === id)!
-  const encoded = encodeURIComponent(idx.symbol)
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1d`
-
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TitansApp/1.0)' },
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error(`Yahoo Finance [${idx.symbol}] → HTTP ${res.status}`)
-
-  const json: YahooChartResponse = await res.json()
-  if (json.chart.error) throw new Error(`Yahoo Finance [${idx.symbol}] → ${json.chart.error.description}`)
-
-  const meta = json.chart.result?.[0]?.meta
-  if (!meta?.regularMarketPrice) throw new Error(`Yahoo Finance [${idx.symbol}] → 가격 데이터 없음`)
-
-  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice
-  const price = meta.regularMarketPrice
-  const change = price - prevClose
-  const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0
-
-  return {
-    id: idx.id,
-    name: idx.name,
-    value: price,
-    change,
-    changePercent,
-    updatedAt: (meta.regularMarketTime ?? 0) * 1000,
-  }
-}
 
 // ─── 달러 환율 (통합 FX 레이어) ─────────────────────────────────────────────────
 // 소스 선택·캐시·폴백은 전부 @/lib/fx 가 담당한다(수출입은행 우선 → OXR → 상수).
@@ -152,12 +97,11 @@ async function fetchKrIndexCards(): Promise<IndexData[]> {
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
-// 카드 소스 3종(달러 / 나스닥 / 한국 지수). 소스별로 독립 로드해 한 소스가 실패해도
+// 카드 소스 2종(달러 / 한국 지수). 소스별로 독립 로드해 한 소스가 실패해도
 // 나머지 카드는 유지되도록 한다(부분 실패 내성). 노출 순서 = 이 배열 순서로 평탄화.
 const SOURCES: { ids: string[]; task: () => Promise<IndexData[]> }[] = [
-  { ids: ['usd'], task: async () => [await fetchUsdIndex()] },
-  { ids: YAHOO_INDICES.map(i => i.id), task: () => Promise.all(YAHOO_INDICES.map(i => fetchYahooChart(i.id))) },
-  { ids: KR_INDICES.map(i => i.id), task: fetchKrIndexCards },
+  { ids: ['usd'],                       task: async () => [await fetchUsdIndex()] },
+  { ids: KR_INDICES.map(i => i.id),     task: fetchKrIndexCards },
 ]
 
 export async function GET() {
@@ -191,6 +135,6 @@ export async function GET() {
   }
 
   cache = { data, ts: Date.now() }
-  lastGoodCache = cache  // 부분 폴백 포함 — 살아있는 카드를 다음 폴백 기준으로 보존
+  lastGoodCache = cache
   return NextResponse.json({ data, stale: anyFail })
 }

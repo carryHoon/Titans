@@ -123,10 +123,9 @@ struct MarketIndex: Identifiable {
 }
 
 private let initialIndices: [MarketIndex] = [
-    MarketIndex(id: "usd",    name: "달러 환율", value: 1450.00,  change:   0.00,   changePercent:  0.00),
-    MarketIndex(id: "nasdaq", name: "나스닥",   value: 19854.32, change: -123.45,  changePercent: -0.62),
-    MarketIndex(id: "kospi",  name: "코스피",   value: 2856.78,  change:   12.34,  changePercent:  0.43),
-    MarketIndex(id: "kosdaq", name: "코스닥",   value:  854.23,  change:   -4.56,  changePercent: -0.53),
+    MarketIndex(id: "usd",    name: "달러 환율", value: 1450.00, change:  0.00, changePercent:  0.00),
+    MarketIndex(id: "kospi",  name: "코스피",   value: 2856.78, change: 12.34, changePercent:  0.43),
+    MarketIndex(id: "kosdaq", name: "코스닥",   value:  854.23, change: -4.56, changePercent: -0.53),
 ]
 
 // MARK: - Company Data

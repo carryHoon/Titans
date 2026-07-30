@@ -58,7 +58,7 @@ struct SearchView: View {
 
     // 회전 placeholder — 토스처럼 검색 예시를 순환해 보여준다.
     private let placeholders = [
-        "‘배당주’를 검색해보세요",
+        "‘애플’을 검색해보세요",
         "‘엔비디아’를 검색해보세요",
         "‘삼성전자’를 검색해보세요",
         "‘반도체’를 검색해보세요",
