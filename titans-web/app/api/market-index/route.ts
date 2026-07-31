@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 startKrPoller()
 
 // 지수 카드 데이터 소스(선언적):
-//   · 달러 환율        = 통합 FX 레이어(@/lib/fx) — 수출입은행 우선, OXR·상수 자동 폴백
+//   · 달러 환율        = 통합 FX 레이어(@/lib/fx) — Twelve Data(상업), 한국 장중 라이브·장외 종가 고정
 //   · 코스피/코스닥 …  = 공공데이터포털 금융위원회_지수시세정보(EOD/D-1)
 //
 // ※ NASDAQ 지수: TD Venture 플랜 미지원, 상업 라이선스 소스 미확보로 제거.
@@ -50,7 +50,7 @@ let cache: CacheEntry | null = null
 let lastGoodCache: CacheEntry | null = null
 
 // ─── 달러 환율 (통합 FX 레이어) ─────────────────────────────────────────────────
-// 소스 선택·캐시·폴백은 전부 @/lib/fx 가 담당한다(수출입은행 우선 → OXR → 상수).
+// 소스 선택·캐시·폴백은 전부 @/lib/fx 가 담당한다(Twelve Data → last-good → 상수).
 // 여기선 FxQuote 를 지수 카드(IndexData) 형태로 매핑만 한다.
 async function fetchUsdIndex(): Promise<IndexData> {
   const q = await getUsdKrwQuote()

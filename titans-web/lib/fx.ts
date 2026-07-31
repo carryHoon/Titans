@@ -3,18 +3,19 @@
 // 앱 전체의 "유일한" 환율 진입점. 지수 섹션의 달러 환율 카드(market-index)와
 // 기업 시총 원화/외화 환산(market-cap)이 모두 이 레이어만 호출한다.
 //
-// ▷ Provider 추상화: 데이터 소스마다 FxProvider 를 구현해 providers 배열에 등록한다.
-//   통화별로 우선순위대로 조회하고, 실패/미지원이면 다음 provider로 폴백한다.
-//   → 유료 구독 플랫폼(EODHD 등)으로 전환할 때는 EodhdFxProvider 하나를 만들어
-//     providers 배열 "맨 앞"에 넣기만 하면 전 통화가 그쪽으로 넘어가고,
-//     기존 Eximbank/OXR은 자동 폴백으로 남는다. (라우트 코드는 손대지 않음)
+// ▷ 데이터 소스 = Twelve Data (상업 라이선스). 1차 출시가 유료(상업) 배포이므로
+//   비영리 라이선스 소스(수출입은행 KOGL·OXR 무료티어)는 표시 자체가 라이선스 리스크라
+//   완전히 제거했다. 실패 시엔 외부 소스로 폴백하지 않고 last-good(직전 성공 TD 값) →
+//   최종 상수 순으로만 방어한다(상수는 하드코딩 숫자라 라이선스 무관).
+//   ※ TD는 이미 US 시총(quote/statistics)에 쓰는 Venture 구독을 그대로 공유한다.
+//
+// ▷ 표시 규약: 한국 장 시간(평일 09:00~15:30 KST)엔 60초 TTL로 실시간에 가깝게 갱신하고,
+//   그 외 시간(장 마감 후·주말·공휴일)엔 마지막으로 잡은 값(≈장 마감 종가)을 그대로
+//   얼려 재호출하지 않는다 → 장중만 라이브, 그 외엔 종가 고정 + API 호출 최소화.
+//   캐시·last-good은 모듈 싱글턴이라 유저 수와 무관하게 세션당 ~1 credit/min만 든다.
 //
 // ▷ 환율 표기 규약: rate = "1 USD 당 해당 통화 금액" (KRW/USD, JPY/USD …).
-//   Eximbank 매매기준율·OXR latest.json 모두 이 방향이라 그대로 호환된다.
-//
-// ▷ 캐시: 시간대 인식 TTL + last-good carry-forward + 최종 상수 폴백.
-//   수출입은행은 영업일 11시경 1회 갱신 → 11:00~12:00 KST에만 10분 TTL로 촘촘히 확인하고,
-//   그 외 시간은 24시간 TTL로 불필요한 API 호출을 차단한다(일 1,000회·월 1,000회 한도 보호).
+//   TD forex 심볼 USD/KRW·USD/JPY … 의 close 가 정확히 이 방향이라 그대로 매핑된다.
 
 export type Currency = 'KRW' | 'JPY' | 'CNY' | 'EUR'
 export const ALL_CURRENCIES: Currency[] = ['KRW', 'JPY', 'CNY', 'EUR']
@@ -23,9 +24,9 @@ export const ALL_CURRENCIES: Currency[] = ['KRW', 'JPY', 'CNY', 'EUR']
 export interface FxQuote {
   currency: Currency
   rate: number           // 1 USD 당 통화 금액 (KRW/USD 등)
-  change: number         // 직전 기준 대비 등락 (같은 단위)
+  change: number         // 직전 종가 대비 등락 (같은 단위)
   changePercent: number
-  asOf: number           // ms epoch
+  asOf: number           // ms epoch (데이터 시각)
   source: string         // provider 이름 (디버깅/출처표기)
 }
 
@@ -37,143 +38,100 @@ export interface FxProvider {
   fetch(currencies: Currency[]): Promise<Partial<Record<Currency, FxQuote>>>
 }
 
-// 모든 소스가 죽었을 때의 최종 폴백 상수 (통화당 USD 근사값).
+// 모든 소스가 죽었을 때의 최종 폴백 상수 (통화당 USD 근사값). 하드코딩 숫자 → 라이선스 무관.
 const FALLBACK: Record<Currency, number> = { KRW: 1450, JPY: 155, CNY: 7.2, EUR: 0.92 }
 
-// 수출입은행 발행 창: 영업일 10:00~12:00 KST 구간 → 10분 TTL로 새 데이터를 빠르게 포착.
-// "11시 전후" 갱신이라 11시 이전 여유를 1시간 두어 안정적으로 포착한다.
-// 그 외(발행 없는 시간대·주말)는 24시간 TTL → 이미 받은 일환율을 재사용해 API 호출 최소화.
+// ─── 시간대 헬퍼 (KST 벽시계) ──────────────────────────────────────────────────
+// 서버(Vercel)는 UTC로 돌기 때문에 +9h 보정한 Date를 만들어 getUTC*로 읽는다.
+function toKST(d: Date): Date { return new Date(d.getTime() + 9 * 3600 * 1000) }
+
+// 한국 주식시장 정규장 세션: 평일(월~금) 09:00 ~ 15:30 KST.
+// 이 창 안에서만 환율을 라이브로 갱신하고, 밖에서는 마지막 값(≈종가)을 얼린다.
+// (공휴일은 서버가 알 수 없어 라이브로 취급될 수 있으나, 그날 forex가 열려 있으면 현재가를
+//  보여줄 뿐이고 닫혀 있으면 TD가 같은 종가를 돌려줘 무해하다.)
+function inKrTradingSession(now: number = Date.now()): boolean {
+  const kst = toKST(new Date(now))
+  const wd  = kst.getUTCDay()   // 0=일 … 6=토 (KST 기준)
+  if (wd === 0 || wd === 6) return false
+  const mins = kst.getUTCHours() * 60 + kst.getUTCMinutes()
+  return mins >= 9 * 60 && mins < 15 * 60 + 30   // 540 ~ 930
+}
+
+// 장중 라이브 TTL. 세션당 ~6.5h → 60s면 ~390 credits(610/min 예산 대비 무시 가능).
+const FX_LIVE_TTL_MS = 60_000
+
+// 캐시 신선도: 장중이면 60s TTL, 장외엔 캐시가 있는 한 항상 신선(=재호출 안 함)으로 봐
+// 마지막 종가를 얼린다. 장이 다시 열리면 age가 TTL을 넘겨 자연히 라이브로 복귀한다.
 function isFxCacheFresh(ts: number): boolean {
-  const age = Date.now() - ts
-  const kst = toKST(new Date())
-  const h   = kst.getUTCHours()
-  const wd  = kst.getUTCDay()
-  const inPublishWindow = wd >= 1 && wd <= 5 && h >= 10 && h < 12
-  return age < (inPublishWindow ? 10 * 60 * 1000 : 24 * 60 * 60 * 1000)
+  if (inKrTradingSession()) return Date.now() - ts < FX_LIVE_TTL_MS
+  return true
 }
 
 function fallbackQuote(c: Currency): FxQuote {
   return { currency: c, rate: FALLBACK[c], change: 0, changePercent: 0, asOf: Date.now(), source: 'fallback' }
 }
 
-// ─── Provider 1: 한국수출입은행 (KRW 공식 매매기준율) ──────────────────────────────
-// 신규 도메인(2025.6.25~). data=AP01(환율), searchdate=YYYYMMDD(영업일).
-// 영업일 11시경 1회 갱신 + 주말/공휴일엔 데이터 없음 → 최근 영업일까지 소급 조회한다.
-// deal_bas_r = 매매기준율(콤마 포함 문자열). 등락은 직전 영업일 대비로 계산.
-const EXIM_URL = 'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON'
-
-interface EximRow { result: number; cur_unit: string; deal_bas_r: string }
-
-// KST(UTC+9) 벽시계 기준 날짜. 서버(Vercel)는 UTC로 돌기 때문에 보정한다.
-function toKST(d: Date): Date { return new Date(d.getTime() + 9 * 3600 * 1000) }
-function ymd(kst: Date): string {
-  const y = kst.getUTCFullYear()
-  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(kst.getUTCDate()).padStart(2, '0')
-  return `${y}${m}${day}`
+// ─── Provider: Twelve Data forex (전 통화) ─────────────────────────────────────
+// /quote?symbol=USD/{CUR} — 심볼당 1 credit. close=현재가, previous_close=직전 종가,
+// change/percent_change=직전 종가 대비 등락을 그대로 준다(우리 규약과 방향 일치).
+// 여러 통화는 심볼별 병렬 호출(요청 통화 수 × 1 credit). v1은 KRW만 요청.
+const TD_BASE = 'https://api.twelvedata.com'
+const TD_SYMBOL: Record<Currency, string> = {
+  KRW: 'USD/KRW',
+  JPY: 'USD/JPY',
+  CNY: 'USD/CNY',
+  EUR: 'USD/EUR',
 }
 
-async function eximUsdRate(key: string, dateStr: string): Promise<number | null> {
-  const url = `${EXIM_URL}?authkey=${key}&searchdate=${dateStr}&data=AP01`
-  const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Eximbank → HTTP ${res.status}`)
-  const rows: unknown = await res.json()
-  if (!Array.isArray(rows)) return null   // 주말/공휴일/장전 → 빈 응답
-  const usd = (rows as EximRow[]).find(r => r.cur_unit === 'USD' && r.result === 1)
-  if (!usd) return null
-  const rate = parseFloat(usd.deal_bas_r.replace(/,/g, ''))
-  return Number.isFinite(rate) ? rate : null
+interface TdQuoteResponse {
+  status?: string
+  message?: string
+  close?: string
+  change?: string
+  percent_change?: string
+  timestamp?: number
+  last_quote_at?: number
 }
 
-// fromKST부터 과거로 최대 maxDays일 소급하며 첫 유효 환율을 찾는다(주말/공휴일 대응).
-async function walkBackRate(key: string, fromKST: Date, maxDays: number): Promise<{ rate: number; day: Date } | null> {
-  const d = new Date(fromKST)
-  for (let i = 0; i < maxDays; i++) {
-    const rate = await eximUsdRate(key, ymd(d))
-    if (rate != null) return { rate, day: new Date(d) }
-    d.setUTCDate(d.getUTCDate() - 1)
-  }
-  return null
-}
-
-class EximbankProvider implements FxProvider {
-  readonly name = 'koreaexim'
-  readonly supports = ['KRW'] as const
-
-  async fetch(currencies: Currency[]): Promise<Partial<Record<Currency, FxQuote>>> {
-    if (!currencies.includes('KRW')) return {}
-    const key = process.env.KOREAEXIM_API_KEY ?? ''
-    if (!key) return {}   // 키 미설정 → 다음 provider(OXR)로 폴백
-
-    const latest = await walkBackRate(key, toKST(new Date()), 7)
-    if (!latest) throw new Error('Eximbank USD 환율 데이터 없음')
-
-    // 직전 영업일 환율로 등락 계산
-    const prevStart = new Date(latest.day)
-    prevStart.setUTCDate(prevStart.getUTCDate() - 1)
-    const prev = await walkBackRate(key, prevStart, 7)
-    const prevRate = prev?.rate ?? latest.rate
-    const change = latest.rate - prevRate
-
-    return {
-      KRW: {
-        currency: 'KRW',
-        rate: latest.rate,
-        change,
-        changePercent: prevRate !== 0 ? (change / prevRate) * 100 : 0,
-        asOf: Date.now(),
-        source: this.name,
-      },
-    }
-  }
-}
-
-// ─── Provider 2: Open Exchange Rates (KRW/JPY/CNY/EUR) ─────────────────────────
-// 무료 250콜/일·1,000콜/월. base=USD 고정, latest.json 한 번에 전 통화 반환.
-// 등락(change) 미제공 → 0. (JPX/SSE/SZSE/Euronext 시총 환산엔 등락 불필요)
-class OxrProvider implements FxProvider {
-  readonly name = 'openexchangerates'
+class TwelveDataFxProvider implements FxProvider {
+  readonly name = 'twelvedata'
   readonly supports = ['KRW', 'JPY', 'CNY', 'EUR'] as const
 
   async fetch(currencies: Currency[]): Promise<Partial<Record<Currency, FxQuote>>> {
-    const appId = process.env.OPEN_EXCHANGE_RATES_APP_ID ?? ''
-    if (!appId) return {}
+    const key = process.env.TWELVE_DATA_API_KEY ?? ''
+    if (!key) return {}   // 키 미설정 → 폴백(last-good/상수)로 넘어감
 
-    const res = await fetch(
-      `https://openexchangerates.org/api/latest.json?app_id=${appId}&symbols=KRW,JPY,CNY,EUR`,
-      { cache: 'no-store' },
-    )
-    if (!res.ok) throw new Error(`OXR → HTTP ${res.status}`)
-    const data = (await res.json()) as { rates?: Record<string, number> }
-
-    const now = Date.now()
     const out: Partial<Record<Currency, FxQuote>> = {}
-    for (const c of currencies) {
-      const r = data.rates?.[c]
-      if (r && Number.isFinite(r)) {
-        out[c] = { currency: c, rate: r, change: 0, changePercent: 0, asOf: now, source: this.name }
+    await Promise.all(currencies.map(async (c) => {
+      try {
+        const url = `${TD_BASE}/quote?symbol=${encodeURIComponent(TD_SYMBOL[c])}&apikey=${key}`
+        const res = await fetch(url, { cache: 'no-store' })
+        if (!res.ok) throw new Error(`Twelve Data ${c} → HTTP ${res.status}`)
+        const data = (await res.json()) as TdQuoteResponse
+        if (data.status === 'error') throw new Error(`Twelve Data ${c} → ${data.message}`)
+
+        const rate = parseFloat(data.close ?? '')
+        if (!Number.isFinite(rate)) throw new Error(`Twelve Data ${c} → 유효하지 않은 close`)
+        const change  = parseFloat(data.change ?? '0')
+        const pct     = parseFloat(data.percent_change ?? '0')
+        const dataSec = data.last_quote_at ?? data.timestamp
+        out[c] = {
+          currency: c,
+          rate,
+          change:        Number.isFinite(change) ? change : 0,
+          changePercent: Number.isFinite(pct) ? pct : 0,
+          asOf:          dataSec ? dataSec * 1000 : Date.now(),
+          source:        this.name,
+        }
+      } catch (err) {
+        console.warn(`[fx] twelvedata ${c} 실패:`, err)   // 이 통화는 미채움 → FxService가 폴백
       }
-    }
+    }))
     return out
   }
 }
 
-// ─── (예시) Provider N: 유료 구독 플랫폼 ────────────────────────────────────────
-// 유료 전환 시 아래처럼 구현해 providers 배열 "맨 앞"에 추가하면 전 통화가 이쪽으로 넘어가고
-// Eximbank/OXR은 자동 폴백으로 남는다. 라우트 코드는 전혀 손대지 않는다.
-//
-// class EodhdFxProvider implements FxProvider {
-//   readonly name = 'eodhd'
-//   readonly supports = ['KRW', 'JPY', 'CNY', 'EUR'] as const
-//   async fetch(currencies: Currency[]): Promise<Partial<Record<Currency, FxQuote>>> {
-//     const key = process.env.EODHD_API_KEY ?? ''
-//     if (!key) return {}
-//     // EODHD real-time FX (예: KRW.FOREX) 조회 → FxQuote 매핑
-//     ...
-//   }
-// }
-
-// ─── FxService: 우선순위 조회 + 캐시 + 폴백 ─────────────────────────────────────
+// ─── FxService: 조회 + 캐시 + 폴백 ──────────────────────────────────────────────
 class FxService {
   private cache = new Map<Currency, { quote: FxQuote; ts: number }>()
   private lastGood = new Map<Currency, FxQuote>()
@@ -186,7 +144,7 @@ class FxService {
     const out: Partial<Record<Currency, FxQuote>> = {}
     const miss: Currency[] = []
 
-    // 1) 신선한 캐시 히트는 그대로 사용
+    // 1) 신선한 캐시 히트는 그대로 사용 (장외엔 마지막 종가가 항상 신선 취급됨)
     for (const c of currencies) {
       const hit = this.cache.get(c)
       if (hit && isFxCacheFresh(hit.ts)) out[c] = hit.quote
@@ -220,11 +178,9 @@ class FxService {
   }
 }
 
-// 우선순위: KRW는 수출입은행(공식) 우선, 나머지 통화는 OXR. 유료 전환 시 맨 앞에 EODHD 추가.
+// 단일 상업 소스(Twelve Data). 실패 시 last-good/상수로만 방어(비영리 외부 소스 폴백 없음).
 export const fx = new FxService([
-  new EximbankProvider(),
-  new OxrProvider(),
-  // new EodhdFxProvider(),   // ← 유료 구독 시 이 줄만 추가하면 전 통화가 EODHD로 전환됨
+  new TwelveDataFxProvider(),
 ])
 
 // ─── 공개 헬퍼 (라우트가 호출하는 유일한 API) ───────────────────────────────────
