@@ -184,7 +184,7 @@ struct MarketIndexResponse: Decodable {
 
 // logo.dev publishable token — 도메인으로 공식 브랜드 로고를 받는다(Clearbit 후속 표준).
 // publishable(pk_) 키라 클라이언트 노출용으로 안전. fallback=404로 미보유 시 404를 받아
-// 앱의 다음 폴백(파비콘→이니셜)이 동작하게 한다.
+// 앱의 다음 폴백(이니셜 타일)이 동작하게 한다.
 private let logoDevToken = "pk_J8vaeyLSSxewXruh0z5O9g"
 
 
@@ -296,7 +296,7 @@ private enum LogoProcessingCache {
     static let shared = NSCache<NSString, UIImage>()
 }
 
-/// 원격 로고(logo.dev·파비콘) 영구 캐시 — 메모리(NSCache) + 디스크(Caches/LogoCache).
+/// 원격 로고(logo.dev) 영구 캐시 — 메모리(NSCache) + 디스크(Caches/LogoCache).
 ///
 /// logo.dev 응답은 `max-age=86400`(24h)이라 기본 URLCache로는 유저가 매일 재호출한다.
 /// 로고는 거의 안 바뀌므로 이 캐시가 24h 만료를 무시하고 폰에 오래(기본 60일) 보관해
@@ -1490,7 +1490,6 @@ struct MarketIndexRow: View {
 private struct LogoImage: View {
     let localAssetName: String?    // Xcode Assets 로컬 이미지 (우선)
     let logoDevURL: URL?           // logo.dev 공식 로고 (도메인 기반)
-    let faviconURL: URL?           // logo.dev 미보유 시 파비콘 폴백
     let ticker: String
     let name: String
     let color: Color
@@ -1533,7 +1532,8 @@ private struct LogoImage: View {
         }
     }
 
-    // 폴백 순서: logo.dev(공식 로고) → 파비콘 → 이니셜 타일.
+    // 폴백 순서: logo.dev(공식 로고) → 이니셜 타일.
+    // 로고 소스는 라이선스 근거가 있는 것만 사용한다(로컬 에셋 / logo.dev 정식 토큰).
     // AsyncImage 대신 LogoStore(영구 캐시)로 로드해 logo.dev 재호출을 최소화한다.
     @ViewBuilder private var remoteBody: some View {
         Group {
@@ -1550,18 +1550,14 @@ private struct LogoImage: View {
     }
 
     private var remoteKey: String {
-        (logoDevURL?.absoluteString ?? "") + "|" + (faviconURL?.absoluteString ?? "")
+        logoDevURL?.absoluteString ?? ""
     }
 
     private func loadRemote() async {
         remoteImage = nil
         remoteResolved = false
-        for url in [logoDevURL, faviconURL].compactMap({ $0 }) {
-            if let img = await LogoStore.shared.image(for: url) {
-                remoteImage = img
-                remoteResolved = true
-                return
-            }
+        if let url = logoDevURL, let img = await LogoStore.shared.image(for: url) {
+            remoteImage = img
         }
         remoteResolved = true
     }
@@ -1602,15 +1598,11 @@ struct BrandLogoTile: View {
     // 큐레이션 도메인이 있으면 그대로 우선(기존 로고 표시 불변), 없을 때만 백엔드 도메인을 쓴다.
     private var resolvedDomain: String? { tickerDomain[ticker] ?? domain }
 
-    // logo.dev 공식 로고. fallback=404로 미보유 시 404 → LogoImage가 파비콘→이니셜로 폴백.
+    // logo.dev 공식 로고. fallback=404로 미보유 시 404 → LogoImage가 이니셜 타일로 폴백.
     private var logoDevURL: URL? {
         resolvedDomain.flatMap {
             URL(string: "https://img.logo.dev/\($0)?token=\(logoDevToken)&size=200&format=png&retina=true&fallback=404")
         }
-    }
-
-    private var faviconURL: URL? {
-        resolvedDomain.flatMap { URL(string: "https://www.google.com/s2/favicons?domain=\($0)&sz=128") }
     }
 
     var body: some View {
@@ -1620,7 +1612,6 @@ struct BrandLogoTile: View {
             LogoImage(
                 localAssetName: tickerLocalLogo[ticker],
                 logoDevURL: logoDevURL,
-                faviconURL: faviconURL,
                 ticker: ticker,
                 name: name,
                 color: color

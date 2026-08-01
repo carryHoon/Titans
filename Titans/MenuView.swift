@@ -9,7 +9,10 @@ struct MenuView: View {
     @Binding var isDarkMode: Bool
     let onDismiss: () -> Void
 
+    @Environment(AuthManager.self) private var auth
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
+
+    @State private var showLogin = false
 
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
@@ -152,26 +155,65 @@ struct MenuView: View {
         .environment(\.appTheme, theme)
         .foregroundStyle(theme.label)
         .preferredColorScheme(isDarkMode ? .dark : .light)
+        .fullScreenCover(isPresented: $showLogin) {
+            LoginView(onContinueAnonymously: { showLogin = false })
+                .environment(auth)
+        }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            // 로그인 성공 시 로그인 시트를 자동으로 닫는다.
+            if signedIn { showLogin = false }
+        }
     }
 
     // MARK: - Account Card
 
+    @ViewBuilder
     private var accountCard: some View {
+        if auth.isSignedIn {
+            NavigationLink {
+                AccountView()
+                    .environment(auth)
+                    .preferredColorScheme(isDarkMode ? .dark : .light)
+            } label: {
+                accountRow(title: auth.userEmail ?? "내 계정",
+                           subtitle: "계정 관리 · 로그아웃",
+                           active: true)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button {
+                showLogin = true
+            } label: {
+                accountRow(title: "로그인",
+                           subtitle: "관심 종목·설정을 기기 간 동기화",
+                           active: false)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func accountRow(title: String, subtitle: String, active: Bool) -> some View {
         HStack(spacing: 16) {
             Circle()
-                .fill(theme.fill)
+                .fill(active
+                      ? AnyShapeStyle(LinearGradient(
+                            colors: [Color(red: 0.20, green: 0.50, blue: 1.00),
+                                     Color(red: 0.55, green: 0.20, blue: 0.90)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                      : AnyShapeStyle(theme.fill))
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: "person.fill")
                         .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(theme.secondaryLabel)
+                        .foregroundStyle(active ? .white : theme.secondaryLabel)
                 )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("내 계정")
+                Text(title)
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(theme.secondaryLabel)
-                Text("출시 예정")
+                    .foregroundStyle(theme.label)
+                    .lineLimit(1)
+                Text(subtitle)
                     .font(.system(size: 14))
                     .foregroundStyle(theme.tertiaryLabel)
             }
@@ -185,7 +227,6 @@ struct MenuView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .contentShape(Rectangle())
-        .opacity(0.55)
     }
 
     // MARK: - Helpers

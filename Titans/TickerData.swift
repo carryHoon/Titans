@@ -37,7 +37,7 @@ let tickerMarket: [String: Market] = [
 
 // MARK: - Ticker → Domain (logo.dev)
 
-/// 티커 → 홈페이지 도메인. logo.dev 로고 요청 및 파비콘 폴백에 사용.
+/// 티커 → 홈페이지 도메인. logo.dev 공식 로고 요청에 사용.
 /// 신규 종목은 도메인만 추가하면 로고 파이프라인이 자동으로 동작함.
 /// KR 종목 도메인은 백엔드(DART)가 내려주므로 여기에 등록 불필요.
 let tickerDomain: [String: String] = [

@@ -91,12 +91,6 @@ struct SourcesDetailView: View {
         DataSource(icon: "photo.fill", iconColor: .indigo,
                    title: "Logo.dev", detail: "기업 로고 이미지",
                    urlString: "https://logo.dev"),
-        DataSource(icon: "sparkle", iconColor: .pink,
-                   title: "Brandfetch", detail: "기업 로고 (Logos provided by Brandfetch)",
-                   urlString: "https://brandfetch.com"),
-        DataSource(icon: "safari.fill", iconColor: Color(.systemGray),
-                   title: "Google Favicon", detail: "파비콘 이미지 서비스",
-                   urlString: nil),
     ]
 
     var body: some View {

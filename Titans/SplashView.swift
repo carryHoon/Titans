@@ -10,26 +10,46 @@ import SwiftUI
 
 // MARK: - Root (스플래시 → 메인 전환)
 
-/// 앱 최상단 컨테이너. 스플래시를 먼저 띄우고 일정 시간 뒤 ContentView로 크로스페이드한다.
+/// 앱 최상단 컨테이너. 스플래시 → (비로그인·최초 진입 시) 로그인 → 메인으로 전환한다.
+/// 로그인은 선택이므로, 한 번 "둘러보기"를 고르면 이후에는 곧장 메인으로 진입한다.
 struct RootView: View {
-    @State private var isActive = false
+    @State private var auth = AuthManager()
+    @State private var splashDone = false
+
+    /// 로그인 화면을 한 번이라도 건너뛰었는지(익명 진입 완료). true면 다음부터 바로 메인.
+    @AppStorage("hasSkippedLogin") private var hasSkippedLogin = false
+
+    private enum Screen: Equatable { case splash, login, main }
+
+    private var screen: Screen {
+        // 스플래시가 끝나기 전 or 세션 복원 중이면 스플래시 유지.
+        if !splashDone || auth.isLoading { return .splash }
+        if auth.isSignedIn { return .main }
+        return hasSkippedLogin ? .main : .login
+    }
 
     var body: some View {
         ZStack {
-            if isActive {
-                ContentView()
+            switch screen {
+            case .splash:
+                SplashView().transition(.opacity)
+            case .login:
+                LoginView(onContinueAnonymously: { hasSkippedLogin = true })
                     .transition(.opacity)
-            } else {
-                SplashView()
-                    .transition(.opacity)
+            case .main:
+                ContentView().transition(.opacity)
             }
         }
+        .environment(auth)
+        .animation(.easeInOut(duration: 0.5), value: screen)
         .task {
             // 투구 마크 노출 시간 (약 2.5초)
             try? await Task.sleep(for: .seconds(2.5))
-            withAnimation(.easeInOut(duration: 0.55)) {
-                isActive = true
-            }
+            splashDone = true
+        }
+        .onChange(of: auth.userId) { _, newId in
+            // 로그인/로그아웃에 따라 환경설정 동기화를 시작/중단한다.
+            PrefsSync.shared.update(userId: newId)
         }
     }
 }
