@@ -105,8 +105,30 @@ struct LoginView: View {
             .frame(height: 52)
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            // Google·Kakao 버튼은 다음 단계에서 provider 연동과 함께 추가된다.
+            // 카카오 로그인 (웹 OAuth) — 브랜드 컬러 #FEE500 / 검정 라벨
+            kakaoButton
+
+            // Google 버튼은 다음 단계에서 provider 연동과 함께 추가된다.
         }
+    }
+
+    /// 카카오 브랜드 가이드에 맞춘 로그인 버튼(노란 배경 + 말풍선 심볼 + 검정 라벨).
+    private var kakaoButton: some View {
+        Button {
+            Task { await handleKakao() }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 17, weight: .bold))
+                Text("카카오로 계속하기")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .foregroundStyle(Color(red: 0.16, green: 0.13, blue: 0.11).opacity(0.9))
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 1.0, green: 0.898, blue: 0.0)))
+        }
+        .disabled(isBusy)
     }
 
     // MARK: - 구분선
@@ -206,6 +228,18 @@ struct LoginView: View {
         } catch {
             // 사용자가 취소한 경우는 오류로 표시하지 않는다.
             if let e = error as? ASAuthorizationError, e.code == .canceled { return }
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    private func handleKakao() async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await auth.signInWithKakao()
+        } catch {
+            // 사용자가 로그인 시트를 닫은 경우는 오류로 표시하지 않는다.
+            if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin { return }
             alertMessage = error.localizedDescription
         }
     }

@@ -121,6 +121,23 @@ final class AuthManager {
         }
     }
 
+    // MARK: - Kakao (웹 OAuth · ASWebAuthenticationSession)
+
+    /// 카카오 로그인. 카카오는 네이티브 id_token 로그인을 제공하지 않으므로
+    /// Supabase의 웹 OAuth(PKCE) 흐름을 사용한다. supabase-swift가 내부적으로
+    /// `ASWebAuthenticationSession`을 띄워 로그인 화면을 보여주고, `titans://auth-callback`
+    /// 리다이렉트를 세션이 직접 가로채 코드 교환까지 처리한다.
+    /// (별도의 onOpenURL/URL Scheme 등록이 필요 없다.)
+    ///
+    /// 사전 조건: Supabase Auth에 Kakao provider 활성화 + Redirect URLs에
+    /// `titans://auth-callback` 등록. (콘솔 설정)
+    func signInWithKakao() async throws {
+        try await client.auth.signInWithOAuth(
+            provider: .kakao,
+            redirectTo: SupabaseConfig.redirectURL
+        )
+    }
+
     // MARK: - 이메일/비밀번호 (Supabase 내장)
 
     /// 이메일 회원가입. Supabase가 비밀번호 해싱·확인메일을 처리한다.
