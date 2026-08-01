@@ -1,7 +1,11 @@
 name: Refresh KR snapshot
 
-# 코스피/코스닥 종목시총 + 지수(코스피·코스닥·KRX300·KRX반도체) 스냅샷 갱신 알람(무료 스케줄러).
+# 코스피/코스닥 종목시총 + 지수(코스피·코스닥·KRX300·KRX반도체) 스냅샷 갱신 알람.
 # 두 데이터는 하나의 스냅샷에 함께 묶여(refreshIfNew) 같은 트리거로 갱신되므로 이 크론 하나로 통일된다.
+#
+# ⚠️ 역할: 백업(backup) 스케줄러. 주(primary)는 Vercel Cron(titans-web/vercel.json)이 동일한 발행 창으로
+#    /api/internal/refresh-kr 을 때린다. 이 워크플로우는 GH Actions 지연/누락이나 Vercel 크론 장애 시의
+#    안전망이다. refreshIfNew()가 멱등(평소 basDt 프로브 1콜)이라 둘이 겹쳐 발사돼도 무해하다.
 #
 # 공공데이터포털 금융위원회 API 공식 갱신 기준(주식시세정보·지수시세정보 동일):
 #   "데이터 갱신주기는 일 1회. 기준일자(basDt)로부터 영업일 하루 뒤 오후 1시(KST) 이후 업데이트.
