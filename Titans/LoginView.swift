@@ -112,23 +112,40 @@ struct LoginView: View {
         }
     }
 
-    /// 카카오 브랜드 가이드에 맞춘 로그인 버튼(노란 배경 + 말풍선 심볼 + 검정 라벨).
+    /// 카카오 브랜드 가이드에 맞춘 로그인 버튼.
+    /// 규정: 배경 = 카카오 옐로 #FEE500, 라벨 = "카카오 로그인"(완성형 승인 문구, 검정 85%),
+    /// 심볼 = 카카오 공식 말풍선(에셋에 원본 그대로 넣어야 함, 변형 금지).
     private var kakaoButton: some View {
         Button {
             Task { await handleKakao() }
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "message.fill")
-                    .font(.system(size: 17, weight: .bold))
-                Text("카카오로 계속하기")
+            HStack(spacing: 8) {
+                kakaoSymbol
+                Text("카카오 로그인")
                     .font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(Color(red: 0.16, green: 0.13, blue: 0.11).opacity(0.9))
+            .foregroundStyle(Color.black.opacity(0.85))
             .frame(maxWidth: .infinity)
             .frame(height: 52)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 1.0, green: 0.898, blue: 0.0)))
         }
         .disabled(isBusy)
+    }
+
+    /// 카카오 공식 말풍선 심볼. 에셋(`KakaoLoginSymbol`)이 추가돼 있으면 그것을 쓰고,
+    /// 아직 없으면 임시로 SF Symbol을 보여준다(에셋 교체 전 빌드·미리보기 안전용).
+    /// ⚠️ 출시 전 반드시 카카오 공식 심볼 PNG로 교체해야 브랜드 가이드를 충족한다.
+    @ViewBuilder
+    private var kakaoSymbol: some View {
+        if let ui = UIImage(named: "KakaoLoginSymbol") {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+        } else {
+            Image(systemName: "message.fill")
+                .font(.system(size: 17, weight: .bold))
+        }
     }
 
     // MARK: - 구분선
