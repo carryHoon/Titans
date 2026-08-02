@@ -143,7 +143,7 @@ struct LoginView: View {
     private var socialSection: some View {
         HStack(spacing: 26) {
             SocialCircleButton(kind: .apple)  { signInWithApple() }
-            SocialCircleButton(kind: .google) { comingSoon("Google") }
+            SocialCircleButton(kind: .google) { signInWithGoogle() }
             SocialCircleButton(kind: .kakao)  { signInWithKakao() }
         }
         .opacity(revealControls ? 1 : 0)
@@ -201,8 +201,20 @@ struct LoginView: View {
         }
     }
 
-    private func comingSoon(_ provider: String) {
-        infoMessage = "\(provider) 로그인은 곧 지원될 예정이에요. 지금은 Apple 또는 이메일로 시작해 주세요."
+    private func signInWithGoogle() {
+        Task { await handleGoogle() }
+    }
+
+    private func handleGoogle() async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await auth.signInWithGoogle()
+        } catch {
+            // 사용자가 웹 로그인 창을 닫은(취소한) 경우는 오류로 표시하지 않는다.
+            if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin { return }
+            alertMessage = error.localizedDescription
+        }
     }
 }
 

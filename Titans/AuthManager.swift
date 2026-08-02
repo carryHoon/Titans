@@ -143,6 +143,18 @@ final class AuthManager {
         )
     }
 
+    // MARK: - Google (Supabase 관리형 OAuth)
+
+    /// 구글 로그인. 카카오와 동일하게 Supabase의 OAuth 엔드포인트를 ASWebAuthenticationSession으로
+    /// 띄우고, 완료되면 콜백 URL(SupabaseConfig.redirectURL)로 돌아와 세션을 저장한다.
+    /// 세션 반영은 authStateChanges 구독이 담당하므로 여기서는 로그인 요청만 한다.
+    func signInWithGoogle() async throws {
+        try await client.auth.signInWithOAuth(
+            provider: .google,
+            redirectTo: SupabaseConfig.redirectURL
+        )
+    }
+
     // MARK: - 이메일/비밀번호 (Supabase 내장)
 
     /// 이메일 회원가입. Supabase가 비밀번호 해싱·확인메일을 처리한다.
