@@ -476,15 +476,18 @@ let tickerLocalLogo: [String: String] = [
     "030530.KQ":  "logo_030530KQ", // 원익홀딩스
     "031330.KQ":  "logo_031330KQ", // 에스에이엠티
     "031980.KQ":  "logo_031980KQ", // 피에스케이홀딩스
+    "032190.KQ":  "logo_032190KQ", // 다우데이타
     "032820.KQ":  "logo_032820KQ", // 우리기술
     "035760.KQ":  "logo_035760KQ", // CJ ENM
     "035900.KQ":  "logo_035900KQ", // JYP Ent.
+    "036540.KQ":  "logo_036540KQ", // SFA반도체
     "036930.KQ":  "logo_036930KQ", // Jusung Eng.
     "038500.KQ":  "logo_038500KQ", // 삼표시멘트
     "039030.KQ":  "logo_039030KQ", // EO Technics
     "039200.KQ":  "logo_039200KQ", // 오스코텍
     "041510.KQ":  "logo_041510KQ", // 에스엠
     "043260.KQ":  "logo_043260KQ", // 성호전자
+    "056190.KQ":  "logo_056190KQ", // SFA
     "058470.KQ":  "logo_058470KQ", // Leeno Ind.
     "058610.KQ":  "logo_058610KQ", // 에스피지
     "060370.KQ":  "logo_060370KQ", // LS마린솔루션
@@ -495,6 +498,7 @@ let tickerLocalLogo: [String: String] = [
     "078600.KQ":  "logo_078600KQ", // 대주전자재료
     "080220.KQ":  "logo_080220KQ", // 제주반도체
     "082920.KQ":  "logo_082920KQ", // 비츠로셀
+    "083450.KQ":  "logo_083450KQ", // GST
     "083650.KQ":  "logo_083650KQ", // 비에이치아이
     "084370.KQ":  "logo_084370KQ", // 유진테크
     "085660.KQ":  "logo_085660KQ", // 차바이오텍
@@ -504,6 +508,7 @@ let tickerLocalLogo: [String: String] = [
     "089030.KQ":  "logo_089030KQ", // 테크윙
     "089970.KQ":  "logo_089970KQ", // 브이엠
     "090710.KQ":  "logo_090710KQ", // 휴림로봇
+    "093320.KQ":  "logo_093320KQ", // 케이아이엔엑스
     "095340.KQ":  "logo_095340KQ", // ISC
     "095610.KQ":  "logo_095610KQ", // Tes
     "096530.KQ":  "logo_096530KQ", // 씨젠
@@ -523,6 +528,7 @@ let tickerLocalLogo: [String: String] = [
     "183300.KQ":  "logo_183300KQ", // 코미코
     "195940.KQ":  "logo_195940KQ", // HK이노엔
     "196170.KQ":  "logo_196170KQ", // Alteogen
+    "204270.KQ":  "logo_204270KQ", // 제이앤티씨
     "213420.KQ":  "logo_213420KQ", // 덕산네오룩스
     "214150.KQ":  "logo_214150KQ", // 클래시스
     "214370.KQ":  "logo_214370KQ", // 케어젠
@@ -534,9 +540,11 @@ let tickerLocalLogo: [String: String] = [
     "240810.KQ":  "logo_240810KQ", // Wonik IPS
     "241710.KQ":  "logo_241710KQ", // 코스메카코리아
     "247540.KQ":  "logo_247540KQ", // Ecopro BM
+    "253450.KQ":  "logo_253450KQ", // 스튜디오드래곤
     "257720.KQ":  "logo_257720KQ", // 실리콘투
     "263750.KQ":  "logo_263750KQ", // 펄어비스
     "277810.KQ":  "logo_277810KQ", // Rainbow Robotics
+    "281740.KQ":  "logo_281740KQ", // 레이크머티리얼즈
     "290650.KQ":  "logo_290650KQ", // 엘앤씨바이오
     "293490.KQ":  "logo_293490KQ", // 카카오게임즈
     "298380.KQ":  "logo_298380KQ", // ABL Bio
@@ -544,9 +552,11 @@ let tickerLocalLogo: [String: String] = [
     "319400.KQ":  "logo_319400KQ", // 현대무벡스
     "319660.KQ":  "logo_319660KQ", // PSK
     "323280.KQ":  "logo_323280KQ", // 태성
+    "328130.KQ":  "logo_328130KQ", // 루닛
     "347850.KQ":  "logo_347850KQ", // 디앤디파마텍
     "347700.KQ":  "logo_347700KQ", // 스피어
     "357780.KQ":  "logo_357780KQ", // 솔브레인
+    "388720.KQ":  "logo_388720KQ", // 유일로보틱스
     "403870.KQ":  "logo_403870KQ", // HPSP
     "420770.KQ":  "logo_420770KQ", // 기가비스
     "437730.KQ":  "logo_437730KQ", // 삼현
@@ -566,17 +576,24 @@ let tickersNeedDarkBgRemoval: Set<String> = [
 
 /// 로컬 PNG에 밝은 회색/흰색 배경이 포함된 로고 — 표시 시 배경을 자동 제거.
 let tickersNeedLightBgRemoval: Set<String> = [
-    "138930.KS",   // BNK금융지주 — gray background
-    "005930.KS",   // 삼성전자 — gray background
-    "005935.KS",   // 삼성전자우 — gray background
-    "047810.KS",   // 한국항공우주 — gray background
-    "068270.KS",   // Celltrion — gray background
-    "071050.KS",   // 한국금융지주 — gray background
-    "161390.KS",   // 한국타이어앤테크놀로지 — gray background
+    "138930.KS",   // BNK금융지주
+    "005930.KS",   // 삼성전자
+    "005935.KS",   // 삼성전자우
+    "047810.KS",   // 한국항공우주
+    "068270.KS",   // Celltrion
+    "071050.KS",   // 한국금융지주
+    "161390.KS",   // 한국타이어앤테크놀로지
 
-    "000250.KQ",   // Samchundang — gray background
-    "068760.KQ",   // 셀트리온제약 — gray background
-    "141080.KQ",   // LigaChem Bio — gray background
+    "000250.KQ",   // Samchundang
+    "035900.KQ",   // JYP Ent.
+    "064760.KQ",   // 티씨케이
+    "068760.KQ",   // 셀트리온제약
+    "108490.KQ",   // Robotis
+    "141080.KQ",   // LigaChem Bio
+    "140410.KQ",   // 메지온
+    "178320.KQ",   // 서진시스템
+    "237690.KQ",   // 에스티팜
+    "290650.KQ",   // 엘앤씨바이오
     
 ]
 
@@ -611,16 +628,31 @@ let tickerLogoPadding: [String: CGFloat] = [
     "028300.KQ": 0,   // HLB
     "036930.KQ": 0,   // Jusung Eng.
     "039030.KQ": 6,   // EO Technics
+    "041510.KQ": 0,   // 에스엠
     "058470.KQ": 4,   // Leeno Ind.
     "068760.KQ": 0,   // 셀트리온제약
+    "084370.KQ": 4,   // 유진테크
     "086520.KQ": 4,   // Ecopro
+    "087010.KQ": 4,   // 펩트론
+    "095340.KQ": 4,   // ISC
+    "095610.KQ": -8,  // Tes
+    "108490.KQ": 2,   // Robotis
     "141080.KQ": 0,   // LigaChem Bio
+    "145020.KQ": 4,   // 휴젤
+    "214150.KQ": 4,   // 클래시스
+    "214370.KQ": 1,   // 케어젠
     "214450.KQ": 3,   // Pharma Research
+    "222800.KQ": 4,   // Simmtech
+    "226950.KQ": -1,  // 올릭스
     "247540.KQ": 4,   // Ecopro BM
+    "257720.KQ": -4,  // 실리콘투
     "277810.KQ": 0,   // Rainbow Robotics
     "298380.KQ": 6,   // ABL Bio
     "319400.KQ": 2,   // 현대무벡스
     "319660.KQ": 7,   // PSK
+    "347850.KQ": 1,   // 디앤디파마텍
+    "403870.KQ": -4,  // HPSP
+    "440110.KQ": 0,   // FADU
     
     "000100.KS": 5,   // 유한양행
     "000660.KS": 0,   // SK Hynix

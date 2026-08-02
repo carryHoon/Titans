@@ -522,8 +522,10 @@ private struct SocialCircleButton: View {
                 .frame(width: diameter, height: diameter)
                 .clipShape(Circle())
         case .kakao:
-            KakaoBubbleShape()
-                .fill(Color(red: 0.235, green: 0.118, blue: 0.118)) // Kakao 심볼 #3C1E1E
+            // 카카오 공식 말풍선 심볼(투명 배경) — 노랑 배경 위에 얹는다.
+            Image("KakaoLoginSymbol")
+                .resizable()
+                .scaledToFit()
                 .frame(width: 30, height: 28)
         }
     }
@@ -534,22 +536,6 @@ private struct SocialCircleButton: View {
         case .google: return "Google로 로그인"
         case .kakao:  return "카카오로 로그인"
         }
-    }
-}
-
-/// 카카오톡 말풍선 실루엣(둥근 몸통 + 좌하단 꼬리).
-private struct KakaoBubbleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let w = rect.width, h = rect.height
-        // 몸통(약간 납작한 타원)
-        p.addEllipse(in: CGRect(x: 0, y: 0, width: w, height: h * 0.82))
-        // 좌하단 꼬리
-        p.move(to: CGPoint(x: w * 0.30, y: h * 0.60))
-        p.addLine(to: CGPoint(x: w * 0.15, y: h * 1.00))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.74))
-        p.closeSubpath()
-        return p
     }
 }
 
