@@ -512,7 +512,7 @@ private struct SocialCircleButton: View {
         switch kind {
         case .apple:
             Image(systemName: "applelogo")
-                .font(.system(size: 27))
+                .font(.system(size: 30))
                 .foregroundStyle(.white)
                 .offset(y: -1)
         case .google:
@@ -526,7 +526,7 @@ private struct SocialCircleButton: View {
             Image("KakaoLoginSymbol")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 30, height: 28)
+                .frame(width: 40, height: 40)
         }
     }
 
