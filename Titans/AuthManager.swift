@@ -68,7 +68,17 @@ final class AuthManager {
             guard let self else { return }
             for await change in self.client.auth.authStateChanges {
                 switch change.event {
-                case .initialSession, .signedIn, .tokenRefreshed, .userUpdated:
+                case .initialSession:
+                    // emitLocalSessionAsInitialSession=true 에서는 만료된 로컬 세션도 그대로
+                    // 발행되므로, 만료 여부를 확인해 로그인으로 오인하지 않는다. 세션이 유효하면
+                    // 로그인 처리하고, 만료/부재면 비로그인. (유효 세션은 이후 자동 리프레시가
+                    // .tokenRefreshed 를, 갱신 실패 시 .signedOut 을 이어서 발행한다.)
+                    if let session = change.session, !session.isExpired {
+                        self.state = .signedIn(session.user)
+                    } else {
+                        self.state = .signedOut
+                    }
+                case .signedIn, .tokenRefreshed, .userUpdated:
                     self.state = change.session.map { .signedIn($0.user) } ?? .signedOut
                 case .signedOut, .userDeleted:
                     self.state = .signedOut
@@ -114,11 +124,35 @@ final class AuthManager {
                 .compactMap { $0 }
                 .joined(separator: " ")
             if !joined.isEmpty {
-                try? await client.auth.update(
+                _ = try? await client.auth.update(
                     user: UserAttributes(data: ["full_name": .string(joined)])
                 )
             }
         }
+    }
+
+    // MARK: - Kakao (Supabase 관리형 OAuth)
+
+    /// 카카오 로그인. Supabase의 OAuth 엔드포인트를 ASWebAuthenticationSession으로 띄우고,
+    /// 완료되면 콜백 URL(SupabaseConfig.redirectURL)로 돌아와 세션을 저장한다.
+    /// 세션 반영은 authStateChanges 구독이 담당하므로 여기서는 로그인 요청만 한다.
+    func signInWithKakao() async throws {
+        try await client.auth.signInWithOAuth(
+            provider: .kakao,
+            redirectTo: SupabaseConfig.redirectURL
+        )
+    }
+
+    // MARK: - Google (Supabase 관리형 OAuth)
+
+    /// 구글 로그인. 카카오와 동일하게 Supabase의 OAuth 엔드포인트를 ASWebAuthenticationSession으로
+    /// 띄우고, 완료되면 콜백 URL(SupabaseConfig.redirectURL)로 돌아와 세션을 저장한다.
+    /// 세션 반영은 authStateChanges 구독이 담당하므로 여기서는 로그인 요청만 한다.
+    func signInWithGoogle() async throws {
+        try await client.auth.signInWithOAuth(
+            provider: .google,
+            redirectTo: SupabaseConfig.redirectURL
+        )
     }
 
     // MARK: - 이메일/비밀번호 (Supabase 내장)

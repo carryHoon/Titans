@@ -160,8 +160,12 @@ struct MenuView: View {
                 .environment(auth)
         }
         .onChange(of: auth.isSignedIn) { _, signedIn in
-            // 로그인 성공 시 로그인 시트를 자동으로 닫는다.
-            if signedIn { showLogin = false }
+            // 로그인 성공 시 로그인 시트를 닫고, 메뉴도 함께 닫아 홈(ContentView)으로 돌아간다.
+            // (ContentView가 로그인 전환을 감지해 ALL 섹션으로 리셋한다.)
+            if signedIn {
+                showLogin = false
+                onDismiss()
+            }
         }
     }
 

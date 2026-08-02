@@ -589,6 +589,7 @@ struct ProportionalScaledLayout<Content: View>: View {
 
 struct ContentView: View {
     @StateObject private var viewModel = MarketCapViewModel()
+    @Environment(AuthManager.self) private var auth
 
     @State private var indices: [MarketIndex] = initialIndices
     @State private var currentMarketIndex: Int = 0
@@ -796,6 +797,13 @@ struct ContentView: View {
         )
         .onAppear { setWindowColorScheme(isDarkMode) }
         .onChange(of: isDarkMode) { _, value in setWindowColorScheme(value) }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            // 로그인 완료 시 어느 섹션에 있었든 홈의 ALL 섹션으로 되돌린다.
+            if signedIn {
+                showMenu = false
+                selectedMarket = .all
+            }
+        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
@@ -1821,4 +1829,5 @@ struct CompanyRow: View {
 
 #Preview {
     ContentView()
+        .environment(AuthManager())
 }
