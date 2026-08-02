@@ -14,6 +14,14 @@ enum SupabaseClientProvider {
     /// 앱 수명 동안 공유되는 단일 클라이언트.
     static let shared = SupabaseClient(
         supabaseURL: SupabaseConfig.url,
-        supabaseKey: SupabaseConfig.anonKey
+        supabaseKey: SupabaseConfig.anonKey,
+        options: SupabaseClientOptions(
+            // 다음 메이저에서 기본값이 되는 동작으로 미리 opt-in.
+            // 로컬 저장 세션을 (만료 여부와 무관하게) 초기 세션으로 즉시 발행한다.
+            // 만료 세션 처리는 AuthManager.observeAuthState()의 isExpired 체크가 담당.
+            auth: SupabaseClientOptions.AuthOptions(
+                emitLocalSessionAsInitialSession: true
+            )
+        )
     )
 }
