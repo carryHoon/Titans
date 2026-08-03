@@ -536,6 +536,7 @@ let tickerLocalLogo: [String: String] = [
     "218410.KQ":  "logo_218410KQ", // RFHIC
     "222800.KQ":  "logo_222800KQ", // Simmtech
     "226950.KQ":  "logo_226950KQ", // 올릭스
+    "232140.KQ":  "logo_232140KQ", // 와이씨
     "237690.KQ":  "logo_237690KQ", // 에스티팜
     "240810.KQ":  "logo_240810KQ", // Wonik IPS
     "241710.KQ":  "logo_241710KQ", // 코스메카코리아
@@ -681,6 +682,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "214450.KQ": 3,   // Pharma Research
     "222800.KQ": 4,   // Simmtech
     "226950.KQ": -1,  // 올릭스
+    "232140.KQ": -10, // 와이씨
     "237690.KQ": -4,  // 에스티팜
     "247540.KQ": 4,   // Ecopro BM
     "253450.KQ": -15, // 스튜디오드래곤
