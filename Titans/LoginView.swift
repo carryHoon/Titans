@@ -178,6 +178,7 @@ struct LoginView: View {
         defer { isBusy = false }
         do {
             try await auth.handleAppleCompletion(result)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
             // 사용자가 취소한 경우는 오류로 표시하지 않는다.
             if let e = error as? ASAuthorizationError, e.code == .canceled { return }
