@@ -558,6 +558,7 @@ let tickerLocalLogo: [String: String] = [
     "357780.KQ":  "logo_357780KQ", // 솔브레인
     "388720.KQ":  "logo_388720KQ", // 유일로보틱스
     "403870.KQ":  "logo_403870KQ", // HPSP
+    "417200.KQ":  "logo_417200KQ", // LS머트리얼즈
     "420770.KQ":  "logo_420770KQ", // 기가비스
     "437730.KQ":  "logo_437730KQ", // 삼현
     "440110.KQ":  "logo_440110KQ", // FADU
@@ -693,6 +694,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "347850.KQ": 1,   // 디앤디파마텍
     "357780.KQ": 2,   // 솔브레인
     "403870.KQ": -4,  // HPSP
+    "417200.KQ": 0,   // LS머트리얼즈
     "440110.KQ": 0,   // FADU
     
     "000100.KS": 5,   // 유한양행
