@@ -1504,6 +1504,7 @@ private struct LogoImage: View {
 
     @State private var remoteImage: UIImage?
     @State private var remoteResolved = false
+    @State private var remotePadding: CGFloat = 8
 
     var body: some View {
         if let assetName = localAssetName, let raw = UIImage(named: assetName) {
@@ -1546,7 +1547,7 @@ private struct LogoImage: View {
     @ViewBuilder private var remoteBody: some View {
         Group {
             if let img = remoteImage {
-                styledLogo(Image(uiImage: img))
+                styledLogo(Image(uiImage: img), isRemote: true)
             } else if remoteResolved {
                 textFallback
             } else {
@@ -1564,18 +1565,55 @@ private struct LogoImage: View {
     private func loadRemote() async {
         remoteImage = nil
         remoteResolved = false
+        remotePadding = 8
         if let url = logoDevURL, let img = await LogoStore.shared.image(for: url) {
             remoteImage = img
+            // KR 티커(.KS/.KQ)가 아닌 모든 US 종목에 배경 감지 적용
+            let isUSTicker = !ticker.hasSuffix(".KS") && !ticker.hasSuffix(".KQ")
+            if isUSTicker {
+                remotePadding = remoteLogoHasWhiteBackground(img) ? 8 : 0
+            }
         }
         remoteResolved = true
     }
 
+    /// logo.dev 이미지의 4귀퉁이 픽셀을 샘플링해 흰색 배경 여부를 판별한다.
+    /// 흰색(고명도·저채도·불투명) 귀퉁이가 3개 이상이면 흰색 배경으로 간주.
+    private func remoteLogoHasWhiteBackground(_ img: UIImage) -> Bool {
+        guard let cg = img.cgImage else { return false }
+        let w = cg.width, h = cg.height
+        guard w > 1, h > 1 else { return false }
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(
+            data: &buf, width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        let corners = [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)]
+        var whiteCount = 0
+        for (cx, cy) in corners {
+            let idx = (cy * w + cx) * 4
+            let r = CGFloat(buf[idx])   / 255
+            let g = CGFloat(buf[idx+1]) / 255
+            let b = CGFloat(buf[idx+2]) / 255
+            let a = CGFloat(buf[idx+3]) / 255
+            let hi = max(r, g, b), lo = min(r, g, b)
+            let sat = hi == 0 ? 0.0 : (hi - lo) / hi
+            if a > 0.85 && sat < 0.12 && hi > 0.85 { whiteCount += 1 }
+        }
+        return whiteCount >= 3
+    }
+
     @ViewBuilder
-    private func styledLogo(_ image: Image) -> some View {
+    private func styledLogo(_ image: Image, isRemote: Bool = false) -> some View {
         image
             .resizable()
             .scaledToFit()
-            .padding(tickerLogoPadding[ticker] ?? 8)
+            // logo.dev 로고: 흰색 배경이면 8pt, 그 외(컬러·투명)는 0pt로 꽉 채움
+            // 로컬 로고: tickerLogoPadding 커스텀 값, 없으면 8pt 기본값
+            .padding(isRemote ? remotePadding : (tickerLogoPadding[ticker] ?? 8))
     }
 
     /// 숫자 티커(예: KRX "005930.KS")는 이니셜이 무의미하므로, 알파벳 티커면 티커,
@@ -1628,6 +1666,10 @@ struct BrandLogoTile: View {
         }
         .frame(width: logoTileSize, height: logoTileSize)
         .clipShape(Circle())
+        .overlay {
+            Circle()
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        }
     }
 }
 
