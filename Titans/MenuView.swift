@@ -57,7 +57,7 @@ struct MenuView: View {
                                 .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "heart.fill", iconColor: .pink,
-                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가")
+                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가해 보세요")
                         }
                         .buttonStyle(.plain)
                         rowDivider
@@ -66,7 +66,7 @@ struct MenuView: View {
                                 .environment(\.appTheme, theme)
                         } label: {
                             menuRow(icon: "calendar", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35),
-                                    title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인")
+                                    title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인하세요")
                         }
                         .buttonStyle(.plain)
                     }
@@ -77,7 +77,7 @@ struct MenuView: View {
                         Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
                             menuRow(icon: "envelope.fill",
                                     iconColor: Color(red: 0.35, green: 0.78, blue: 0.98),
-                                    title: "의견 보내기", subtitle: "오류 신고 및 개선 요청")
+                                    title: "의견 보내기", subtitle: "오류 신고 및 개선 사항을 남겨주세요")
                         }
                         .buttonStyle(.plain)
                     }
@@ -92,7 +92,7 @@ struct MenuView: View {
                         } label: {
                             menuRow(icon: "quote.bubble.fill",
                                     iconColor: Color(red: 0.345, green: 0.337, blue: 0.839),
-                                    title: "개발자 노트", subtitle: "Titans를 만든 이야기")
+                                    title: "개발자 노트", subtitle: "surFin을 만든 이야기")
                         }
                         .buttonStyle(.plain)
                         rowDivider
@@ -189,7 +189,7 @@ struct MenuView: View {
                 showLogin = true
             } label: {
                 accountRow(title: "로그인",
-                           subtitle: "관심 종목·설정을 기기 간 동기화",
+                           subtitle: "관심 기업·설정을 기기 간 동기화",
                            active: false)
             }
             .buttonStyle(.plain)

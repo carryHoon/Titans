@@ -88,7 +88,7 @@ struct DividendCalendarView: View {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 13))
                 .foregroundStyle(.blue)
-            Text("배당락일 데이터는 정식 출시 시 제공됩니다. 관심 종목의 배당락일·배당금·지급일을 이 달력에서 확인할 수 있어요.")
+            Text("서비스를 준비 중이에요. 관심 기업의 배당락일·배당금·지급일을 이 달력에서 확인할 수 있어요.")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(theme.secondaryLabel)
                 .fixedSize(horizontal: false, vertical: true)

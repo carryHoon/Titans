@@ -1333,7 +1333,7 @@ struct LiveIndicatorBar: View {
 
 /// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
 /// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
-///  · 실시간(ALL/NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ 실시간 HH:mm:ss" (1초마다 시각 갱신)
+///  · 실시간(NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ HH:mm 기준" / ALL은 "HH:mm 기준 (일부 기업 전일 종가)"
 ///  · EOD(KOSPI/KOSDAQ, 공공데이터포털 D-1): "● KOSPI 2026.07.23 종가 기준" (실제 기준일 basDt)
 ///  · 준비 중 섹션(데이터 없음): "● JPX 출시 준비 중" (초록 대신 흐린 색·정적 원으로 구분)
 /// 초록 하이라이트 + 깜빡이는 원은 기존 Live 인디케이터의 시각 언어를 그대로 계승한다.
@@ -1345,7 +1345,7 @@ struct MarketStatusView: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
+        f.dateFormat = "HH:mm"
         return f
     }()
 
@@ -1361,7 +1361,10 @@ struct MarketStatusView: View {
     private var detail: String {
         if market.comingSoon { return "출시 준비 중" }
         if isEOD { return basDt.map { "\(formatBasDt($0)) 종가 기준" } ?? "불러오는 중" }
-        return "\(Self.timeFormatter.string(from: currentTime))"
+        let time = Self.timeFormatter.string(from: currentTime)
+        // ALL은 KR(EOD/전일 종가) + US(실시간)를 섞어 보여주므로 단서를 덧붙인다.
+        if market == .all { return "\(time) 기준 · 일부 전일 종가" }
+        return "\(time) 기준"
     }
 
     var body: some View {
