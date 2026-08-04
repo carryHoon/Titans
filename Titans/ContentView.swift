@@ -9,6 +9,7 @@ import SwiftUI
 import Combine   // ObservableObject / @Published
 import CryptoKit // 로고 디스크 캐시 파일명 해시(SHA256)
 import UIKit
+import GoogleMobileAds // 적응형 배너 크기 계산(currentOrientationAnchoredAdaptiveBanner)
 
 // MARK: - Currency
 
@@ -721,7 +722,7 @@ struct ContentView: View {
                             currency: selectedCurrency,
                             exchangeRate: exchangeRate
                         )
-                        if (index + 1) % 20 == 0 && index + 1 < list.count {
+                        if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
                             AdBannerSlot()
                         }
                     }
@@ -804,6 +805,10 @@ struct ContentView: View {
                 selectedMarket = .all
             }
         }
+        .onChange(of: selectedMarket) { _, _ in
+            // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
+            InterstitialAdManager.shared.handleSectionSwitch()
+        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
@@ -853,6 +858,14 @@ struct ContentView: View {
                 }
             }
         }
+        // 홈스크린/맥 위젯용 스냅샷 — 앱 활성 시 즉시 1회 + 5분마다 갱신.
+        // 4개 거래소 Top5와 로고 PNG를 App Group에 써서 위젯이 오프라인으로 표시할 수 있게 한다.
+        .task {
+            while !Task.isCancelled {
+                await WidgetSnapshotWriter.update()
+                try? await Task.sleep(for: .seconds(300))
+            }
+        }
 
         if showMenu {
             MenuView(
@@ -884,42 +897,27 @@ struct StaleBanner: View {
     }
 }
 
-// MARK: - Ad Banner Slot (띠배너 광고 자리 — 출시 전 지면 확보용 플레이스홀더)
+// MARK: - Ad Banner Slot (띠배너 광고 — Google Mobile Ads 적응형 배너)
 
-/// 기업 리스트 20개마다 삽입되는 띠배너(가로 스트립) 광고 자리.
+/// 기업 리스트 `AdsConfig.bannerRowInterval`개마다 삽입되는 띠배너(가로 스트립) 광고.
 ///
-/// 지금은 실제 광고를 붙이지 않고 "지면(자리)"만 확보한 플레이스홀더다.
-/// App Store 출시 직전에 이 뷰의 내부만 실제 광고 SDK 배너(예: Google Mobile Ads)로
-/// 교체하면 리스트 레이아웃 변경 없이 그대로 활성화된다.
-/// - 표준 모바일 배너 높이(50~60pt)에 맞춰 리스트 흐름을 해치지 않도록 설계.
+/// 리스트 좌우 패딩(16pt)을 제외한 폭에 맞춘 앵커드 적응형 배너를 로드한다.
+/// 광고가 아직 로드되지 않았을 때도 리스트 흐름이 튀지 않도록, 배너와 동일한 크기의
+/// 지면(자리)을 항상 확보한다.
 struct AdBannerSlot: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        // ▼▼▼ 광고 SDK 연동 지점 ▼▼▼
-        // 출시 시 아래 HStack(플레이스홀더)을 실제 배너 뷰로 교체:
-        //   AdBannerView(adUnitID: "ca-app-pub-…")  // 예: GADBannerView 래퍼
-        // (동의/ATT·PrivacyManifest·Info.plist 광고ID 설정은 SDK 연동 시 함께 진행)
-        // ▲▲▲ 광고 SDK 연동 지점 ▲▲▲
-        HStack(spacing: 8) {
-            Text("AD")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(theme.secondaryLabel)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(theme.fill, in: RoundedRectangle(cornerRadius: 4))
-            Text("광고 자리")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(theme.tertiaryLabel)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 60)
-        .background(theme.fill.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(theme.stroke, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-        )
-        .padding(.vertical, 2)
+        // 리스트 콘텐츠 폭 = 화면 폭 - 좌우 패딩(16*2). 이 폭에 맞춘 적응형 배너 크기 계산.
+        let width = UIScreen.main.bounds.width - 32
+        let adSize = currentOrientationAnchoredAdaptiveBanner(width: width)
+
+        BannerAdView(adUnitID: AdsConfig.bannerUnitID, adSize: adSize)
+            .frame(width: adSize.size.width, height: adSize.size.height)
+            .frame(maxWidth: .infinity)
+            // 광고 로딩 전에도 지면이 비어 보이지 않도록 옅은 배경을 깔아 둔다.
+            .background(theme.fill.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, 2)
     }
 }
 
