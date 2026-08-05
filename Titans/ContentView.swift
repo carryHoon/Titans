@@ -1604,6 +1604,9 @@ struct BrandLogoTile: View {
     let color: Color
     var domain: String? = nil   // 백엔드(DART) 해석 도메인 — 큐레이션(tickerDomain) 미등록 신규 종목 폴백
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appTheme) private var theme
+
     // 큐레이션 도메인이 있으면 그대로 우선(기존 로고 표시 불변), 없을 때만 백엔드 도메인을 쓴다.
     private var resolvedDomain: String? { tickerDomain[ticker] ?? domain }
 
@@ -1629,6 +1632,13 @@ struct BrandLogoTile: View {
         }
         .frame(width: logoTileSize, height: logoTileSize)
         .clipShape(Circle())
+        // 라이트 모드에서는 흰 로고 원이 흰 배경에 묻혀 경계가 사라진다.
+        // 다크 모드의 원과 동일한 크기(logoTileSize)로 얇은 테두리를 둘러 원 프레임을 살린다.
+        .overlay {
+            if colorScheme == .light {
+                Circle().strokeBorder(theme.stroke, lineWidth: 1)
+            }
+        }
     }
 }
 
