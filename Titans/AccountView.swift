@@ -11,12 +11,13 @@ import SwiftUI
 struct AccountView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     private var email: String { auth.userEmail ?? "로그인됨" }

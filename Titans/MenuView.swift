@@ -6,14 +6,15 @@
 import SwiftUI
 
 struct MenuView: View {
-    @Binding var isDarkMode: Bool
     let onDismiss: () -> Void
 
     @Environment(AuthManager.self) private var auth
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
 
     @State private var showLogin = false
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     private var appVersion: String {
@@ -54,7 +55,6 @@ struct MenuView: View {
                         NavigationLink {
                             WatchlistPlaceholderView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "heart.fill", iconColor: .pink,
                                     title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가해 보세요")
@@ -62,7 +62,7 @@ struct MenuView: View {
                         .buttonStyle(.plain)
                         rowDivider
                         NavigationLink {
-                            DividendCalendarView(companies: [], isDarkMode: isDarkMode)
+                            DividendCalendarView(companies: [])
                                 .environment(\.appTheme, theme)
                         } label: {
                             menuRow(icon: "calendar", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35),
@@ -88,7 +88,6 @@ struct MenuView: View {
                         NavigationLink {
                             DeveloperNoteView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "quote.bubble.fill",
                                     iconColor: Color(red: 0.345, green: 0.337, blue: 0.839),
@@ -99,7 +98,6 @@ struct MenuView: View {
                         NavigationLink {
                             SourcesDetailView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "chart.bar.doc.horizontal",
                                     iconColor: Color(red: 0.18, green: 0.69, blue: 0.78),
@@ -154,7 +152,6 @@ struct MenuView: View {
         }
         .environment(\.appTheme, theme)
         .foregroundStyle(theme.label)
-        .preferredColorScheme(isDarkMode ? .dark : .light)
         .fullScreenCover(isPresented: $showLogin) {
             LoginView(onContinueAnonymously: { showLogin = false })
                 .environment(auth)
@@ -177,7 +174,6 @@ struct MenuView: View {
             NavigationLink {
                 AccountView()
                     .environment(auth)
-                    .preferredColorScheme(isDarkMode ? .dark : .light)
             } label: {
                 accountRow(title: auth.userEmail ?? "내 계정",
                            subtitle: "계정 관리 · 로그아웃",
