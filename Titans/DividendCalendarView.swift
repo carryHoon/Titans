@@ -46,14 +46,15 @@ struct PlaceholderDividendProvider: DividendProvider {
 struct DividendCalendarView: View {
     /// 배당락일을 추적할 관심 종목(현재는 미사용, 연동 시 필터로 사용).
     let companies: [Company]
-    let isDarkMode: Bool
 
     var provider: DividendProvider = PlaceholderDividendProvider()
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var visibleMonth: Date = Calendar.current.startOfDay(for: Date())
     @State private var selectedDay: Date = Calendar.current.startOfDay(for: Date())
     @State private var events: [DividendEvent] = []
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
     private let cal = Calendar.current
 
@@ -88,7 +89,7 @@ struct DividendCalendarView: View {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 13))
                 .foregroundStyle(.blue)
-            Text("배당락일 데이터는 정식 출시 시 제공됩니다. 관심 종목의 배당락일·배당금·지급일을 이 달력에서 확인할 수 있어요.")
+            Text("서비스를 준비 중이에요. 관심 기업의 배당락일·배당금·지급일을 이 달력에서 확인할 수 있어요.")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(theme.secondaryLabel)
                 .fixedSize(horizontal: false, vertical: true)

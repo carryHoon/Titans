@@ -91,6 +91,18 @@ struct SourcesDetailView: View {
         DataSource(icon: "photo.fill", iconColor: .indigo,
                    title: "Logo.dev", detail: "기업 로고 이미지",
                    urlString: "https://logo.dev"),
+        DataSource(icon: "triangle.fill", iconColor: .primary,
+                   title: "Vercel", detail: "데이터 API 서버리스 호스팅",
+                   urlString: "https://vercel.com"),
+        DataSource(icon: "bolt.fill", iconColor: .red,
+                   title: "Upstash", detail: "시세 스냅샷 캐시 (Redis)",
+                   urlString: "https://upstash.com"),
+        DataSource(icon: "server.rack", iconColor: .green,
+                   title: "Supabase", detail: "계정 인증·설정 동기화",
+                   urlString: "https://supabase.com"),
+        DataSource(icon: "megaphone.fill", iconColor: .blue,
+                   title: "Google AdMob", detail: "광고 게재",
+                   urlString: "https://admob.google.com"),
     ]
 
     var body: some View {
@@ -165,11 +177,12 @@ struct SourcesDetailView: View {
 // MARK: - SettingsView
 
 struct SettingsView: View {
-    @Binding var isDarkMode: Bool
     let onDismiss: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     private var appVersion: String {
@@ -203,7 +216,6 @@ struct SettingsView: View {
                         NavigationLink {
                             SourcesDetailView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             linkRow(icon: "chart.bar.doc.horizontal", iconColor: .indigo,
                                     title: "데이터 출처",
@@ -255,7 +267,6 @@ struct SettingsView: View {
         }
         .environment(\.appTheme, theme)
         .foregroundStyle(theme.label)
-        .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 
     // MARK: - Account Card

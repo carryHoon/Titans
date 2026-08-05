@@ -9,6 +9,7 @@ import SwiftUI
 import Combine   // ObservableObject / @Published
 import CryptoKit // 로고 디스크 캐시 파일명 해시(SHA256)
 import UIKit
+import GoogleMobileAds // 적응형 배너 크기 계산(currentOrientationAnchoredAdaptiveBanner)
 
 // MARK: - Currency
 
@@ -499,12 +500,12 @@ final class MarketCapViewModel: ObservableObject {
     func fetch() async {
         do {
             let result = try await loadCompanies(from: endpoint, exchangeParam: nil)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                companies = result.companies
-                isStale   = result.stale
-                isError   = false
-                isLoading = false
-            }
+            // 주기적 시세 갱신은 애니메이션 없이 즉시 반영한다. (withAnimation은 전역 트랜잭션이라
+            // 좌우 스와이프 전환과 겹치면 리스트 리플로우가 드래그와 충돌해 끊김을 유발함)
+            companies = result.companies
+            isStale   = result.stale
+            isError   = false
+            isLoading = false
             if let rate = result.rate { exchangeRate = rate }
         } catch {
             isError = true
@@ -521,15 +522,15 @@ final class MarketCapViewModel: ObservableObject {
         else { return }
         do {
             let result = try await loadCompanies(from: url, exchangeParam: param)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                exchangeFeeds[market] = ExchangeFeed(
-                    companies: result.companies,
-                    isLoading: false,
-                    isError:   false,
-                    isStale:   result.stale,
-                    basDt:     result.basDt
-                )
-            }
+            // 섹션 도착 시 재fetch 결과도 애니메이션 없이 즉시 반영. (스와이프 착지와 겹치는
+            // withAnimation 리플로우가 ALL↔NASDAQ 전환 끊김의 원인)
+            exchangeFeeds[market] = ExchangeFeed(
+                companies: result.companies,
+                isLoading: false,
+                isError:   false,
+                isStale:   result.stale,
+                basDt:     result.basDt
+            )
             if let rate = result.rate { exchangeRate = rate }
         } catch {
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
@@ -603,8 +604,9 @@ struct ContentView: View {
     // 기준: iPhone 17 Pro(874pt). 모든 기기에서 헤더가 화면의 동일한 세로 비율을 차지하도록 함.
     @State private var viewportHeight: CGFloat = 874
 
-    // 화이트/다크 모드 선택 (앱 재실행 후에도 유지)
-    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+    // 라이트/다크 모드는 iOS 시스템 설정을 그대로 따른다.
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDarkMode: Bool { colorScheme == .dark }
 
     // 검색 / 메뉴 화면 표시 상태
     @State private var showSearch = false
@@ -683,16 +685,6 @@ struct ContentView: View {
 
     private func basDt(for market: Market) -> String? { feed(for: market)?.basDt }
 
-    // preferredColorScheme 대신 UIKit window 직접 설정.
-    // preferredColorScheme은 UIKit snapshot 기반 crossfade를 유발해 withAnimation과 충돌함.
-    // window.overrideUserInterfaceStyle은 부드러운 trait 업데이트만 수행하므로 충돌 없음.
-    private func setWindowColorScheme(_ isDark: Bool) {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .forEach { $0.overrideUserInterfaceStyle = isDark ? .dark : .light }
-    }
-
     // MARK: 섹션 페이지 — 각 거래소별 스크롤 가능한 기업 목록
 
     @ViewBuilder
@@ -721,7 +713,7 @@ struct ContentView: View {
                             currency: selectedCurrency,
                             exchangeRate: exchangeRate
                         )
-                        if (index + 1) % 20 == 0 && index + 1 < list.count {
+                        if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
                             AdBannerSlot()
                         }
                     }
@@ -746,7 +738,6 @@ struct ContentView: View {
                 market: selectedMarket,
                 currentTime: currentTime,
                 basDt: basDt(for: selectedMarket),
-                isDarkMode: $isDarkMode,
                 vScale: vScale,
                 onSearch: { showSearch = true },
                 onMenu: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = true } }
@@ -795,8 +786,6 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
         )
-        .onAppear { setWindowColorScheme(isDarkMode) }
-        .onChange(of: isDarkMode) { _, value in setWindowColorScheme(value) }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             // 로그인 완료 시 어느 섹션에 있었든 홈의 ALL 섹션으로 되돌린다.
             if signedIn {
@@ -804,16 +793,19 @@ struct ContentView: View {
                 selectedMarket = .all
             }
         }
+        .onChange(of: selectedMarket) { _, _ in
+            // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
+            InterstitialAdManager.shared.handleSectionSwitch()
+        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
                 currency: selectedCurrency,
                 exchangeRate: exchangeRate,
-                isDarkMode: isDarkMode,
                 onDismiss: { showSearch = false }
             )
         }
-        .animation(.easeInOut(duration: 0.45), value: isDarkMode)
+        .animation(.easeInOut(duration: 0.45), value: colorScheme)
         .task {
             while !Task.isCancelled {
                 await viewModel.fetch()
@@ -853,10 +845,17 @@ struct ContentView: View {
                 }
             }
         }
+        // 홈스크린/맥 위젯용 스냅샷 — 앱 활성 시 즉시 1회 + 5분마다 갱신.
+        // 4개 거래소 Top5와 로고 PNG를 App Group에 써서 위젯이 오프라인으로 표시할 수 있게 한다.
+        .task {
+            while !Task.isCancelled {
+                await WidgetSnapshotWriter.update()
+                try? await Task.sleep(for: .seconds(300))
+            }
+        }
 
         if showMenu {
             MenuView(
-                isDarkMode: $isDarkMode,
                 onDismiss: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = false } }
             )
             .transition(.move(edge: .trailing))
@@ -884,42 +883,27 @@ struct StaleBanner: View {
     }
 }
 
-// MARK: - Ad Banner Slot (띠배너 광고 자리 — 출시 전 지면 확보용 플레이스홀더)
+// MARK: - Ad Banner Slot (띠배너 광고 — Google Mobile Ads 적응형 배너)
 
-/// 기업 리스트 20개마다 삽입되는 띠배너(가로 스트립) 광고 자리.
+/// 기업 리스트 `AdsConfig.bannerRowInterval`개마다 삽입되는 띠배너(가로 스트립) 광고.
 ///
-/// 지금은 실제 광고를 붙이지 않고 "지면(자리)"만 확보한 플레이스홀더다.
-/// App Store 출시 직전에 이 뷰의 내부만 실제 광고 SDK 배너(예: Google Mobile Ads)로
-/// 교체하면 리스트 레이아웃 변경 없이 그대로 활성화된다.
-/// - 표준 모바일 배너 높이(50~60pt)에 맞춰 리스트 흐름을 해치지 않도록 설계.
+/// 리스트 좌우 패딩(16pt)을 제외한 폭에 맞춘 앵커드 적응형 배너를 로드한다.
+/// 광고가 아직 로드되지 않았을 때도 리스트 흐름이 튀지 않도록, 배너와 동일한 크기의
+/// 지면(자리)을 항상 확보한다.
 struct AdBannerSlot: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        // ▼▼▼ 광고 SDK 연동 지점 ▼▼▼
-        // 출시 시 아래 HStack(플레이스홀더)을 실제 배너 뷰로 교체:
-        //   AdBannerView(adUnitID: "ca-app-pub-…")  // 예: GADBannerView 래퍼
-        // (동의/ATT·PrivacyManifest·Info.plist 광고ID 설정은 SDK 연동 시 함께 진행)
-        // ▲▲▲ 광고 SDK 연동 지점 ▲▲▲
-        HStack(spacing: 8) {
-            Text("AD")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(theme.secondaryLabel)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(theme.fill, in: RoundedRectangle(cornerRadius: 4))
-            Text("광고 자리")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(theme.tertiaryLabel)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 60)
-        .background(theme.fill.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(theme.stroke, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-        )
-        .padding(.vertical, 2)
+        // 리스트 콘텐츠 폭 = 화면 폭 - 좌우 패딩(16*2). 이 폭에 맞춘 적응형 배너 크기 계산.
+        let width = UIScreen.main.bounds.width - 32
+        let adSize = currentOrientationAnchoredAdaptiveBanner(width: width)
+
+        BannerAdView(adUnitID: AdsConfig.bannerUnitID, adSize: adSize)
+            .frame(width: adSize.size.width, height: adSize.size.height)
+            .frame(maxWidth: .infinity)
+            // 광고 로딩 전에도 지면이 비어 보이지 않도록 옅은 배경을 깔아 둔다.
+            .background(theme.fill.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, 2)
     }
 }
 
@@ -1283,7 +1267,6 @@ struct LiveIndicatorBar: View {
     let market: Market                      // 현재 섹션 — 상태 문구(실시간/종가 기준)를 결정
     let currentTime: Date                   // 실시간 섹션 시계
     let basDt: String?                      // 코스피/코스닥 기준일("YYYYMMDD")
-    @Binding var isDarkMode: Bool
     var vScale: CGFloat = 1                 // 헤더 세로 비례 계수 (기기별 동일 비율)
     var onSearch: () -> Void = {}           // 돋보기 → 검색 화면
     var onMenu: () -> Void = {}             // ≡ → 메뉴
@@ -1297,18 +1280,8 @@ struct LiveIndicatorBar: View {
 
             Spacer()
 
-            // 우측 상단 액션 버튼 — 토스 스타일 (다크/화이트 토글 · 검색 · 메뉴)
+            // 우측 상단 액션 버튼 — 토스 스타일 (검색 · 메뉴)
             HStack(spacing: 20) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isDarkMode.toggle()
-                    }
-                } label: {
-                    Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
-                        .foregroundStyle(isDarkMode ? Color.yellow : Color.orange)
-                }
-                .buttonStyle(.plain)
-
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(theme.label)
@@ -1324,7 +1297,7 @@ struct LiveIndicatorBar: View {
             .font(.system(size: 20, weight: .medium))
         }
         .padding(.leading, 24)
-        .padding(.trailing, 20)
+        .padding(.trailing, 36)
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
@@ -1335,7 +1308,7 @@ struct LiveIndicatorBar: View {
 
 /// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
 /// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
-///  · 실시간(ALL/NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ 실시간 HH:mm:ss" (1초마다 시각 갱신)
+///  · 실시간(NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ HH:mm 기준" / ALL은 "HH:mm 기준 (일부 기업 전일 종가)"
 ///  · EOD(KOSPI/KOSDAQ, 공공데이터포털 D-1): "● KOSPI 2026.07.23 종가 기준" (실제 기준일 basDt)
 ///  · 준비 중 섹션(데이터 없음): "● JPX 출시 준비 중" (초록 대신 흐린 색·정적 원으로 구분)
 /// 초록 하이라이트 + 깜빡이는 원은 기존 Live 인디케이터의 시각 언어를 그대로 계승한다.
@@ -1347,7 +1320,7 @@ struct MarketStatusView: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
+        f.dateFormat = "HH:mm"
         return f
     }()
 
@@ -1363,7 +1336,10 @@ struct MarketStatusView: View {
     private var detail: String {
         if market.comingSoon { return "출시 준비 중" }
         if isEOD { return basDt.map { "\(formatBasDt($0)) 종가 기준" } ?? "불러오는 중" }
-        return "\(Self.timeFormatter.string(from: currentTime))"
+        let time = Self.timeFormatter.string(from: currentTime)
+        // ALL은 KR(EOD/전일 종가) + US(실시간)를 섞어 보여주므로 단서를 덧붙인다.
+        if market == .all { return "\(time) 기준 · 일부 전일 종가" }
+        return "\(time) 기준"
     }
 
     var body: some View {
@@ -1603,6 +1579,9 @@ struct BrandLogoTile: View {
     let color: Color
     var domain: String? = nil   // 백엔드(DART) 해석 도메인 — 큐레이션(tickerDomain) 미등록 신규 종목 폴백
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appTheme) private var theme
+
     // 큐레이션 도메인이 있으면 그대로 우선(기존 로고 표시 불변), 없을 때만 백엔드 도메인을 쓴다.
     private var resolvedDomain: String? { tickerDomain[ticker] ?? domain }
 
@@ -1628,6 +1607,13 @@ struct BrandLogoTile: View {
         }
         .frame(width: logoTileSize, height: logoTileSize)
         .clipShape(Circle())
+        // 라이트 모드에서는 흰 로고 원이 흰 배경에 묻혀 경계가 사라진다.
+        // 다크 모드의 원과 동일한 크기(logoTileSize)로 얇은 테두리를 둘러 원 프레임을 살린다.
+        .overlay {
+            if colorScheme == .light {
+                Circle().strokeBorder(theme.stroke, lineWidth: 1)
+            }
+        }
     }
 }
 

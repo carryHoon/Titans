@@ -6,14 +6,15 @@
 import SwiftUI
 
 struct MenuView: View {
-    @Binding var isDarkMode: Bool
     let onDismiss: () -> Void
 
     @Environment(AuthManager.self) private var auth
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
 
     @State private var showLogin = false
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     private var appVersion: String {
@@ -54,19 +55,18 @@ struct MenuView: View {
                         NavigationLink {
                             WatchlistPlaceholderView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "heart.fill", iconColor: .pink,
-                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가")
+                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가해 보세요")
                         }
                         .buttonStyle(.plain)
                         rowDivider
                         NavigationLink {
-                            DividendCalendarView(companies: [], isDarkMode: isDarkMode)
+                            DividendCalendarView(companies: [])
                                 .environment(\.appTheme, theme)
                         } label: {
                             menuRow(icon: "calendar", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35),
-                                    title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인")
+                                    title: "배당 캘린더", subtitle: "관심 기업의 배당 일정을 한눈에 확인하세요")
                         }
                         .buttonStyle(.plain)
                     }
@@ -77,7 +77,7 @@ struct MenuView: View {
                         Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
                             menuRow(icon: "envelope.fill",
                                     iconColor: Color(red: 0.35, green: 0.78, blue: 0.98),
-                                    title: "의견 보내기", subtitle: "오류 신고 및 개선 요청")
+                                    title: "의견 보내기", subtitle: "오류 신고 및 개선 사항을 남겨주세요")
                         }
                         .buttonStyle(.plain)
                     }
@@ -88,18 +88,16 @@ struct MenuView: View {
                         NavigationLink {
                             DeveloperNoteView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "quote.bubble.fill",
                                     iconColor: Color(red: 0.345, green: 0.337, blue: 0.839),
-                                    title: "개발자 노트", subtitle: "Titans를 만든 이야기")
+                                    title: "개발자 노트", subtitle: "surFin을 만든 이야기")
                         }
                         .buttonStyle(.plain)
                         rowDivider
                         NavigationLink {
                             SourcesDetailView()
                                 .environment(\.appTheme, theme)
-                                .preferredColorScheme(isDarkMode ? .dark : .light)
                         } label: {
                             menuRow(icon: "chart.bar.doc.horizontal",
                                     iconColor: Color(red: 0.18, green: 0.69, blue: 0.78),
@@ -154,7 +152,6 @@ struct MenuView: View {
         }
         .environment(\.appTheme, theme)
         .foregroundStyle(theme.label)
-        .preferredColorScheme(isDarkMode ? .dark : .light)
         .fullScreenCover(isPresented: $showLogin) {
             LoginView(onContinueAnonymously: { showLogin = false })
                 .environment(auth)
@@ -177,7 +174,6 @@ struct MenuView: View {
             NavigationLink {
                 AccountView()
                     .environment(auth)
-                    .preferredColorScheme(isDarkMode ? .dark : .light)
             } label: {
                 accountRow(title: auth.userEmail ?? "내 계정",
                            subtitle: "계정 관리 · 로그아웃",
@@ -189,7 +185,7 @@ struct MenuView: View {
                 showLogin = true
             } label: {
                 accountRow(title: "로그인",
-                           subtitle: "관심 종목·설정을 기기 간 동기화",
+                           subtitle: "관심 기업·설정을 기기 간 동기화",
                            active: false)
             }
             .buttonStyle(.plain)

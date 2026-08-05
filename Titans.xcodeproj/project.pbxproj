@@ -8,16 +8,77 @@
 
 /* Begin PBXBuildFile section */
 		87099F40301DE43D00E72FD7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 87099F3F301DE43D00E72FD7 /* Supabase */; };
+		87FF2BA23020E1270094AE7B /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 87FF2BA13020E1270094AE7B /* GoogleMobileAds */; };
+		87FF2BA53020E1A40094AE7B /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 87FF2BA43020E1A40094AE7B /* GoogleUserMessagingPlatform */; };
+		87FF2BAF3021177C0094AE7B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87FF2BAE3021177C0094AE7B /* WidgetKit.framework */; };
+		87FF2BB13021177C0094AE7B /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87FF2BB03021177C0094AE7B /* SwiftUI.framework */; };
+		87FF2BC23021177E0094AE7B /* surFinWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 87FF2BAC3021177B0094AE7B /* surFinWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		87FF2BC03021177E0094AE7B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 87F13629300EEBCF0006366E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 87FF2BAB3021177B0094AE7B;
+			remoteInfo = surFinWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		87FF2BC73021177E0094AE7B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				87FF2BC23021177E0094AE7B /* surFinWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		87F13631300EEBCF0006366E /* Titans.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Titans.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		87FF2BAC3021177B0094AE7B /* surFinWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = surFinWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		87FF2BAE3021177C0094AE7B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		87FF2BB03021177C0094AE7B /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		87FF2BD13021D2C50094AE7B /* surFinWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = surFinWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		87FF2BA73020E6D00094AE7B /* Exceptions for "Titans" folder in "Titans" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 87F13630300EEBCF0006366E /* Titans */;
+		};
+		87FF2BC63021177E0094AE7B /* Exceptions for "surFinWidget" folder in "surFinWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 87FF2BAB3021177B0094AE7B /* surFinWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		87F13633300EEBCF0006366E /* Titans */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				87FF2BA73020E6D00094AE7B /* Exceptions for "Titans" folder in "Titans" target */,
+			);
 			path = Titans;
+			sourceTree = "<group>";
+		};
+		87FF2BB23021177C0094AE7B /* surFinWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				87FF2BC63021177E0094AE7B /* Exceptions for "surFinWidget" folder in "surFinWidgetExtension" target */,
+			);
+			path = surFinWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -27,7 +88,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				87FF2BA23020E1270094AE7B /* GoogleMobileAds in Frameworks */,
+				87FF2BA53020E1A40094AE7B /* GoogleUserMessagingPlatform in Frameworks */,
 				87099F40301DE43D00E72FD7 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		87FF2BA93021177B0094AE7B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				87FF2BB13021177C0094AE7B /* SwiftUI.framework in Frameworks */,
+				87FF2BAF3021177C0094AE7B /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -37,7 +109,10 @@
 		87F13628300EEBCF0006366E = {
 			isa = PBXGroup;
 			children = (
+				87FF2BD13021D2C50094AE7B /* surFinWidgetExtension.entitlements */,
 				87F13633300EEBCF0006366E /* Titans */,
+				87FF2BB23021177C0094AE7B /* surFinWidget */,
+				87FF2BAD3021177C0094AE7B /* Frameworks */,
 				87F13632300EEBCF0006366E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,8 +121,18 @@
 			isa = PBXGroup;
 			children = (
 				87F13631300EEBCF0006366E /* Titans.app */,
+				87FF2BAC3021177B0094AE7B /* surFinWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		87FF2BAD3021177C0094AE7B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				87FF2BAE3021177C0094AE7B /* WidgetKit.framework */,
+				87FF2BB03021177C0094AE7B /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -60,10 +145,12 @@
 				87F1362D300EEBCF0006366E /* Sources */,
 				87F1362E300EEBCF0006366E /* Frameworks */,
 				87F1362F300EEBCF0006366E /* Resources */,
+				87FF2BC73021177E0094AE7B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				87FF2BC13021177E0094AE7B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				87F13633300EEBCF0006366E /* Titans */,
@@ -71,10 +158,34 @@
 			name = Titans;
 			packageProductDependencies = (
 				87099F3F301DE43D00E72FD7 /* Supabase */,
+				87FF2BA13020E1270094AE7B /* GoogleMobileAds */,
+				87FF2BA43020E1A40094AE7B /* GoogleUserMessagingPlatform */,
 			);
 			productName = Titans;
 			productReference = 87F13631300EEBCF0006366E /* Titans.app */;
 			productType = "com.apple.product-type.application";
+		};
+		87FF2BAB3021177B0094AE7B /* surFinWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 87FF2BC33021177E0094AE7B /* Build configuration list for PBXNativeTarget "surFinWidgetExtension" */;
+			buildPhases = (
+				87FF2BA83021177B0094AE7B /* Sources */,
+				87FF2BA93021177B0094AE7B /* Frameworks */,
+				87FF2BAA3021177B0094AE7B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				87FF2BB23021177C0094AE7B /* surFinWidget */,
+			);
+			name = surFinWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = surFinWidgetExtension;
+			productReference = 87FF2BAC3021177B0094AE7B /* surFinWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -87,6 +198,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					87F13630300EEBCF0006366E = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					87FF2BAB3021177B0094AE7B = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -102,6 +216,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				87099F3E301DE43D00E72FD7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				87FF2BA03020E1270094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				87FF2BA33020E1A40094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 87F13632300EEBCF0006366E /* Products */;
@@ -109,12 +225,20 @@
 			projectRoot = "";
 			targets = (
 				87F13630300EEBCF0006366E /* Titans */,
+				87FF2BAB3021177B0094AE7B /* surFinWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		87F1362F300EEBCF0006366E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		87FF2BAA3021177B0094AE7B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -131,7 +255,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		87FF2BA83021177B0094AE7B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		87FF2BC13021177E0094AE7B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 87FF2BAB3021177B0094AE7B /* surFinWidgetExtension */;
+			targetProxy = 87FF2BC03021177E0094AE7B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		87F1363A300EEBD10006366E /* Debug */ = {
@@ -260,12 +399,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Titans/Titans.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Titans/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = surFin;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -274,8 +417,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+					/usr/lib/swift,
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -294,12 +439,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Titans/Titans.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Titans/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = surFin;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -308,14 +457,80 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+					/usr/lib/swift,
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		87FF2BC43021177E0094AE7B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = surFinWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C24GVMX59M;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = surFinWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = surFinWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans.surFinWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		87FF2BC53021177E0094AE7B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = surFinWidgetExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C24GVMX59M;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = surFinWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = surFinWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans.surFinWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -344,6 +559,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		87FF2BC33021177E0094AE7B /* Build configuration list for PBXNativeTarget "surFinWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				87FF2BC43021177E0094AE7B /* Debug */,
+				87FF2BC53021177E0094AE7B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -355,6 +579,22 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		87FF2BA03020E1270094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.7.0;
+			};
+		};
+		87FF2BA33020E1A40094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -362,6 +602,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 87099F3E301DE43D00E72FD7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		87FF2BA13020E1270094AE7B /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87FF2BA03020E1270094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+		87FF2BA43020E1A40094AE7B /* GoogleUserMessagingPlatform */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87FF2BA33020E1A40094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */;
+			productName = GoogleUserMessagingPlatform;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

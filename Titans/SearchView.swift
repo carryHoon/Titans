@@ -46,14 +46,15 @@ struct SearchView: View {
     let companies: [Company]
     let currency: Currency
     let exchangeRate: Double
-    let isDarkMode: Bool
     let onDismiss: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var searchText = ""
     @State private var recents: [String] = RecentSearchStore.load()
     @State private var placeholderIndex = 0
     @FocusState private var isFieldFocused: Bool
 
+    private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     // 회전 placeholder — 토스처럼 검색 예시를 순환해 보여준다.
@@ -123,7 +124,6 @@ struct SearchView: View {
         .background(theme.background.ignoresSafeArea())
         .foregroundStyle(theme.label)
         .environment(\.appTheme, theme)
-        .preferredColorScheme(isDarkMode ? .dark : .light)
         .onAppear { isFieldFocused = true }
         // 회전 placeholder 2.5초 주기
         .task {
