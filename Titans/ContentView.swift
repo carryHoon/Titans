@@ -500,12 +500,12 @@ final class MarketCapViewModel: ObservableObject {
     func fetch() async {
         do {
             let result = try await loadCompanies(from: endpoint, exchangeParam: nil)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                companies = result.companies
-                isStale   = result.stale
-                isError   = false
-                isLoading = false
-            }
+            // 주기적 시세 갱신은 애니메이션 없이 즉시 반영한다. (withAnimation은 전역 트랜잭션이라
+            // 좌우 스와이프 전환과 겹치면 리스트 리플로우가 드래그와 충돌해 끊김을 유발함)
+            companies = result.companies
+            isStale   = result.stale
+            isError   = false
+            isLoading = false
             if let rate = result.rate { exchangeRate = rate }
         } catch {
             isError = true
@@ -522,15 +522,15 @@ final class MarketCapViewModel: ObservableObject {
         else { return }
         do {
             let result = try await loadCompanies(from: url, exchangeParam: param)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                exchangeFeeds[market] = ExchangeFeed(
-                    companies: result.companies,
-                    isLoading: false,
-                    isError:   false,
-                    isStale:   result.stale,
-                    basDt:     result.basDt
-                )
-            }
+            // 섹션 도착 시 재fetch 결과도 애니메이션 없이 즉시 반영. (스와이프 착지와 겹치는
+            // withAnimation 리플로우가 ALL↔NASDAQ 전환 끊김의 원인)
+            exchangeFeeds[market] = ExchangeFeed(
+                companies: result.companies,
+                isLoading: false,
+                isError:   false,
+                isStale:   result.stale,
+                basDt:     result.basDt
+            )
             if let rate = result.rate { exchangeRate = rate }
         } catch {
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
@@ -604,8 +604,9 @@ struct ContentView: View {
     // 기준: iPhone 17 Pro(874pt). 모든 기기에서 헤더가 화면의 동일한 세로 비율을 차지하도록 함.
     @State private var viewportHeight: CGFloat = 874
 
-    // 화이트/다크 모드 선택 (앱 재실행 후에도 유지)
-    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
+    // 라이트/다크 모드는 iOS 시스템 설정을 그대로 따른다.
+    @Environment(\.colorScheme) private var colorScheme
+    private var isDarkMode: Bool { colorScheme == .dark }
 
     // 검색 / 메뉴 화면 표시 상태
     @State private var showSearch = false
@@ -684,16 +685,6 @@ struct ContentView: View {
 
     private func basDt(for market: Market) -> String? { feed(for: market)?.basDt }
 
-    // preferredColorScheme 대신 UIKit window 직접 설정.
-    // preferredColorScheme은 UIKit snapshot 기반 crossfade를 유발해 withAnimation과 충돌함.
-    // window.overrideUserInterfaceStyle은 부드러운 trait 업데이트만 수행하므로 충돌 없음.
-    private func setWindowColorScheme(_ isDark: Bool) {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .forEach { $0.overrideUserInterfaceStyle = isDark ? .dark : .light }
-    }
-
     // MARK: 섹션 페이지 — 각 거래소별 스크롤 가능한 기업 목록
 
     @ViewBuilder
@@ -747,7 +738,6 @@ struct ContentView: View {
                 market: selectedMarket,
                 currentTime: currentTime,
                 basDt: basDt(for: selectedMarket),
-                isDarkMode: $isDarkMode,
                 vScale: vScale,
                 onSearch: { showSearch = true },
                 onMenu: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = true } }
@@ -796,8 +786,6 @@ struct ContentView: View {
             }
             .ignoresSafeArea()
         )
-        .onAppear { setWindowColorScheme(isDarkMode) }
-        .onChange(of: isDarkMode) { _, value in setWindowColorScheme(value) }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             // 로그인 완료 시 어느 섹션에 있었든 홈의 ALL 섹션으로 되돌린다.
             if signedIn {
@@ -814,11 +802,10 @@ struct ContentView: View {
                 companies: searchableCompanies,
                 currency: selectedCurrency,
                 exchangeRate: exchangeRate,
-                isDarkMode: isDarkMode,
                 onDismiss: { showSearch = false }
             )
         }
-        .animation(.easeInOut(duration: 0.45), value: isDarkMode)
+        .animation(.easeInOut(duration: 0.45), value: colorScheme)
         .task {
             while !Task.isCancelled {
                 await viewModel.fetch()
@@ -869,7 +856,6 @@ struct ContentView: View {
 
         if showMenu {
             MenuView(
-                isDarkMode: $isDarkMode,
                 onDismiss: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = false } }
             )
             .transition(.move(edge: .trailing))
@@ -1281,7 +1267,6 @@ struct LiveIndicatorBar: View {
     let market: Market                      // 현재 섹션 — 상태 문구(실시간/종가 기준)를 결정
     let currentTime: Date                   // 실시간 섹션 시계
     let basDt: String?                      // 코스피/코스닥 기준일("YYYYMMDD")
-    @Binding var isDarkMode: Bool
     var vScale: CGFloat = 1                 // 헤더 세로 비례 계수 (기기별 동일 비율)
     var onSearch: () -> Void = {}           // 돋보기 → 검색 화면
     var onMenu: () -> Void = {}             // ≡ → 메뉴
@@ -1295,18 +1280,8 @@ struct LiveIndicatorBar: View {
 
             Spacer()
 
-            // 우측 상단 액션 버튼 — 토스 스타일 (다크/화이트 토글 · 검색 · 메뉴)
+            // 우측 상단 액션 버튼 — 토스 스타일 (검색 · 메뉴)
             HStack(spacing: 20) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isDarkMode.toggle()
-                    }
-                } label: {
-                    Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
-                        .foregroundStyle(isDarkMode ? Color.yellow : Color.orange)
-                }
-                .buttonStyle(.plain)
-
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(theme.label)
@@ -1322,7 +1297,7 @@ struct LiveIndicatorBar: View {
             .font(.system(size: 20, weight: .medium))
         }
         .padding(.leading, 24)
-        .padding(.trailing, 20)
+        .padding(.trailing, 36)
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
