@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "spacex-com-logo.png",
+      "filename" : "id-qE4yFQI_1785929060120.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
@@ -17,5 +17,8 @@
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true
   }
 }

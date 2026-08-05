@@ -324,20 +324,24 @@ let tickerDomain: [String: String] = [
 /// 티커 → Xcode Assets 이미지 이름. logo.dev보다 우선 표시됨.
 /// 직접 준비한 이미지를 넣을 때: Assets.xcassets에 "logo_[티커(점 제거)]" 이름으로 추가 후 여기 등록.
 let tickerLocalLogo: [String: String] = [
-    "AVGO":       "logo_AVGO",
-    "NVDA":       "logo_NVDA",
-    "TSM":        "logo_TSM",
-    "AMZN":       "logo_AMZN",
-    "2222.SR":    "logo_2222SR",
-    "LLY":        "logo_LLY",
-    "BRK.B":      "logo_BRKB",
-    "AMD":        "logo_AMD",
-    "V":          "logo_V",
-    "WMT":        "logo_WMT",
-    "META":       "logo_META",
-    "AAPL":       "logo_AAPL",
-    "GOOGL":      "logo_GOOGL",
-    "SPCX":       "logo_SPCX",
+    "2222:TADAWUL":    "logo_2222SR", // Saudi Aramco
+    "AAPL":       "logo_AAPL",  // Apple
+    "AVGO":       "logo_AVGO",  // Broadcom
+    "AMZN":       "logo_AMZN",  // Amazon
+    "AMD":        "logo_AMD",   // AMD
+    "BRK.B":      "logo_BRKB",  // Berkshire
+    "GOOGL":      "logo_GOOGL", // Alphabet
+    "JPM":        "logo_JPM",   // JPMorgan
+    "LLY":        "logo_LLY",   // Eli Lilly
+    "MSFT":       "logo_MSFT",  // Microsoft
+    "META":       "logo_META",  // Meta
+    "MU":         "logo_MU",    // Micron
+    "NVDA":       "logo_NVDA",  // NVIDIA
+    "SPCX":       "logo_SPCX",  // SpaceX
+    "TSM":        "logo_TSM",   // TSMC
+    "TSLA":       "logo_TSLA",  // Tesla
+    "V":          "logo_V",     // Visa
+    "WMT":        "logo_WMT",   // Walmart
     "COST":       "logo_COST",
     "PLTR":       "logo_PLTR",
     "CSCO":       "logo_CSCO",
@@ -346,7 +350,6 @@ let tickerLocalLogo: [String: String] = [
     "TXN":        "logo_TXN",
     "AMGN":       "logo_AMGN",
     "QCOM":       "logo_QCOM",
-    "MSFT":       "logo_MSFT",
     "XOM":        "logo_XOM",
     "BAC":        "logo_BAC",
     "JNJ":        "logo_JNJ",
@@ -382,7 +385,7 @@ let tickerLocalLogo: [String: String] = [
     "005387.KS":  "logo_005387KS",  // 현대차2우B
     "005490.KS":  "logo_005490KS",  // POSCO홀딩스
     "005830.KS":  "logo_005830KS",  // DB손해보험
-    "005930.KS":  "logo_005930KS",
+    "005930.KS":  "logo_005930KS",  // Samsung Elec.
     "005935.KS":  "logo_005935KS",  // 삼성전자우
     "005940.KS":  "logo_005940KS",  // NH투자증권
     "006260.KS":  "logo_006260KS",  // LS
@@ -605,9 +608,8 @@ let tickersNeedColoredBgRemoval: Set<String> = []
 /// 양수 x = 오른쪽, 음수 x = 왼쪽 / 양수 y = 아래, 음수 y = 위
 let tickerLogoOffset: [String: CGPoint] = [
     "NVDA": CGPoint(x: -3, y:  0),
-    "AAPL": CGPoint(x: -1, y: -1),
+    "AAPL": CGPoint(x: 0, y: -1),       // Apple
     "MCD":  CGPoint(x:  1, y:  0),
-    "TSLA": CGPoint(x:  0, y:  3),
     "009540.KS": CGPoint(x:  3, y:  0), // HD한국조선해양
     "034730.KS": CGPoint(x:  2, y:  -1),
     "096770.KS": CGPoint(x:  2, y:  -1),
@@ -620,9 +622,20 @@ let tickerLogoOffset: [String: CGPoint] = [
 
 /// 기본 padding(8)과 다른 로고 — 작은 값일수록 로고가 원 안에서 더 크게 표시됨.
 let tickerLogoPadding: [String: CGFloat] = [
-    "NFLX":      0,
-    "SPCX":      2,
+    "2222:TADAWUL":      0, // Saudi Aramco
+    "AMD":       0,    // AMD
+    "BRK.B":     0,    // Berkshire
+    "JPM":       0,    // JPMorgan
+    "LLY":       0,    // Eli Lilly
     "MA":        2,
+    "MU":        0,    // Micron
+    "MSFT":      10,   // Microsoft
+    "NFLX":      0,    // Netflix
+    "SPCX":      4,    // SapceX
+    "TSLA":      0,    // Tesla
+    "WMT":       0,    // Walmart
+    "V":         0,    // Visa
+    
     
     "000250.KQ": 2,   // Samchundang
     "028300.KQ": 0,   // HLB
@@ -667,8 +680,8 @@ let tickerLogoPadding: [String: CGFloat] = [
     "005387.KS": 6,   // 현대차2우B
     "005490.KS": 4,   // POSCO홀딩스
     "005830.KS": 2,   // DB손해보험
-    "005930.KS": 6,   // Samsung Elec.
-    "005935.KS": 6,   // 삼성전자우
+    "005930.KS": 0,   // Samsung Elec.
+    "005935.KS": 0,   // 삼성전자우
     "005940.KS": 6,   // NH투자증권
     "006260.KS": 0,   // LS
     "006400.KS": 0,   // Samsung SDI
@@ -684,7 +697,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "018260.KS": 0,   // 삼성에스디에스
     "015760.KS": 4,   // 한국전력
     "016360.KS": 0,   // 삼성증권
-    "017670.KS": 2,
+    "017670.KS": 0,   // SK텔레콤
     "021240.KS": 4,   // 코웨이
     "024110.KS": 4,   // 기업은행
     "028050.KS": 0,   // 삼성E&A
@@ -694,6 +707,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "032830.KS": 0,   // Samsung Life
     "033780.KS": 4,   // KT&G
     "034020.KS": 2,
+    "034730.KS": 0,   // SK Inc.
     "035420.KS": 0,   // 네이버
     "035720.KS": 0,   // 카카오
     "036570.KS": 8,   // NC
@@ -708,6 +722,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "078930.KS": -16, // GS
     "086280.KS": 0,   // 현대글로비스
     "090430.KS": 6,   // 아모레퍼시픽
+    "096770.KS": 0,   // SK이노베이션
     "105560.KS": 0,   // KB Financial
     "128940.KS": 4,   // 한미약품
     "138040.KS": -2,  // 메리츠금융지주
@@ -720,6 +735,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "271560.KS": -2,  // 오리온
     "278470.KS": 6,   // 에이피알
     "323410.KS": 0,   // 카카오뱅크
+    "326030.KS": 0,   // SK바이오팜
     "352820.KS": 4,   // 하이브
     "377300.KS": 0,   // 카카오페이
     "329180.KS": 0,   // HD Hyundai HI
@@ -728,10 +744,14 @@ let tickerLogoPadding: [String: CGFloat] = [
 
 /// 흰색 원 배경 대신 다른 색상을 사용할 티커.
 let tickerCircleBackground: [String: Color] = [
-    "NFLX": Color.black,
-    "SPCX": Color.black,
+    "NFLX": Color.black, // Netflix
+    "SPCX": Color.black, // SpaceX
     "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
     "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
+    // 단색 배경 정사각형 로고 — 원을 브랜드 배경색으로 채워 다크모드 흰 원 비침 방지
+    "V":     Color(red: 0.082, green: 0.204, blue: 0.800), // Visa — #1534CC
+    "BRK.B": Color(red: 0.169, green: 0.196, blue: 0.573), // Berkshire — #2B3292
+    "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894), // Walmart — #0052E4
     // 브랜드 배경색으로 원을 채우는 로고
     // 삼성 계열 — 로고 PNG가 #25279D 네이비 배경 정사각형이라 clipShape 안티앨리어싱 시 흰 원이 비침
     "006400.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성SDI
