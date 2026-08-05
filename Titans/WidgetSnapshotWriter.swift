@@ -26,8 +26,17 @@ enum WidgetSnapshotWriter {
     // logo.dev publishable token — ContentView와 동일(pk_ 공개 토큰이라 노출 안전).
     private static let logoDevToken = "pk_J8vaeyLSSxewXruh0z5O9g"
 
+    /// 사전 렌더 로고 캐시 버전. **로컬 로고 에셋(Assets.xcassets)을 교체할 때마다 +1 할 것.**
+    /// 렌더 캐시 키가 티커뿐이라, 에셋만 바꾸면 `renderLogoIfNeeded`의 `fileExists` 스킵 때문에
+    /// 위젯이 낡은 PNG를 계속 읽는다. 이 값이 저장된 값과 다르면 캐시를 통째로 비우고 재렌더한다.
+    private static let logoCacheVersion = 1
+    private static let logoCacheVersionKey = "widgetLogoCacheVersion"
+
     /// 앱 활성 시 호출. 실패한 거래소는 직전 스냅샷을 보존하고, 성공한 거래소만 갱신한다.
     static func update() async {
+        // 로고 에셋이 교체됐으면(=캐시 버전 상승) 낡은 PNG를 먼저 비워 새 에셋으로 다시 그리게 한다.
+        invalidateLogoCacheIfNeeded()
+
         var snapshot = WidgetStore.load()
             ?? WidgetSnapshot(exchanges: [:], updatedAt: .distantPast)
 
@@ -113,6 +122,19 @@ enum WidgetSnapshotWriter {
     }
     private static func persistRate(_ rate: Double) {
         defaults?.set(rate, forKey: "widgetExchangeRate")
+    }
+
+    // MARK: - Logo cache invalidation
+
+    /// 저장된 캐시 버전이 현재 `logoCacheVersion`과 다르면 사전 렌더 로고를 통째로 지우고
+    /// 버전을 갱신한다. (기존 설치본은 저장값이 0이라 이번 업데이트에서 한 번 재렌더된다.)
+    private static func invalidateLogoCacheIfNeeded() {
+        let stored = defaults?.integer(forKey: logoCacheVersionKey) ?? 0
+        guard stored != logoCacheVersion else { return }
+        if let dir = WidgetStore.logosDirURL {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        defaults?.set(logoCacheVersion, forKey: logoCacheVersionKey)
     }
 
     // MARK: - Logo rendering (앱 BrandLogoTile 합성 규칙 재현)
