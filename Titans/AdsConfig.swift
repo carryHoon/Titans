@@ -47,5 +47,5 @@ enum AdsConfig {
     static let bannerRowInterval = 20
 
     /// 전면 광고를 노출하는 섹션 전환 간격 (N번째 전환마다 1회).
-    static let interstitialSectionInterval = 10
+    static let interstitialSectionInterval = 15
 }
