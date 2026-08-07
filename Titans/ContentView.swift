@@ -895,7 +895,11 @@ struct AdBannerSlot: View {
 
     var body: some View {
         // 리스트 콘텐츠 폭 = 화면 폭 - 좌우 패딩(16*2). 이 폭에 맞춘 적응형 배너 크기 계산.
-        let width = UIScreen.main.bounds.width - 32
+        // iOS 26에서 UIScreen.main이 deprecated → Apple 권장대로 활성 window scene의
+        // screen에서 폭을 얻는다. (렌더링 중인 뷰는 항상 scene을 가지므로 폴백 상수는 사실상 미사용)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        let width = (scene?.screen.bounds.width ?? 393) - 32
         let adSize = currentOrientationAnchoredAdaptiveBanner(width: width)
 
         BannerAdView(adUnitID: AdsConfig.bannerUnitID, adSize: adSize)
