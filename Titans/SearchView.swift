@@ -108,8 +108,8 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if query.isEmpty {
                         recentSection
-                        rankSection(title: "인기 기업", timeLabel: nowLabel, items: popular, showChange: false)
-                        rankSection(title: "오늘의 급등", timeLabel: nowLabel, items: topGainers, showChange: true)
+                        rankSection(title: "인기 기업", items: popular, showChange: false)
+                        rankSection(title: "급등 기업", items: topGainers, showChange: true)
                     } else if results.isEmpty {
                         emptyResults
                     } else {
@@ -255,7 +255,7 @@ struct SearchView: View {
 
     // MARK: - 순위 섹션 (인기 주식 / 오늘의 급등)
 
-    private func rankSection(title: String, timeLabel: String, items: [Company], showChange: Bool) -> some View {
+    private func rankSection(title: String, items: [Company], showChange: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 HStack(spacing: 4) {
@@ -266,9 +266,6 @@ struct SearchView: View {
                         .foregroundStyle(theme.tertiaryLabel)
                 }
                 Spacer()
-                Text(timeLabel)
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.tertiaryLabel)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
@@ -382,13 +379,6 @@ struct SearchView: View {
 
     private func marketCapText(_ c: Company) -> String {
         formatMarketCap(c.marketCapUSD, currency: currency, exchangeRate: exchangeRate)
-    }
-
-    private var nowLabel: String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "ko_KR")
-        f.dateFormat = "오늘 HH:mm 기준"
-        return f.string(from: Date())
     }
 
     private func commitSearch(_ term: String) {

@@ -1025,6 +1025,7 @@ struct MarketFilterBar: View {
     let selected: Market
     let onSelect: (Market) -> Void
     @Environment(\.appTheme) private var theme
+    @Namespace private var chipNamespace
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -1035,6 +1036,10 @@ struct MarketFilterBar: View {
                             .id(market)
                     }
                 }
+                // 선택 캡슐이 칩 사이를 미끄러지듯 이동하도록 선택값 변화를 스프링으로 애니메이션.
+                // (ALL은 맨 왼쪽 끝이라 스크롤 재정렬 모션이 없어, 애니메이션이 없으면 캡슐이
+                //  툭 튀어 보였다. matchedGeometryEffect + 이 애니메이션으로 모든 칩이 균일하게 미끄러진다.)
+                .animation(.spring(response: 0.22, dampingFraction: 0.9), value: selected)
                 // CompanyRow / ColumnHeader의 좌우 패딩(16)과 시작점을 맞춤
                 .padding(.horizontal, 16)
                 .padding(.vertical, 2)
@@ -1075,7 +1080,10 @@ struct MarketFilterBar: View {
                 .padding(.vertical, 8)
                 .background {
                     if isSelected {
-                        Capsule().fill(theme.label)
+                        Capsule()
+                            .fill(theme.label)
+                            // 선택 칩이 바뀔 때 캡슐 프레임이 이전 칩→새 칩으로 보간되어 미끄러진다.
+                            .matchedGeometryEffect(id: "selectedChip", in: chipNamespace)
                     }
                 }
         }
@@ -1343,14 +1351,18 @@ struct MarketStatusView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // 국가 국기 아이콘 — 원형 클리핑으로 일관된 모양 유지
-            // 글로브 아이콘은 PNG 내부 여백이 있어 실제 시각 크기가 작으므로 프레임을 키워 보정
-            let flagSize: CGFloat = market == .all ? 24 : 18
+            // 국가 국기 아이콘 — 원형 클리핑으로 일관된 모양 유지.
+            // 레이아웃 프레임은 모든 섹션에서 18로 고정한다. (ALL만 프레임을 키우면
+            // 진입/이탈 시 국기 크기 변화가 텍스트 너비 스프링과 경쟁하는 두 번째 레이아웃
+            // 애니메이션이 되어 헤더가 툭 끊겨 보인다.)
+            // 글로브 PNG는 내부 여백이 커 작아 보이므로, 레이아웃은 그대로 두고 시각적으로만
+            // scaleEffect로 키운다 — 가로 레이아웃에 영향을 주지 않아 텍스트 스프링이 균일해진다.
             Image(market.flagImageName)
                 .resizable()
                 .scaledToFill()
-                .frame(width: flagSize, height: flagSize)
+                .frame(width: 18, height: 18)
                 .clipShape(Circle())
+                .scaleEffect(market == .all ? 1.33 : 1.0)
                 .opacity(market.comingSoon ? 0.35 : 1.0)
 
             // 초록 하이라이트 = 선택된 거래소명 (준비 중은 흐린 색)
@@ -1803,12 +1815,6 @@ struct CompanyRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        // 섹션 전환/최초 로드 시 위에서 아래로 내려오며 나타나는 효과
-        // (사용자 시선 방향과 일치: 위 → 아래)
-        .transition(.asymmetric(
-            insertion: .move(edge: .top).combined(with: .opacity),
-            removal:   .opacity
-        ))
     }
 }
 
