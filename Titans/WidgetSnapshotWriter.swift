@@ -29,7 +29,7 @@ enum WidgetSnapshotWriter {
     /// 사전 렌더 로고 캐시 버전. **로컬 로고 에셋(Assets.xcassets)을 교체할 때마다 +1 할 것.**
     /// 렌더 캐시 키가 티커뿐이라, 에셋만 바꾸면 `renderLogoIfNeeded`의 `fileExists` 스킵 때문에
     /// 위젯이 낡은 PNG를 계속 읽는다. 이 값이 저장된 값과 다르면 캐시를 통째로 비우고 재렌더한다.
-    private static let logoCacheVersion = 1
+    private static let logoCacheVersion = 2
     private static let logoCacheVersionKey = "widgetLogoCacheVersion"
 
     /// 앱 활성 시 호출. 실패한 거래소는 직전 스냅샷을 보존하고, 성공한 거래소만 갱신한다.
@@ -147,16 +147,19 @@ enum WidgetSnapshotWriter {
 
         // 1) 최종 로고 이미지 확보: 로컬 에셋(배경제거 반영) 우선 → logo.dev → 없으면 이니셜(PNG 생략)
         var logoImage: UIImage?
+        var isRemote = false
         if let assetName = tickerLocalLogo[ticker], let raw = UIImage(named: assetName) {
             logoImage = processedLocal(raw, ticker: ticker)
         } else if let url = logoDevURL(ticker: ticker, domain: domain) {
             logoImage = await LogoStore.shared.image(for: url)
+            isRemote = true
         }
         guard let image = logoImage else { return }  // 위젯이 이니셜 타일로 폴백
 
         // 2) 앱 BrandLogoTile과 동일한 원형 타일로 합성 후 래스터화
         let offset = tickerLogoOffset[ticker] ?? .zero
-        let pad = tickerLogoPadding[ticker] ?? 8
+        // 배경이 있는(불투명) 원격 로고는 앱과 동일하게 여백 없이 원을 꽉 채운다.
+        let pad = (isRemote && image.wsHasOpaqueBackground()) ? 0 : (tickerLogoPadding[ticker] ?? 8)
         let tile = ZStack {
             Circle().fill(tickerCircleBackground[ticker] ?? .white)
             Image(uiImage: image)
@@ -202,6 +205,24 @@ enum WidgetSnapshotWriter {
 // MARK: - UIImage 배경제거 (ContentView.swift의 private 로직 복제)
 
 private extension UIImage {
+    /// 원격(logo.dev) 로고가 불투명한 사각 배경을 갖는지 판별한다(앱 hasOpaqueBackground 복제).
+    func wsHasOpaqueBackground() -> Bool {
+        guard let cg = cgImage else { return false }
+        let w = cg.width, h = cg.height
+        guard w > 1, h > 1 else { return false }
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return false }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        for (cx, cy) in [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)] {
+            if buf[(cy*w+cx)*4+3] < 230 { return false }
+        }
+        return true
+    }
+
     func wsRemovingDarkBackground() -> UIImage? {
         guard let cg = cgImage else { return nil }
         let w = cg.width, h = cg.height

@@ -291,6 +291,26 @@ private extension UIImage {
         }
         return ctx.makeImage().map { UIImage(cgImage: $0) }
     }
+
+    /// 원격(logo.dev) 로고가 불투명한 사각 배경을 갖는지 판별한다.
+    /// 네 귀퉁이가 모두 불투명하면 배경이 있는 로고로 보고 원을 꽉 채우게 하고,
+    /// 하나라도 투명하면 아이콘형 로고로 보고 기존 여백을 유지한다.
+    func hasOpaqueBackground() -> Bool {
+        guard let cg = cgImage else { return false }
+        let w = cg.width, h = cg.height
+        guard w > 1, h > 1 else { return false }
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return false }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        for (cx, cy) in [(0, 0), (w-1, 0), (0, h-1), (w-1, h-1)] {
+            if buf[(cy*w+cx)*4+3] < 230 { return false }  // 반투명·투명 귀퉁이 → 아이콘형
+        }
+        return true
+    }
 }
 
 private enum LogoProcessingCache {
@@ -1495,6 +1515,7 @@ private struct LogoImage: View {
 
     @State private var remoteImage: UIImage?
     @State private var remoteResolved = false
+    @State private var remoteFillsCircle = false   // 배경 있는 원격 로고는 원을 꽉 채움
 
     var body: some View {
         if let assetName = localAssetName, let raw = UIImage(named: assetName) {
@@ -1537,7 +1558,8 @@ private struct LogoImage: View {
     @ViewBuilder private var remoteBody: some View {
         Group {
             if let img = remoteImage {
-                styledLogo(Image(uiImage: img))
+                // 배경이 있는(불투명) 원격 로고는 여백 없이 원을 꽉 채운다.
+                styledLogo(Image(uiImage: img), paddingOverride: remoteFillsCircle ? 0 : nil)
             } else if remoteResolved {
                 textFallback
             } else {
@@ -1555,18 +1577,20 @@ private struct LogoImage: View {
     private func loadRemote() async {
         remoteImage = nil
         remoteResolved = false
+        remoteFillsCircle = false
         if let url = logoDevURL, let img = await LogoStore.shared.image(for: url) {
             remoteImage = img
+            remoteFillsCircle = img.hasOpaqueBackground()
         }
         remoteResolved = true
     }
 
     @ViewBuilder
-    private func styledLogo(_ image: Image) -> some View {
+    private func styledLogo(_ image: Image, paddingOverride: CGFloat? = nil) -> some View {
         image
             .resizable()
             .scaledToFit()
-            .padding(tickerLogoPadding[ticker] ?? 8)
+            .padding(paddingOverride ?? tickerLogoPadding[ticker] ?? 8)
     }
 
     /// 숫자 티커(예: KRX "005930.KS")는 이니셜이 무의미하므로, 알파벳 티커면 티커,

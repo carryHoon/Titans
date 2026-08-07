@@ -373,6 +373,7 @@ let tickerLocalLogo: [String: String] = [
     "INTC":       "logo_INTC",  // Intel
     "INTU":       "logo_INTU",  // Intuit
     "JD":         "logo_JD",    // JD.com
+    "JNJ":        "logo_JNJ",   // J&J
     "JPM":        "logo_JPM",   // JPMorgan
     "KLAC":       "logo_KLAC",  // KLA
     "KDP":        "logo_KDP",   // Keurig Dr Pepper
@@ -380,6 +381,7 @@ let tickerLocalLogo: [String: String] = [
     "LIN":        "logo_LIN",   // Linde
     "LITE":       "logo_LITE",  // Lumentum
     "LRCX":       "logo_LRCX",  // Lam Research
+    "MA":         "logo_MA",    // Mastercard
     "MAR":        "logo_MAR",   // Marriott
     "MCHP":       "logo_MCHP",  // Microchip
     "MNST":       "logo_MNST",  // Monster Beverage
@@ -405,6 +407,7 @@ let tickerLocalLogo: [String: String] = [
     "PEP":        "logo_PEP",   // PepsiCo
     "PLTR":       "logo_PLTR",  // Palantir
     "PYPL":       "logo_PYPL",  // PayPal
+    "QCOM":       "logo_QCOM",  // Qualcomm
     "REGN":       "logo_REGN",  // Regeneron
     "ROST":       "logo_ROST",  // Ross Stores
     "RKLB":       "logo_RKLB",  // Rocket Lab
@@ -427,13 +430,10 @@ let tickerLocalLogo: [String: String] = [
     "WBD":        "logo_WBD",   // Warner Bros. Disc.
     "WDAY":       "logo_WDAY",  // Workday
     "WMT":        "logo_WMT",   // Walmart
-    "QCOM":       "logo_QCOM",  // Qualcomm
+    "XOM":        "logo_XOM",   // ExxonMobil
     "XEL":        "logo_XEL",   // Xcel Energy
-    "XOM":        "logo_XOM",
     "BAC":        "logo_BAC",
-    "JNJ":        "logo_JNJ",
     "ABBV":       "logo_ABBV",
-    "MA":         "logo_MA",
     "UNH":        "logo_UNH",
     "KO":         "logo_KO",
     "CVX":        "logo_CVX",
@@ -733,7 +733,7 @@ let tickerLogoOffset: [String: CGPoint] = [
     "041830.KQ": CGPoint(x:  1, y:  0),     // 인바디
     "065350.KQ": CGPoint(x:  0, y:  26),    // 신성델타테크
     "067310.KQ": CGPoint(x:  1.5, y:  0),   // 하나마이크론
-    "082920.KQ": CGPoint(x:  0, y:  2),     // 비츠로셀
+    "082920.KQ": CGPoint(x:  0, y:  3),     // 비츠로셀
     "083450.KQ": CGPoint(x:  0.5, y:  0),   // GST
     "083650.KQ": CGPoint(x:  -1, y:  0),    // 비에이치아이
     "090710.KQ": CGPoint(x:  0.5, y:  0),   // 휴림로봇
@@ -778,12 +778,12 @@ let tickerLogoPadding: [String: CGFloat] = [
     "INTC":      -1,   // Intel
     "INTU":      5,    // Intuit
     "JD":        0,    // JD.com
+    "JNJ":       4,    // J&J
     "JPM":       0,    // JPMorgan
     "KLAC":      0,    // KLA
     "KDP":      10,    // Keurig
     "LLY":       0,    // Eli Lilly
     "LIN":       0,    // Linde
-    "MA":        2,
     "MAR":       2,    // Marriott
     "MDLZ":      0,    // Mondelez
     "MU":        0,    // Micron
@@ -1006,6 +1006,7 @@ let tickerCircleBackground: [String: Color] = [
     "SPCX": Color.black, // SpaceX
     "JD": Color.black,   // JD
     "JPM": Color.brown,  // JPMorgan
+    "MA": Color.black,   // Mastercard
     "MDLZ": Color.black, // Mondelez
     "MNST": Color.black, // Monster Beverage
     "MRVL": Color.black, // Marvell
@@ -1024,37 +1025,40 @@ let tickerCircleBackground: [String: Color] = [
     "VRTX": Color.black, // Vertax
     
     "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
-    "ABNB": Color(red: 1.0000, green: 0.2078, blue: 0.3686), // Airbnb
-    "ADP": Color(red: 0.8078, green: 0.0980, blue: 0.1412), // ADP
-    "ASML": Color(red: 0.043, green: 0.114, blue: 0.522),  // ASML
-    "AMGN": Color(red: 0.1020, green: 0.2196, blue: 0.3373), // Amgen
-    "ARM": Color(red: 0.0, green: 0.5686, blue: 0.7412),  // ARM
-    "BKR": Color(red: 0.0471, green: 0.0510, blue: 0.0588), // Baker Hughes
-    "BRK.B": Color(red: 0.169, green: 0.196, blue: 0.573), // Berkshire
+    "ABNB": Color(red: 1.0000, green: 0.2078, blue: 0.3686),   // Airbnb
+    "ADP": Color(red: 0.8078, green: 0.0980, blue: 0.1412),    // ADP
+    "ASML": Color(red: 0.043, green: 0.114, blue: 0.522),      // ASML
+    "AMGN": Color(red: 0.1020, green: 0.2196, blue: 0.3373),   // Amgen
+    "ARM": Color(red: 0.0, green: 0.5686, blue: 0.7412),       // ARM
+    "BKR": Color(red: 0.0471, green: 0.0510, blue: 0.0588),    // Baker Hughes
+    "BRK.B": Color(red: 0.169, green: 0.196, blue: 0.573),     // Berkshire
     "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
-    "CSX": Color(red: 0.0980, green: 0.0980, blue: 0.4392), // CSX
-    "CRWD": Color(red: 0.9882, green: 0.0, blue: 0.0), // Crowd
-    "DDOG": Color(red: 0.3098, green: 0.1373, blue: 0.5961), // Datadog
-    "DASH": Color(red: 1.0000, green: 0.1412, blue: 0.0), // DoorDash
-    "FTNT": Color(red: 0.8902, green: 0.1490, blue: 0.2118), // Fortinet
-    "IDXX": Color(red: 0.0, green: 0.4980, blue: 1.0), // Idexx Labs
-    "ISRG": Color(red: 0.0588, green: 0.1451, blue: 0.8196), // Intuitive Surgical
-    "INTU": Color(red: 0.1176, green: 0.5647, blue: 1.0000), // Intuit
-    "KLAC": Color(red: 0.0, green: 0.4824, blue: 0.7765), // KLA
-    "LRCX": Color(red: 0.416, green: 0.417, blue: 0.522), // Lam Research
-    "LIN": Color(red: 0.0, green: 0.1843, blue: 0.3529), // Linde
-    "MPWR": Color(red: 0.0, green: 0.4000, blue: 1.0000), // Monolithic Power
-    "PLTR": Color(red: 0.117, green: 0.129, blue: 0.141), // Palantir
-    "SHOP": Color(red: 0.5843, green: 0.7529, blue: 0.2863), // Shopify
-    "SNPS": Color(red: 0.4235, green: 0.1882, blue: 0.5098), // Synopsys
-    "TMUS": Color(red: 0.8863, green: 0.0, blue: 0.4549), // T-Mobile
-    "TXN": Color(red: 0.8, green: 0.0, blue: 0.0), // Texas Instruments
-    "TRI": Color(red: 1.0, green: 0.4, blue: 0.0), // Thomson Reuters
-    "QCOM": Color(red: 0.1647, green: 0.1647, blue: 0.9176), // QCOM
-    "V":     Color(red: 0.082, green: 0.204, blue: 0.800), // Visa
-    "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894), // Walmart
+    "CSX": Color(red: 0.0980, green: 0.0980, blue: 0.4392),    // CSX
+    "CRWD": Color(red: 0.9882, green: 0.0, blue: 0.0),         // Crowd
+    "DDOG": Color(red: 0.3098, green: 0.1373, blue: 0.5961),   // Datadog
+    "DASH": Color(red: 1.0000, green: 0.1412, blue: 0.0),      // DoorDash
+    "FTNT": Color(red: 0.8902, green: 0.1490, blue: 0.2118),   // Fortinet
+    "IDXX": Color(red: 0.0, green: 0.4980, blue: 1.0),         // Idexx Labs
+    "ISRG": Color(red: 0.0588, green: 0.1451, blue: 0.8196),   // Intuitive Surgical
+    "INTU": Color(red: 0.1176, green: 0.5647, blue: 1.0000),   // Intuit
+    "JNJ": Color(red: 0.890, green: 0.140, blue: 0.030),       // J&J
+    "KLAC": Color(red: 0.0, green: 0.4824, blue: 0.7765),      // KLA
+    "LRCX": Color(red: 0.416, green: 0.417, blue: 0.522),      // Lam Research
+    "LIN": Color(red: 0.0, green: 0.1843, blue: 0.3529),       // Linde
+    "MPWR": Color(red: 0.0, green: 0.4000, blue: 1.0000),      // Monolithic Power
+    "PLTR": Color(red: 0.117, green: 0.129, blue: 0.141),      // Palantir
+    "SHOP": Color(red: 0.5843, green: 0.7529, blue: 0.2863),   // Shopify
+    "SNPS": Color(red: 0.4235, green: 0.1882, blue: 0.5098),   // Synopsys
+    "TMUS": Color(red: 0.8863, green: 0.0, blue: 0.4549),      // T-Mobile
+    "TXN": Color(red: 0.8, green: 0.0, blue: 0.0),             // Texas Instruments
+    "TRI": Color(red: 1.0, green: 0.4, blue: 0.0),             // Thomson Reuters
+    "QCOM": Color(red: 0.1647, green: 0.1647, blue: 0.9176),   // QCOM
+    "V":     Color(red: 0.082, green: 0.204, blue: 0.800),     // Visa
+    "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894),     // Walmart
    
     "189300.KQ": Color.black, // 인텔리안테크
+    "213420.KQ": Color.black, // 덕산네오룩스
+    "388720.KQ": Color.black, // 유일로보틱스
     "079550.KS": Color.black, // LIG
     "175330.KS": Color.black, // JB금융지주
     "353200.KS": Color.black, // 대덕전자
