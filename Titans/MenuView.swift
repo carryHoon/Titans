@@ -4,15 +4,25 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct MenuView: View {
     let onDismiss: () -> Void
 
     @Environment(AuthManager.self) private var auth
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openURL) private var openURL
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
 
     @State private var showLogin = false
+    @State private var showLoginRequiredAlert = false
+    @State private var showMailUnavailableAlert = false
+
+    /// 고객센터 문의 수신 주소.
+    private let supportEmail = "officialsurfinapp@gmail.com"
+
+    /// 개인정보처리방침 URL (GitHub Pages 호스팅).
+    private let privacyPolicyURL = URL(string: "https://carryhoon.github.io/Titans/privacy.html")!
 
     private var isDarkMode: Bool { colorScheme == .dark }
     private var theme: AppTheme { isDarkMode ? .dark : .light }
@@ -74,7 +84,7 @@ struct MenuView: View {
                     // MARK: 고객센터
                     sectionLabel("고객센터")
                     sectionCard {
-                        Link(destination: URL(string: "mailto:seunghoon003@gmail.com?subject=Titans%20피드백")!) {
+                        Button(action: sendFeedback) {
                             menuRow(icon: "envelope.fill",
                                     iconColor: Color(red: 0.35, green: 0.78, blue: 0.98),
                                     title: "의견 보내기", subtitle: "오류 신고 및 개선 사항을 남겨주세요")
@@ -103,6 +113,14 @@ struct MenuView: View {
                                     iconColor: Color(red: 0.18, green: 0.69, blue: 0.78),
                                     title: "데이터 출처",
                                     subtitle: "공공데이터포털 · 한국수출입은행 · DART 외")
+                        }
+                        .buttonStyle(.plain)
+                        rowDivider
+                        Link(destination: privacyPolicyURL) {
+                            menuRow(icon: "lock.shield.fill",
+                                    iconColor: Color(red: 0.20, green: 0.60, blue: 0.45),
+                                    title: "개인정보처리방침",
+                                    subtitle: "수집 항목과 이용 목적을 확인하세요")
                         }
                         .buttonStyle(.plain)
                         rowDivider
@@ -156,6 +174,17 @@ struct MenuView: View {
             LoginView(onContinueAnonymously: { showLogin = false })
                 .environment(auth)
         }
+        .alert("로그인이 필요해요", isPresented: $showLoginRequiredAlert) {
+            Button("로그인") { showLogin = true }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("의견 보내기는 로그인 후 이용할 수 있어요.")
+        }
+        .alert("메일을 보낼 수 없어요", isPresented: $showMailUnavailableAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("이 기기에 메일 계정이 설정되어 있지 않아요.\n메일 앱에서 계정을 추가한 뒤 다시 시도하거나, \(supportEmail) 으로 직접 보내주세요.")
+        }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             // 로그인 성공 시 로그인 시트를 닫고, 메뉴도 함께 닫아 홈(ContentView)으로 돌아간다.
             // (ContentView가 로그인 전환을 감지해 ALL 섹션으로 리셋한다.)
@@ -164,6 +193,59 @@ struct MenuView: View {
                 onDismiss()
             }
         }
+    }
+
+    // MARK: - 고객센터 · 의견 보내기
+
+    /// 의견 보내기 진입점.
+    /// 로그인한 사용자만 문의를 보낼 수 있고(계정 식별을 위해), 둘러보기(비로그인) 사용자는
+    /// 로그인 안내로 막는다. 로그인 사용자는 계정 이메일과 최소한의 진단 정보(앱 버전·기기)를
+    /// 미리 채운 메일 작성 화면으로 이동한다. 이 정보는 본인이 발송 전 확인·수정할 수 있다.
+    private func sendFeedback() {
+        guard auth.isSignedIn else {
+            showLoginRequiredAlert = true
+            return
+        }
+        guard let url = feedbackMailURL() else { return }
+        openURL(url) { accepted in
+            // 기기에 메일 처리 앱/계정이 없어 mailto를 열 수 없는 경우 안내.
+            if !accepted { showMailUnavailableAlert = true }
+        }
+    }
+
+    /// 계정 이메일과 진단 정보를 본문에 미리 채운 mailto URL을 만든다.
+    private func feedbackMailURL() -> URL? {
+        let account = auth.userEmail ?? "(이메일 미확인)"
+        let device = deviceModelIdentifier()
+        let os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+
+        let subject = "surFin 의견 보내기"
+        let body = """
+        ── 아래 정보는 문의 처리를 위해 함께 전송됨을 미리 알려드립니다.(발송 전 수정·삭제 가능) ──
+        • 계정: \(account)
+        • 앱 버전: \(appVersion)
+        • 기기: \(device)
+        • OS: \(os)
+        """
+
+        // query 값에 특수 의미를 갖는 문자까지 인코딩되도록 허용 집합을 좁힌다.
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?/#")
+        let s = subject.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        let b = body.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        return URL(string: "mailto:\(supportEmail)?subject=\(s)&body=\(b)")
+    }
+
+    /// 하드웨어 식별자(예: iPhone16,2). 지원 문의 재현용 비개인정보.
+    private func deviceModelIdentifier() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let mirror = Mirror(reflecting: systemInfo.machine)
+        let identifier = mirror.children.reduce(into: "") { result, element in
+            guard let value = element.value as? Int8, value != 0 else { return }
+            result.append(Character(UnicodeScalar(UInt8(value))))
+        }
+        return identifier.isEmpty ? UIDevice.current.model : identifier
     }
 
     // MARK: - Account Card
