@@ -325,31 +325,110 @@ let tickerDomain: [String: String] = [
 /// 직접 준비한 이미지를 넣을 때: Assets.xcassets에 "logo_[티커(점 제거)]" 이름으로 추가 후 여기 등록.
 let tickerLocalLogo: [String: String] = [
     "2222:TADAWUL":    "logo_2222SR", // Saudi Aramco
+    "APP":        "logo_APP",   // AppLovin
     "AAPL":       "logo_AAPL",  // Apple
+    "ABNB":       "logo_ABNB",  // Airbnb
+    "ADI":        "logo_ADI",   // Analog Devices
+    "ADP":        "logo_ADP",   // ADP
+    "ADBE":       "logo_ADBE",  // Adobe
+    "ADSK":       "logo_ADSK",  // Autodesk
+    "AEP":        "logo_AEP",   // American Elec. Pwr
+    "ASML":       "logo_ASML",  // ASML
     "AVGO":       "logo_AVGO",  // Broadcom
+    "ARM":        "logo_ARM",   // Arm Holdings
+    "ALAB":       "logo_ALAB",  // Astera Labs
+    "AMAT":       "logo_AMAT",  // Applied Materials
     "AMZN":       "logo_AMZN",  // Amazon
+    "AMGN":       "logo_AMGN",  // Amgen
     "AMD":        "logo_AMD",   // AMD
+    "AXON":       "logo_AXON",  // Axon Enterprise
     "BRK.B":      "logo_BRKB",  // Berkshire
+    "BKNG":       "logo_BKNG",  // Booking Holdings
+    "BKR":        "logo_BKR",   // Baker Hughes
+    "CCEP":       "logo_CCEP",  // Coca-Cola EP
+    "CDNS":       "logo_CDNS",  // Cadence
+    "CSCO":       "logo_CSCO",  // Cisco
+    "CSX":        "logo_CSX",   // CSX
+    "CEG":        "logo_CEG",   // Constellation En.
+    "CRWV":       "logo_CRWV",  // CoreWeave
+    "COST":       "logo_COST",  // Costco
+    "CMCSA":      "logo_CMCSA", // Comcast
+    "CTAS":       "logo_CTAS",  // Cintas
+    "CRWD":       "logo_CRWD",  // CrowdStrike
+    "DASH":       "logo_DASH",  // DoorDash
+    "DDOG":       "logo_DDOG",  // Datadog
+    "EA":         "logo_EA",    // Electronic Arts
+    "EXC":        "logo_EXC",   // Exelon
+    "FANG":       "logo_FANG",  // Diamondback En.
+    "FTNT":       "logo_FTNT",  // Fortinet
+    "FAST":       "logo_FAST",  // Fastenal
+    "FER":        "logo_FER",   // Ferrovial
     "GOOGL":      "logo_GOOGL", // Alphabet
+    "GILD":       "logo_GILD",  // Gilead Sciences
+    "HOOD":       "logo_HOOD",  // Robinhood
+    "HON":        "logo_HON",   // Honeywell
+    "IBKR":       "logo_IBKR",  // Interactive Brokers
+    "IDXX":       "logo_IDXX",  // Idexx Labs
+    "ISRG":       "logo_ISRG",  // Intuitive Surgical
+    "INTC":       "logo_INTC",  // Intel
+    "INTU":       "logo_INTU",  // Intuit
+    "JD":         "logo_JD",    // JD.com
     "JPM":        "logo_JPM",   // JPMorgan
+    "KLAC":       "logo_KLAC",  // KLA
+    "KDP":        "logo_KDP",   // Keurig Dr Pepper
     "LLY":        "logo_LLY",   // Eli Lilly
+    "LIN":        "logo_LIN",   // Linde
+    "LITE":       "logo_LITE",  // Lumentum
+    "LRCX":       "logo_LRCX",  // Lam Research
+    "MAR":        "logo_MAR",   // Marriott
+    "MCHP":       "logo_MCHP",  // Microchip
+    "MNST":       "logo_MNST",  // Monster Beverage
+    "MDLZ":       "logo_MDLZ",  // Mondelez
     "MSFT":       "logo_MSFT",  // Microsoft
     "META":       "logo_META",  // Meta
+    "MELI":       "logo_MELI",  // MercadoLibre
+    "MPWR":       "logo_MPWR",  // Monolithic Power
+    "MRVL":       "logo_MRVL",  // Marvell
     "MU":         "logo_MU",    // Micron
+    "NBIS":       "logo_NBIS",  // Nebius Group
+    "NDAQ":       "logo_NDAQ",  // Nasdaq Inc.
+    "NTES":       "logo_NTES",  // NetEase
     "NVDA":       "logo_NVDA",  // NVIDIA
+    "NFLX":       "logo_NFLX",  // Netflix
+    "NXPI":       "logo_NXPI",  // NXP Semiconductors
+    "ODFL":       "logo_ODFL",  // Old Dominion
+    "ORLY":       "logo_ORLY",  // O'Reilly Auto
+    "PANW":       "logo_PANW",  // Palo Alto Networks
+    "PAYX":       "logo_PAYX",  // Paychex
+    "PCAR":       "logo_PCAR",  // Paccar
+    "PDD":        "logo_PDD",   // PDD Holdings
+    "PEP":        "logo_PEP",   // PepsiCo
+    "PLTR":       "logo_PLTR",  // Palantir
+    "PYPL":       "logo_PYPL",  // PayPal
+    "REGN":       "logo_REGN",  // Regeneron
+    "ROST":       "logo_ROST",  // Ross Stores
+    "RKLB":       "logo_RKLB",  // Rocket Lab
+    "SBUX":       "logo_SBUX",  // Starbucks
     "SPCX":       "logo_SPCX",  // SpaceX
+    "SHOP":       "logo_SHOP",  // Shopify
+    "STX":        "logo_STX",   // Seagate
+    "SNDK":       "logo_SNDK",  // Sandisk
+    "SNPS":       "logo_SNPS",  // Synopsys
     "TSM":        "logo_TSM",   // TSMC
     "TSLA":       "logo_TSLA",  // Tesla
+    "TTWO":       "logo_TTWO",  // Take-Two
+    "TRI":        "logo_TRI",   // Thomson Reuters
+    "TMUS":       "logo_TMUS",  // T-Mobile
+    "TER":        "logo_TER",   // Teradyne
+    "TXN":        "logo_TXN",   // Texas Instruments
     "V":          "logo_V",     // Visa
+    "VRTX":       "logo_VRTX",  // Vertex Pharma
+    "WDC":        "logo_WDC",   // Western Digital
+    "WBD":        "logo_WBD",   // Warner Bros. Disc.
+    "WDAY":       "logo_WDAY",  // Workday
     "WMT":        "logo_WMT",   // Walmart
-    "COST":       "logo_COST",
-    "PLTR":       "logo_PLTR",
-    "CSCO":       "logo_CSCO",
-    "NFLX":       "logo_NFLX",
-    "TMUS":       "logo_TMUS",
-    "TXN":        "logo_TXN",
-    "AMGN":       "logo_AMGN",
-    "QCOM":       "logo_QCOM",
+    "QCOM":       "logo_QCOM",  // Qualcomm
+    "XEL":        "logo_XEL",   // Xcel Energy
     "XOM":        "logo_XOM",
     "BAC":        "logo_BAC",
     "JNJ":        "logo_JNJ",
@@ -360,9 +439,6 @@ let tickerLocalLogo: [String: String] = [
     "CVX":        "logo_CVX",
     "ORCL":       "logo_ORCL",
     "HD":         "logo_HD",
-    "ARM":        "logo_ARM",
-    "INTC":       "logo_INTC",
-    "ASML":       "logo_ASML",
     "CAT":        "logo_CAT",
     "GE":         "logo_GE",
 
@@ -561,6 +637,7 @@ let tickerLocalLogo: [String: String] = [
     "357780.KQ":  "logo_357780KQ", // 솔브레인
     "388720.KQ":  "logo_388720KQ", // 유일로보틱스
     "403870.KQ":  "logo_403870KQ", // HPSP
+    "417200.KQ":  "logo_417200KQ", // LS머트리얼즈
     "420770.KQ":  "logo_420770KQ", // 기가비스
     "437730.KQ":  "logo_437730KQ", // 삼현
     "440110.KQ":  "logo_440110KQ", // FADU
@@ -579,24 +656,38 @@ let tickersNeedDarkBgRemoval: Set<String> = [
 
 /// 로컬 PNG에 밝은 회색/흰색 배경이 포함된 로고 — 표시 시 배경을 자동 제거.
 let tickersNeedLightBgRemoval: Set<String> = [
-    "138930.KS",   // BNK금융지주
-    "005930.KS",   // 삼성전자
-    "005935.KS",   // 삼성전자우
+    "017670.KS",   // SK텔레콤
+    "034730.KS",   // SK Inc.
     "047810.KS",   // 한국항공우주
     "068270.KS",   // Celltrion
     "071050.KS",   // 한국금융지주
+    "096770.KS",   // SK이노베이션
+    "138930.KS",   // BNK금융지주
     "161390.KS",   // 한국타이어앤테크놀로지
+    "326030.KS",   // SK바이오팜
+    "402340.KS",   // SK Square
 
     "000250.KQ",   // Samchundang
+    "032820.KQ",   // 우리기술
     "035900.KQ",   // JYP Ent.
+    "043260.KQ",   // 성호전자
     "064760.KQ",   // 티씨케이
     "068760.KQ",   // 셀트리온제약
+    "090710.KQ",   // 휴림로봇
+    "096530.KQ",   // 씨젠
     "108490.KQ",   // Robotis
     "141080.KQ",   // LigaChem Bio
     "140410.KQ",   // 메지온
     "178320.KQ",   // 서진시스템
+    "183300.KQ",   // 코미코
+    "213420.KQ",   // 덕산네오룩스
+    "218410.KQ",   // RFHIC
     "237690.KQ",   // 에스티팜
     "290650.KQ",   // 엘앤씨바이오
+    "323280.KQ",   // 태성
+    "420770.KQ",   // 기가비스
+    "475830.KQ",   // 오름테라퓨틱
+    "950160.KQ",   // 코오롱티슈진
     
 ]
 
@@ -607,71 +698,190 @@ let tickersNeedColoredBgRemoval: Set<String> = []
 /// SVG viewBox 편심으로 인해 시각적 중심이 어긋나는 로고 — (x, y) 오프셋으로 보정.
 /// 양수 x = 오른쪽, 음수 x = 왼쪽 / 양수 y = 아래, 음수 y = 위
 let tickerLogoOffset: [String: CGPoint] = [
-    "NVDA": CGPoint(x: -3, y:  0),
     "AAPL": CGPoint(x: 0, y: -1),       // Apple
+    "ADI": CGPoint(x: 1, y: 2),
+    "AEP": CGPoint(x: 1, y: 0),         // American Elec.
+    "APP": CGPoint(x: 0, y: -2),        // AppLovin
+    "AXON": CGPoint(x: 0, y: -4),       // Axon
+    "BKNG": CGPoint(x: 1, y: 0),        // Booking Holdings
+    "CTAS": CGPoint(x: 0.5, y: 0),      // Cintas
+    "GILD":  CGPoint(x:  0, y:  1),     // Gilead Sciences
+    "IBKR": CGPoint(x: 1, y: 0),        // Interactive
+    "INTC": CGPoint(x:  1, y:  0),      // Intel
     "MCD":  CGPoint(x:  1, y:  0),
+    "NVDA": CGPoint(x: -3, y:  0),      // Nvidia
+    "NTES": CGPoint(x: -1, y:  0),      // NetEase
+    "NXPI": CGPoint(x: 1, y:  0),       // NXP
+    "PYPL": CGPoint(x: 1, y:  0),       // PayPal
+    "000720.KS": CGPoint(x:  -1.5, y:  -2), // 현대건설
     "009540.KS": CGPoint(x:  3, y:  0), // HD한국조선해양
-    "034730.KS": CGPoint(x:  2, y:  -1),
-    "096770.KS": CGPoint(x:  2, y:  -1),
+    "021240.KS": CGPoint(x:  0, y:  1), // 코웨이
+    "033780.KS": CGPoint(x:  0, y:  -3), // KT&G
+    "042700.KS": CGPoint(x:  0.5, y:  0), // 한미반도체
+    "047040.KS": CGPoint(x:  2, y:  0), // 대우건설
+    "047810.KS": CGPoint(x:  1, y:  0), // 한국항공우주
     "267250.KS": CGPoint(x:  3, y:  0), // HD현대
     "267260.KS": CGPoint(x:  3, y:  0), // HD현대일렉트릭
     "267270.KS": CGPoint(x:  3, y:  0), // HD건설기계
-    "326030.KS": CGPoint(x:  2, y:  -1),
+    "329180.KS": CGPoint(x:  -1.5, y:  -2), // HD Hyundai HI
     "443060.KS": CGPoint(x:  3, y:  0), // HD현대마린솔루션
+    "031980.KQ": CGPoint(x:  1, y:  0), // 피에스케이홀딩스
+    "067310.KQ": CGPoint(x:  1, y:  0), // 하나마이크론
+    "082920.KQ": CGPoint(x:  0, y:  2), // 비츠로셀
+    "083650.KQ": CGPoint(x:  -1, y:  0), // 비에이치아이
+    "214370.KQ": CGPoint(x:  -0.5, y:  0.5), // 케어젠
+    "319400.KQ": CGPoint(x:  -1.5, y:  -2), // 현대무벡스
+    "319660.KQ": CGPoint(x:  1, y:  0), // PSK
 ]
 
 /// 기본 padding(8)과 다른 로고 — 작은 값일수록 로고가 원 안에서 더 크게 표시됨.
 let tickerLogoPadding: [String: CGFloat] = [
     "2222:TADAWUL":      0, // Saudi Aramco
+    "ADI":       -30,  // Analog Devices
     "AMD":       0,    // AMD
+    "AMAT":      0,    // Applied Materials
+    "AMGN":      0,    // Amgen
+    "APP":       4,    // AppLovin
+    "AEP":       2,    // American Elec. Pwr
+    "ALAB":      0,    // Astera Labs
+    "BKR":       -4,   // Baker Hughes
     "BRK.B":     0,    // Berkshire
+    "CCEP":      0,    // Coca-Cola
+    "CDNS":      0,    // Cadence
+    "CSCO":      0,    // Cisco
+    "COIN":      -4,   // Coinbase
+    "COST":      0,    // Coscto
+    "CMCSA":     4,    // Comcast
+    "CTAS":      4,    // Cintas
+    "CRWV":      6,    // CoreWeave
+    "CEG":       7,    // Constellation En.
+    "EA":        0,    // Electronic Arts
+    "FAST":      0,    // Fastenal
+    "FER":       0,    // Ferrovial
+    "HOOD":      0,    // Robinhood
+    "HON":      10,    // Honeywell
+    "IBKR":      6,    // Interactive
+    "IDXX":      4,    // Idexx Labs
+    "ISRG":      6,    // Intuitive Surgical
+    "INTC":      -1,   // Intel
+    "INTU":      5,    // Intuit
+    "JD":        0,    // JD.com
     "JPM":       0,    // JPMorgan
+    "KLAC":      0,    // KLA
+    "KDP":      10,    // Keurig
     "LLY":       0,    // Eli Lilly
+    "LIN":       0,    // Linde
     "MA":        2,
+    "MAR":       2,    // Marriott
+    "MDLZ":      0,    // Mondelez
     "MU":        0,    // Micron
+    "MNST":      0,    // Monster Beverage
     "MSFT":      10,   // Microsoft
+    "MPWR":      6,    // Monolithic
+    "NTES":      2,    // NetEase
     "NFLX":      0,    // Netflix
+    "NXPI":      5,    // NXP Semiconductors
+    "NBIS":      0,    // Nebius
+    "NDAQ":      -0.5, // Nasdaq Inc.
+    "ODFL":      -2,   // Old
+    "ORLY":      2,    // O'Reilly Auto
+    "PANW":      6,    // Palo Alto
+    "PAYX":      0,    // Paychex
+    "PCAR":      0,    // Paccar
+    "PEP":       4,    // PepsiCo
+    "PDD":       0,    // PDD Holdings
+    "QCOM":      0,    // Qualcomm
+    "ROST":      0,    // Ross Stores
+    "RKLB":      -2,   // Rocket Lab
+    "REGN":      0,    // Regeneron
     "SPCX":      4,    // SapceX
-    "TSLA":      0,    // Tesla
-    "WMT":       0,    // Walmart
+    "SNDK":      0,    // Sandisk
+    "SNPS":      5,    // Synopsys
+    "STX":       0,    // Seagate
+    "TSLA":      -2,   // Tesla
+    "TER":       0,    // Teradyne
+    "TMUS":      0,    // T-Mobile
     "V":         0,    // Visa
+    "VRTX":      0,    // Vertex Pharma
+    "WMT":       0,    // Walmart
+    "WBD":       0,    // Warner Bros.
+    "WDAY":      0,    // Workday
+    "WDC":       0,    // Western
     
     
     "000250.KQ": 2,   // Samchundang
+    "0009K0.KQ": -2,  // 에임드바이오
+    "003380.KQ": 4,   // 하림
+    "007390.KQ": -4,  // 네이처셀
     "028300.KQ": 0,   // HLB
+    "032820.KQ": 0,   // 우리기술
+    "035900.KQ": 10,  // JYP
     "036930.KQ": 0,   // Jusung Eng.
     "039030.KQ": 6,   // EO Technics
+    "039200.KQ": 6,  // 오스코텍
     "041510.KQ": 0,   // 에스엠
+    "043260.KQ": -3,   // 성호전자
     "058470.KQ": 4,   // Leeno Ind.
+    "058610.KQ": 7,   // 에스피지
+    "060370.KQ": -2,  // LS마린솔루션
+    "064760.KQ": 2,   // 티씨케이
+    "067310.KQ": 0,   // 하나마이크론
     "068760.KQ": 0,   // 셀트리온제약
+    "078600.KQ": 0,   // 대주전자재료
+    "080220.KQ": 7,   // 제주반도체
+    "082920.KQ": -12,  // 비츠로셀
+    "083650.KQ": -10,   // 비에이치아이
     "084370.KQ": 4,   // 유진테크
     "086520.KQ": 4,   // Ecopro
     "087010.KQ": 4,   // 펩트론
-    "095340.KQ": 4,   // ISC
+    "089030.KQ": 4,   // 테크윙
+    "089970.KQ": 6,   // qmdldpa
+    "095340.KQ": 4.5, // ISC
     "095610.KQ": -8,  // Tes
+    "096530.KQ": -1,   // 씨젠
+    "098460.KQ": 4,   // 고영
     "108490.KQ": 2,   // Robotis
+    "131290.KQ": -3,  // 티에스이
+    "131970.KQ": 3,   // 두산테스나
+    "140410.KQ": -1,   // 메지온
+    "140860.KQ": 4,   // 파크시스템스
     "141080.KQ": 0,   // LigaChem Bio
     "145020.KQ": 4,   // 휴젤
+    "178320.KQ": 4,   // 서진시스템
+    "183300.KQ": 0,   // 코미코
+    "195940.KQ": 0,  // HK이노엔
     "214150.KQ": 4,   // 클래시스
     "214370.KQ": 1,   // 케어젠
-    "214450.KQ": 3,   // Pharma Research
+    "214450.KQ": 2,   // Pharma Research
+    "218410.KQ": -2,   // RFHIC
     "222800.KQ": 4,   // Simmtech
     "226950.KQ": -1,  // 올릭스
+    "237690.KQ": -2,  // 에스티팜
     "247540.KQ": 4,   // Ecopro BM
     "257720.KQ": -4,  // 실리콘투
+    "263750.KQ": 10,  // 펄어비스
     "277810.KQ": 0,   // Rainbow Robotics
+    "290650.KQ": -1,   // 엘앤씨바이오
+    "293490.KQ": 0,   // 카카오게임즈
     "298380.KQ": 6,   // ABL Bio
-    "319400.KQ": 2,   // 현대무벡스
     "319660.KQ": 7,   // PSK
+    "323280.KQ": -3,   // 태성
     "347850.KQ": 1,   // 디앤디파마텍
+    "357780.KQ": 0,   // 솔브레인
     "403870.KQ": -4,  // HPSP
+    "417200.KQ": -2,  // LS머트리얼즈
+    "420770.KQ": 2,   // 기가비스
     "440110.KQ": 0,   // FADU
+    "475830.KQ": 2,   // 오름테라퓨틱
+    "491000.KQ": 1,   // 리브스메드
+    "950160.KQ": 0,   // 코오롱티슈진
     
     "000100.KS": 5,   // 유한양행
-    "000660.KS": 0,   // SK Hynix
+    "000660.KS": -4,  // SK Hynix
     "000150.KS": 3,   // 두산
     "000270.KS": 0,   // Kia
-    "000720.KS": 2,   // 현대건설
+    "000810.KS": 0,   // 삼성화재
+    "001440.KS": 5,   // 대한전선
     "003230.KS": 7,   // 삼양식품
     "003490.KS": 0,   // 대한항공
     "003670.KS": 4,   // 포스코퓨처엠
@@ -683,11 +893,11 @@ let tickerLogoPadding: [String: CGFloat] = [
     "005930.KS": 0,   // Samsung Elec.
     "005935.KS": 0,   // 삼성전자우
     "005940.KS": 6,   // NH투자증권
-    "006260.KS": 0,   // LS
+    "006260.KS": -2,  // LS
     "006400.KS": 0,   // Samsung SDI
     "006800.KS": 2,   // 미래에셋증권
     "009150.KS": 0,   // Samsung EM
-    "010120.KS": 4,   // LS ELECTRIC
+    "010120.KS": -2,  // LS ELECTRIC
     "010130.KS": -2,  // 고려아연
     "010140.KS": 0,   // 삼성중공업
     "010950.KS": 2,   // S-Oil
@@ -695,9 +905,9 @@ let tickerLogoPadding: [String: CGFloat] = [
     "012330.KS": 2,
     "0126Z0.KS": 0,   // 삼성에피스홀딩스
     "018260.KS": 0,   // 삼성에스디에스
-    "015760.KS": 4,   // 한국전력
+    "015760.KS": 2,   // 한국전력
     "016360.KS": 0,   // 삼성증권
-    "017670.KS": 0,   // SK텔레콤
+    "017670.KS": -4,  // SK텔레콤
     "021240.KS": 4,   // 코웨이
     "024110.KS": 4,   // 기업은행
     "028050.KS": 0,   // 삼성E&A
@@ -707,7 +917,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "032830.KS": 0,   // Samsung Life
     "033780.KS": 4,   // KT&G
     "034020.KS": 2,
-    "034730.KS": 0,   // SK Inc.
+    "034730.KS": -4,  // SK Inc.
     "035420.KS": 0,   // 네이버
     "035720.KS": 0,   // 카카오
     "036570.KS": 8,   // NC
@@ -716,13 +926,15 @@ let tickerLogoPadding: [String: CGFloat] = [
     "047040.KS": 0,   // 대우건설
     "047050.KS": 4,   // 포스코인터네셔널
     "047810.KS": 0,   // 한국항공우주
+    "062040.KS": 4,   // 산일전기
     "064350.KS": 4,   // 현대로템
     "068270.KS": 0,   // Celltrion
     "071050.KS": 4,   // 한국금융지주
     "078930.KS": -16, // GS
+    "079550.KS": -0.5,// LIG
     "086280.KS": 0,   // 현대글로비스
     "090430.KS": 6,   // 아모레퍼시픽
-    "096770.KS": 0,   // SK이노베이션
+    "096770.KS": -4,  // SK이노베이션
     "105560.KS": 0,   // KB Financial
     "128940.KS": 4,   // 한미약품
     "138040.KS": -2,  // 메리츠금융지주
@@ -735,25 +947,85 @@ let tickerLogoPadding: [String: CGFloat] = [
     "271560.KS": -2,  // 오리온
     "278470.KS": 6,   // 에이피알
     "323410.KS": 0,   // 카카오뱅크
-    "326030.KS": 0,   // SK바이오팜
+    "326030.KS": -4,  // SK바이오팜
     "352820.KS": 4,   // 하이브
+    "353200.KS": 0,   // 대덕전자
     "377300.KS": 0,   // 카카오페이
-    "329180.KS": 0,   // HD Hyundai HI
-    "402340.KS": 2,   // SK Square
+    "402340.KS": -4,  // SK Square
 ]
 
 /// 흰색 원 배경 대신 다른 색상을 사용할 티커.
 let tickerCircleBackground: [String: Color] = [
+    "ADBE": Color.red,   // Adobe
+    "ADI": Color.black,  // ADI
+    "AMAT": Color.black, // Applied Materials
+    "ALAB": Color.black, // Astera
+    "AMD": Color.black,  // AMD
+    "ADSK": Color.black, // Autodesk
+    "AXON": Color.black, // Axon Enterprise
+    "CDNS": Color.black, // Cadence
+    "CCEP": Color.black, // Coca-Cola
+    "EA": Color.black,   // Electronic Arts
+    "FAST": Color.black, // Fastenal
+    "MU": Color.black,   // Micron
     "NFLX": Color.black, // Netflix
     "SPCX": Color.black, // SpaceX
-    "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
+    "JD": Color.black,   // JD
+    "JPM": Color.brown,  // JPMorgan
+    "MDLZ": Color.black, // Mondelez
+    "MNST": Color.black, // Monster Beverage
+    "MRVL": Color.black, // Marvell
+    "NDAQ": Color.black, // Nasdaq
+    "PAYX": Color.black, // Paychex
+    "PCAR": Color.black, // Paccar
+    "WDC": Color.black,  // Western
+    "WBD": Color.black,  // Warner Bros
+    "WDAY": Color.black, // Workday
+    "ROST": Color.black, // Ross Stores
+    "REGN": Color.black, // Regeneron
+    "RKLB": Color.black, // Rocket Lab
+    "TTWO": Color.black, // Take-Two
+    "TER": Color.black,  // Teradyne
+    "HON": Color.red,    // Honeywell
+    "VRTX": Color.black, // Vertax
+    
     "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
-    // 단색 배경 정사각형 로고 — 원을 브랜드 배경색으로 채워 다크모드 흰 원 비침 방지
-    "V":     Color(red: 0.082, green: 0.204, blue: 0.800), // Visa — #1534CC
-    "BRK.B": Color(red: 0.169, green: 0.196, blue: 0.573), // Berkshire — #2B3292
-    "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894), // Walmart — #0052E4
-    // 브랜드 배경색으로 원을 채우는 로고
-    // 삼성 계열 — 로고 PNG가 #25279D 네이비 배경 정사각형이라 clipShape 안티앨리어싱 시 흰 원이 비침
+    "ABNB": Color(red: 1.0000, green: 0.2078, blue: 0.3686), // Airbnb
+    "ADP": Color(red: 0.8078, green: 0.0980, blue: 0.1412), // ADP
+    "ASML": Color(red: 0.043, green: 0.114, blue: 0.522),  // ASML
+    "AMGN": Color(red: 0.1020, green: 0.2196, blue: 0.3373), // Amgen
+    "ARM": Color(red: 0.0, green: 0.5686, blue: 0.7412),  // ARM
+    "BKR": Color(red: 0.0471, green: 0.0510, blue: 0.0588), // Baker Hughes
+    "BRK.B": Color(red: 0.169, green: 0.196, blue: 0.573), // Berkshire
+    "CSCO": Color(red: 0.07, green: 0.18, blue: 0.36),
+    "CSX": Color(red: 0.0980, green: 0.0980, blue: 0.4392), // CSX
+    "CRWD": Color(red: 0.9882, green: 0.0, blue: 0.0), // Crowd
+    "DDOG": Color(red: 0.3098, green: 0.1373, blue: 0.5961), // Datadog
+    "DASH": Color(red: 1.0000, green: 0.1412, blue: 0.0), // DoorDash
+    "FTNT": Color(red: 0.8902, green: 0.1490, blue: 0.2118), // Fortinet
+    "IDXX": Color(red: 0.0, green: 0.4980, blue: 1.0), // Idexx Labs
+    "ISRG": Color(red: 0.0588, green: 0.1451, blue: 0.8196), // Intuitive Surgical
+    "INTU": Color(red: 0.1176, green: 0.5647, blue: 1.0000), // Intuit
+    "KLAC": Color(red: 0.0, green: 0.4824, blue: 0.7765), // KLA
+    "LRCX": Color(red: 0.416, green: 0.417, blue: 0.522), // Lam Research
+    "LIN": Color(red: 0.0, green: 0.1843, blue: 0.3529), // Linde
+    "MPWR": Color(red: 0.0, green: 0.4000, blue: 1.0000), // Monolithic Power
+    "PLTR": Color(red: 0.117, green: 0.129, blue: 0.141), // Palantir
+    "SHOP": Color(red: 0.5843, green: 0.7529, blue: 0.2863), // Shopify
+    "SNPS": Color(red: 0.4235, green: 0.1882, blue: 0.5098), // Synopsys
+    "TMUS": Color(red: 0.8863, green: 0.0, blue: 0.4549), // T-Mobile
+    "TXN": Color(red: 0.8, green: 0.0, blue: 0.0), // Texas Instruments
+    "TRI": Color(red: 1.0, green: 0.4, blue: 0.0), // Thomson Reuters
+    "QCOM": Color(red: 0.1647, green: 0.1647, blue: 0.9176), // QCOM
+    "V":     Color(red: 0.082, green: 0.204, blue: 0.800), // Visa
+    "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894), // Walmart
+   
+    "079550.KS": Color.black, // LIG
+    "175330.KS": Color.black, // JB금융지주
+    "353200.KS": Color.black, // 대덕전자
+    "000810.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성화재
+    "005930.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // Samsung Elec.
+    "005935.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성전자우
     "006400.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성SDI
     "009150.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // Samsung EM
     "010140.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성중공업
@@ -764,12 +1036,12 @@ let tickerCircleBackground: [String: Color] = [
     "028260.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // Samsung C&T
     "029780.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성카드
     "032830.KS": Color(red: 0.145, green: 0.153, blue: 0.616), // 삼성생명
-    "000270.KS": Color(red: 0.02,  green: 0.078, blue: 0.122), // Kia — dark navy #05141F
-    "035420.KS": Color(red: 0.012, green: 0.780, blue: 0.353), // 네이버 — green #03C75A
-    "105560.KS": Color(red: 0.969, green: 0.678, blue: 0.0),   // KB Financial — yellow #F7AD00
-    "207940.KS": Color(red: 0.0,   green: 0.082, blue: 0.294), // 삼성바이오로직스 — dark navy #001549
-    "035720.KS": Color(red: 1.0,   green: 0.804, blue: 0.0),   // 카카오 — yellow #FFCD00
-    "377300.KS": Color(red: 1.0,   green: 0.804, blue: 0.0),   // 카카오페이 — yellow #FFCD00
+    "000270.KS": Color(red: 0.02,  green: 0.078, blue: 0.122), // Kia
+    "035420.KS": Color(red: 0.012, green: 0.780, blue: 0.353), // 네이버
+    "105560.KS": Color(red: 0.969, green: 0.678, blue: 0.0),   // KB Financial
+    "207940.KS": Color(red: 0.0,   green: 0.082, blue: 0.294), // 삼성바이오로직스
+    "035720.KS": Color(red: 1.0,   green: 0.804, blue: 0.0),   // 카카오
+    "377300.KS": Color(red: 1.0,   green: 0.804, blue: 0.0),   // 카카오페이
 ]
 
 /// 로고 원 타일 크기(pt). 전체 로고 크기를 바꾸려면 이 값만 수정.

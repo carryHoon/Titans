@@ -1,12 +1,15 @@
 {
   "images" : [
     {
-      "filename" : "asml-com-logo.png",
+      "filename" : "ASML_id-OD5En-q_0.svg",
       "idiom" : "universal"
     }
   ],
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true
   }
 }

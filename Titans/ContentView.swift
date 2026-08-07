@@ -1252,7 +1252,7 @@ struct ExpansionFooter: View {
             Text("확장 준비 중이에요")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(theme.secondaryLabel)
-            Text("Coming Soon 2026.09.01")
+            Text("Coming Soon 2026.10.01")
                 .font(.system(size: 12))
                 .foregroundStyle(theme.tertiaryLabel)
         }
@@ -1281,7 +1281,7 @@ struct LiveIndicatorBar: View {
             Spacer()
 
             // 우측 상단 액션 버튼 — 토스 스타일 (검색 · 메뉴)
-            HStack(spacing: 20) {
+            HStack(spacing: 27) {
                 Button(action: onSearch) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(theme.label)
@@ -1296,8 +1296,8 @@ struct LiveIndicatorBar: View {
             }
             .font(.system(size: 20, weight: .medium))
         }
-        .padding(.leading, 24)
-        .padding(.trailing, 36)
+        .padding(.leading, 28)
+        .padding(.trailing, 32)
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
@@ -1308,10 +1308,9 @@ struct LiveIndicatorBar: View {
 
 /// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
 /// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
-///  · 실시간(NASDAQ/NYSE, Finnhub 15초 폴링): "● NASDAQ HH:mm 기준" / ALL은 "HH:mm 기준 (일부 기업 전일 종가)"
+///  · 실시간(NASDAQ/NYSE, 60초 폴링): "● NASDAQ/NYSE는 HH:mm 기준" / ALL은 "HH:mm 기준 (일부 기업 전일 종가)"
 ///  · EOD(KOSPI/KOSDAQ, 공공데이터포털 D-1): "● KOSPI 2026.07.23 종가 기준" (실제 기준일 basDt)
 ///  · 준비 중 섹션(데이터 없음): "● JPX 출시 준비 중" (초록 대신 흐린 색·정적 원으로 구분)
-/// 초록 하이라이트 + 깜빡이는 원은 기존 Live 인디케이터의 시각 언어를 그대로 계승한다.
 struct MarketStatusView: View {
     let market: Market
     let currentTime: Date
