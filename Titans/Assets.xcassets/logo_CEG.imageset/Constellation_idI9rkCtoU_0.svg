@@ -1,0 +1,145 @@
+<svg version="1.1" id="Layer_1" xmlns:x="ns_extend;" xmlns:i="ns_ai;" xmlns:graph="ns_graphs;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 158.3 81.8" style="enable-background:new 0 0 158.3 81.8;" xml:space="preserve">
+ <style type="text/css">
+  .st0{clip-path:url(#SVGID_2_);fill:url(#SVGID_3_);}
+	.st1{clip-path:url(#SVGID_5_);fill:url(#SVGID_6_);}
+	.st2{clip-path:url(#SVGID_8_);fill:url(#SVGID_9_);}
+	.st3{clip-path:url(#SVGID_11_);fill:url(#SVGID_12_);}
+	.st4{clip-path:url(#SVGID_14_);fill:url(#SVGID_15_);}
+ </style>
+ <metadata>
+  <sfw xmlns="ns_sfw;">
+   <slices>
+   </slices>
+   <sliceSourceBounds bottomLeftOrigin="true" height="192.6" width="182.9" x="-926" y="-37.7">
+   </sliceSourceBounds>
+  </sfw>
+ </metadata>
+ <g>
+  <g>
+   <defs>
+    <path id="SVGID_1_" d="M12.4,60.6c-0.5,0.2-0.9,0.5-1.4,0.8c0,0-2.1,3-4.5,6.8c-2.2,3.5-4.6,7.6-6.1,10.5
+				c-0.2,0.4-0.7,1.4-0.7,1.4v0c4-2.9,8.8-4.5,15.3-5.2c7.9-1,17.2-0.8,26.7-0.4c8.3,0.4,17.2,0.9,26.1,1.4
+				c15.1,0.8,34.5-6.9,45.1-17.3c0,0-0.5,0.3-0.6,0.4c-19.6,11.3-37.3,8.9-53.2,6c-12-2.2-24-6.7-34.7-6.7
+				C20,58.2,16,58.8,12.4,60.6">
+    </path>
+   </defs>
+   <clipPath id="SVGID_2_">
+    <use href="#SVGID_1_" style="overflow:visible;">
+    </use>
+   </clipPath>
+   <linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="855.7036" y1="703.6046" x2="859.0624" y2="703.6046" gradientTransform="matrix(-14.7261 -14.7261 -14.7261 14.7261 23041.7344 2331.9524)">
+    <stop offset="0" style="stop-color:#B9C53A">
+    </stop>
+    <stop offset="1" style="stop-color:#008D48">
+    </stop>
+   </linearGradient>
+   <polygon class="st0" points="56.2,136.7 -11.4,69.2 56.2,1.6 123.7,69.2 		">
+   </polygon>
+  </g>
+  <g>
+   <defs>
+    <path id="SVGID_4_" d="M12.4,60.6c0.1,0,0.2-0.1,0.2-0.1C12.5,60.6,12.5,60.6,12.4,60.6 M12.6,60.5c13-6.2,29.7,1.3,46.3,4.3
+				c15.9,2.9,33.6,5.4,53.2-6c0.1-0.1,0.6-0.4,0.6-0.4s-4.1,0.4-10,0.5c-6,0.1-18.4-0.4-25.9-1.1c-15.8-1.3-27.7-2.2-37.2-2.2
+				C28,55.7,19.9,57,12.6,60.5">
+    </path>
+   </defs>
+   <clipPath id="SVGID_5_">
+    <use xlink:href="#SVGID_4_" style="overflow:visible;">
+    </use>
+   </clipPath>
+   <linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="835.3036" y1="676.3605" x2="838.6624" y2="676.3605" gradientTransform="matrix(-29.8816 0 0 29.8816 25072.9453 -20148.4453)">
+    <stop offset="0" style="stop-color:#B9C53A">
+    </stop>
+    <stop offset="0.1914" style="stop-color:#80B43E">
+    </stop>
+    <stop offset="0.3964" style="stop-color:#49A342">
+    </stop>
+    <stop offset="0.5737" style="stop-color:#219745">
+    </stop>
+    <stop offset="0.714" style="stop-color:#099047">
+    </stop>
+    <stop offset="0.8" style="stop-color:#008D48">
+    </stop>
+    <stop offset="1" style="stop-color:#008D48">
+    </stop>
+   </linearGradient>
+   <rect x="12.4" y="54.4" class="st1" width="100.4" height="15.9">
+   </rect>
+  </g>
+  <g>
+   <defs>
+    <path id="SVGID_7_" d="M143.3,5.9c-7.9,1-17.2,0.8-26.7,0.4c-8.3-0.4-17.2-0.9-26.1-1.4C75.5,4.2,56,11.8,45.5,22.3
+				c0,0,0.5-0.3,0.6-0.3c19.6-11.3,37.3-8.9,53.2-6c16.7,3,33.5,10.6,46.5,4.2c0.5-0.2,0.9-0.5,1.4-0.8c0,0,2.1-3,4.5-6.8
+				c2.2-3.5,4.6-7.6,6.1-10.5c0.2-0.4,0.7-1.4,0.7-1.4C154.6,3.5,149.8,5.1,143.3,5.9">
+    </path>
+   </defs>
+   <clipPath id="SVGID_8_">
+    <use xlink:href="#SVGID_7_" style="overflow:visible;">
+    </use>
+   </clipPath>
+   <linearGradient id="SVGID_9_" gradientUnits="userSpaceOnUse" x1="744.7288" y1="688.9961" x2="748.0876" y2="688.9961" gradientTransform="matrix(10.9436 10.9436 10.9436 -10.9436 -15606.1543 -614.4514)">
+    <stop offset="0" style="stop-color:#0093D3">
+    </stop>
+    <stop offset="1" style="stop-color:#184898">
+    </stop>
+   </linearGradient>
+   <polygon class="st2" points="102.1,-55.9 171.6,13.6 102.1,83.1 32.6,13.6 		">
+   </polygon>
+  </g>
+  <g>
+   <defs>
+    <path id="SVGID_10_" d="M145.6,20.3c0.1,0,0.2-0.1,0.2-0.1C145.8,20.2,145.7,20.2,145.6,20.3 M46.1,21.9
+				c-0.1,0.1-0.6,0.3-0.6,0.3s4-0.4,10-0.5c6-0.1,18.4,0.4,25.9,1.1c35,3,50.9,3.8,64.2-2.6c-13,6.2-29.7-1.3-46.3-4.3
+				c-6.9-1.3-14.2-2.4-21.8-2.4C67.7,13.5,57.2,15.5,46.1,21.9">
+    </path>
+   </defs>
+   <clipPath id="SVGID_11_">
+    <use xlink:href="#SVGID_10_" style="overflow:visible;">
+    </use>
+   </clipPath>
+   <linearGradient id="SVGID_12_" gradientUnits="userSpaceOnUse" x1="782.4157" y1="716.637" x2="785.7744" y2="716.637" gradientTransform="matrix(29.8818 0 0 -29.8818 -23334.4453 21434.459)">
+    <stop offset="0" style="stop-color:#0093D3">
+    </stop>
+    <stop offset="1.324091e-02" style="stop-color:#0191D2">
+    </stop>
+    <stop offset="0.3573" style="stop-color:#0D6AB2">
+    </stop>
+    <stop offset="0.6315" style="stop-color:#15529F">
+    </stop>
+    <stop offset="0.8" style="stop-color:#184998">
+    </stop>
+    <stop offset="0.8261" style="stop-color:#184898">
+    </stop>
+    <stop offset="1" style="stop-color:#184898">
+    </stop>
+   </linearGradient>
+   <rect x="45.5" y="13.5" class="st3" width="100.4" height="13.1">
+   </rect>
+  </g>
+  <g>
+   <defs>
+    <path id="SVGID_13_" d="M83.8,31.9c-16.2-1.3-32.8-2.5-47.8-0.3c-6.2,6.3-12,12.8-17.4,19.6c15.2-5.5,35.2-3.9,55.9-2.3
+				c16.2,1.3,32.9,2.5,47.9,0.3c3.7-3.5,14.7-15.9,17.4-19.6C124.5,35.2,104.4,33.5,83.8,31.9">
+    </path>
+   </defs>
+   <clipPath id="SVGID_14_">
+    <use xlink:href="#SVGID_13_" style="overflow:visible;">
+    </use>
+   </clipPath>
+   <linearGradient id="SVGID_15_" gradientUnits="userSpaceOnUse" x1="743.0956" y1="687.166" x2="746.4545" y2="687.166" gradientTransform="matrix(10.6185 10.6185 10.6185 -10.6185 -15122.8779 -568.1861)">
+    <stop offset="0" style="stop-color:#F15623">
+    </stop>
+    <stop offset="0.2001" style="stop-color:#F25F25">
+    </stop>
+    <stop offset="0.5271" style="stop-color:#F57729">
+    </stop>
+    <stop offset="0.9" style="stop-color:#F99B2F">
+    </stop>
+    <stop offset="1" style="stop-color:#F99B2F">
+    </stop>
+   </linearGradient>
+   <polygon class="st4" points="79.1,-31.1 150.6,40.4 79.1,111.9 7.6,40.4 		">
+   </polygon>
+  </g>
+ </g>
+</svg>

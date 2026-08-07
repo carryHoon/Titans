@@ -98,7 +98,7 @@ struct LoginView: View {
 
     private var brand: some View {
         VStack(spacing: 6) {
-            Text("RIDE THE MARKET")
+            Text("SURFING THE FINANCE")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .tracking(6)
                 .foregroundStyle(isDarkMode ? brandGreen : brandGreenDeep.opacity(0.75))

@@ -62,7 +62,7 @@ struct SearchView: View {
         "‘애플’을 검색해보세요",
         "‘엔비디아’를 검색해보세요",
         "‘삼성전자’를 검색해보세요",
-        "‘반도체’를 검색해보세요",
+        "‘SK하이닉스’를 검색해보세요",
         "‘테슬라’를 검색해보세요",
     ]
 
@@ -108,7 +108,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if query.isEmpty {
                         recentSection
-                        rankSection(title: "인기 주식", timeLabel: nowLabel, items: popular, showChange: false)
+                        rankSection(title: "인기 기업", timeLabel: nowLabel, items: popular, showChange: false)
                         rankSection(title: "오늘의 급등", timeLabel: nowLabel, items: topGainers, showChange: true)
                     } else if results.isEmpty {
                         emptyResults
