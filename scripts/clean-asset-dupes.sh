@@ -22,10 +22,13 @@ APPLY="${1:-}"
 cd "$ROOT"
 
 # untracked + " N.ext" 패턴만 후보로. (tracked/원본은 제외됨)
-mapfile -d '' CANDS < <(
-  git ls-files --others --exclude-standard -z -- "$ASSETS" \
-  | { grep -zE ' [0-9]+\.(svg|png|jpe?g|pdf|json)$' || true; }
-)
+# macOS 기본 bash 3.2 호환: NUL 구분 입력을 while-read로 수집한다.
+CANDS=()
+while IFS= read -r -d '' f; do
+  case "$f" in
+    *\ [0-9].svg|*\ [0-9].png|*\ [0-9].jpg|*\ [0-9].jpeg|*\ [0-9].pdf|*\ [0-9].json) CANDS+=("$f");;
+  esac
+done < <(git ls-files --others --exclude-standard -z -- "$ASSETS")
 
 if [ "${#CANDS[@]}" -eq 0 ]; then
   echo "✅ 정리할 복사본 없음 (untracked ' N' 사본 0개)"
