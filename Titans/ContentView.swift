@@ -765,7 +765,7 @@ struct ContentView: View {
                 CurrencyToggle(selected: $selectedCurrency)
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
-            .padding(.trailing, 32)   // 상단 바 trailing과 동일 → 통화 토글 우측 = 메뉴 아이콘 우측 정렬
+            .padding(.trailing, 40)   // 상단 바 trailing과 동일 → 통화 토글 우측 = 메뉴 아이콘 우측 정렬
             .padding(.top, -4 * vScale)
             .padding(.bottom, 2 * vScale)
 
@@ -1323,7 +1323,7 @@ struct LiveIndicatorBar: View {
             .font(.system(size: 20, weight: .medium))
         }
         .padding(.leading, 28)
-        .padding(.trailing, 32)
+        .padding(.trailing, 40)   // 검색·메뉴 버튼을 우측 끝에서 조금 안쪽으로 (통화 토글 trailing과 동일 유지)
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
