@@ -14,15 +14,11 @@ import Foundation
 // MARK: - 백엔드 호스트 (앱과 동일 규칙)
 
 enum WidgetBackend {
-    // 시뮬레이터는 Mac localhost(ATS 예외), 실기기는 같은 Wi-Fi의 Mac LAN IP.
-    #if targetEnvironment(simulator)
-    static let host = "localhost"
-    #else
-    static let host = "172.30.1.21"
-    #endif
+    // 데이터 API — Vercel 서버리스 상시가동 호스팅 (앱과 동일 규칙)
+    static let host = "titans-sooty.vercel.app"
 
     static func marketCapURL(exchange: String) -> URL? {
-        URL(string: "http://\(host):3000/api/market-cap?exchange=\(exchange)")
+        URL(string: "https://\(host)/api/market-cap?exchange=\(exchange)")
     }
 }
 
