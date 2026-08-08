@@ -1,0 +1,18 @@
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 125.4 111.2" style="enable-background:new 0 0 125.4 111.2;" xml:space="preserve">
+ <style type="text/css">
+  .st0{fill-rule:evenodd;clip-rule:evenodd;fill:#0269A7;}
+	.st1{fill-rule:evenodd;clip-rule:evenodd;fill:#0BA3D9;}
+	.st2{fill-rule:evenodd;clip-rule:evenodd;fill:#81142E;}
+	.st3{fill-rule:evenodd;clip-rule:evenodd;fill:#D0223A;}
+ </style>
+ <g transform="translate(45)">
+  <polyline class="st0" points="-45,41.7 -45,0 17.7,20.9 -45,41.7 	">
+  </polyline>
+  <polyline class="st1" points="-44.9,41.8 17.7,62.6 80.4,41.8 80.4,0 17.7,20.9 -44.9,41.8 	">
+  </polyline>
+  <polyline class="st2" points="-45,90.3 -45,48.5 17.7,69.4 -45,90.3 	">
+  </polyline>
+  <polyline class="st3" points="80.4,48.5 17.7,69.4 -44.9,90.3 17.7,111.2 80.4,90.3 80.4,48.5 	">
+  </polyline>
+ </g>
+</svg>

@@ -21,10 +21,6 @@ import SwiftUI
 import AuthenticationServices
 import UIKit
 
-// 앱 아이콘과 통일된 브랜드 그린. 브랜드 텍스트가 사용한다.
-private let brandGreen     = Color(red: 0.33, green: 0.74, blue: 0.55)   // 메인 민트
-private let brandGreenDeep = Color(red: 0.16, green: 0.58, blue: 0.42)   // 딥(음영/텍스트)
-
 // MARK: - LoginView
 
 struct LoginView: View {
@@ -97,19 +93,24 @@ struct LoginView: View {
     // MARK: 브랜드 텍스트
 
     private var brand: some View {
-        VStack(spacing: 6) {
-            Text("SURFING THE FINANCE")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .tracking(6)
-                .foregroundStyle(isDarkMode ? brandGreen : brandGreenDeep.opacity(0.75))
+        VStack(spacing: 20) {
+            // 앱 아이콘과 통일된 브랜드 마크. 라이트=검정, 다크=흰색으로 유동 전환된다.
+            Image("LaunchLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 140, height: 140)
 
-            HStack(spacing: 0) {
-                Text("sur").foregroundStyle(brandGreen)
-                Text("Fin").foregroundStyle(theme.label)
+            VStack(spacing: 6) {
+                Text("RIDE THE MARKET")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .tracking(6)
+                    .foregroundStyle(Color(red: 0.2, green: 0.8, blue: 0.4))
+
+                Text("S&P 1")
+                    .font(.system(size: 76, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.label)
             }
-            .font(.system(size: 76, weight: .bold, design: .rounded))
         }
-        .shadow(color: brandGreen.opacity(0.18), radius: 8, y: 3)
         .opacity(revealBrand ? 1 : 0)
         .offset(y: revealBrand ? 0 : 14)
     }

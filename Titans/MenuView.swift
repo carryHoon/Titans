@@ -95,13 +95,11 @@ struct MenuView: View {
                     // MARK: 정보
                     sectionLabel("정보")
                     sectionCard {
-                        NavigationLink {
-                            DeveloperNoteView()
-                                .environment(\.appTheme, theme)
-                        } label: {
-                            menuRow(icon: "quote.bubble.fill",
-                                    iconColor: Color(red: 0.345, green: 0.337, blue: 0.839),
-                                    title: "개발자 노트", subtitle: "surFin을 만든 이야기")
+                        Link(destination: privacyPolicyURL) {
+                            menuRow(icon: "lock.shield.fill",
+                                    iconColor: Color(red: 0.20, green: 0.60, blue: 0.45),
+                                    title: "개인정보처리방침",
+                                    subtitle: "수집 항목과 이용 목적을 확인하세요")
                         }
                         .buttonStyle(.plain)
                         rowDivider
@@ -113,14 +111,6 @@ struct MenuView: View {
                                     iconColor: Color(red: 0.18, green: 0.69, blue: 0.78),
                                     title: "데이터 출처",
                                     subtitle: "공공데이터포털 · 한국수출입은행 · DART 외")
-                        }
-                        .buttonStyle(.plain)
-                        rowDivider
-                        Link(destination: privacyPolicyURL) {
-                            menuRow(icon: "lock.shield.fill",
-                                    iconColor: Color(red: 0.20, green: 0.60, blue: 0.45),
-                                    title: "개인정보처리방침",
-                                    subtitle: "수집 항목과 이용 목적을 확인하세요")
                         }
                         .buttonStyle(.plain)
                         rowDivider

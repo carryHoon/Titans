@@ -18,11 +18,6 @@ enum Currency { case usd, krw }
 // MARK: - Market (거래소 필터)
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
-///
-/// 섹션 = "EODHD 거래소코드 필터 + 통화" 로 정의한다(선언적). 데이터 소스를 EODHD 상업
-/// 플랜으로 전환하면 각 섹션은 아래 eodhdCode 매핑만으로 동작한다(스크래핑 로직 불필요).
-/// 확장 시장(HKEX/TWSE/NSE)은 구조만 정의해 두고 실데이터는 EODHD 전환 시 활성화한다
-/// (그전까지 comingSoon = true → "출시 시 제공" 플레이스홀더).
 enum Market: String, CaseIterable, Identifiable {
     case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, hkex, twse, nse
 
@@ -46,9 +41,7 @@ enum Market: String, CaseIterable, Identifiable {
         }
     }
 
-    /// EODHD 거래소 코드(접미사). 전환 후 유니버스/시세 조회의 단일 기준.
     /// US는 `.US` 하나로 오고 종목별 상장거래소 필드로 NASDAQ/NYSE를 분리한다.
-    /// Euronext는 도시별 코드(PA·AS·MI)를 백엔드에서 한 섹션으로 합친다.
     var eodhdCode: [String] {
         switch self {
         case .all:      return []                       // 전 섹션 통합

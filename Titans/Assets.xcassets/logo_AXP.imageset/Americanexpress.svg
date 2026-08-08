@@ -1,0 +1,43 @@
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1151.9987 1152" height="1152" width="1151.9987" xml:space="preserve" id="svg2" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <metadata id="metadata8">
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>
+     image/svg+xml
+    </dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage">
+    </dc:type>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs id="defs6">
+ </defs>
+ <g transform="matrix(1.3333333,0,0,-1.3333333,0,1152)" id="g10">
+  <path id="path12" style="fill:#006fcf;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 H 863.998 V 864 H 0 Z">
+  </path>
+  <g transform="translate(312.9867,136.7145)" id="g14">
+   <path id="path16" style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none" d="m 0,0 341.634,-0.725 53.654,59.858 54.038,-59.632 h 101.685 v 87.332 l -63.687,68.682 63.687,68.059 V 309.09 L 0,309.585 Z">
+   </path>
+  </g>
+  <g transform="translate(349.7917,170.655)" id="g18">
+   <path id="path20" style="fill:#006fcf;fill-opacity:1;fill-rule:evenodd;stroke:none" d="m 0,0 v 241.575 h 204.832 v -55.65 H 66.318 V 148.15 H 201.529 V 93.423 H 66.318 V 56.319 H 204.832 V 10e-4 Z">
+   </path>
+  </g>
+  <g transform="translate(780.0408,412.227)" id="g22">
+   <path id="path24" style="fill:#006fcf;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 -69.456,-76.568 -138.713,0 h -87.729 l 113.343,-120.647 -113.341,-120.925 h 85.343 l 69.764,77.335 70.487,-77.335 h 84.803 v 3.43 L -26.971,-120.647 83.957,-1.903 V 0 Z">
+   </path>
+  </g>
+  <g transform="translate(738.7857,721.0845)" id="g26">
+   <path id="path28" style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 -28.373,-79.366 -56.65,0 H -220.625 V -105.93 L -267.278,0 H -400.1 l -136.414,-309.586 h 661.726 l 0,309.586 z">
+   </path>
+  </g>
+  <g transform="translate(373.0462,548.583)" id="g30">
+   <path id="path32" style="fill:#006fcf;fill-opacity:1;fill-rule:evenodd;stroke:none" d="M 0,0 32.145,76.837 64.268,0 Z m -9.212,138.867 -107.187,-241.37 h 73.518 l 20.22,48.332 H 86.914 l 20.207,-48.332 h 75.345 L 75.723,138.867 Z">
+   </path>
+  </g>
+  <g transform="translate(554.5071,446.121)" id="g34">
+   <path id="path36" style="fill:#006fcf;fill-opacity:1;fill-rule:nonzero;stroke:none" d="M 0,0 64.997,-0.001 V 165.796 L 126.661,-0.001 h 58.418 L 245.49,165.233 V -0.564 l 64,0.563 V 241.368 H 210.032 L 156.513,92.624 103.342,241.012 0,241.369 Z">
+   </path>
+  </g>
+ </g>
+</svg>
