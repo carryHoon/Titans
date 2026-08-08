@@ -344,7 +344,7 @@ let tickerLocalLogo: [String: String] = [
     "AMD":        "logo_AMD",   // AMD
     "AXON":       "logo_AXON",  // Axon Enterprise
     "AXP":        "logo_AXP",   // American Express
-    "BABA":       "logo_BAC",   // Alibaba
+    "BABA":       "logo_BABA",  // Alibaba
     "BAC":        "logo_BAC",   // Bank of America
     "BRK.B":      "logo_BRKB",  // Berkshire
     "BKNG":       "logo_BKNG",  // Booking Holdings
@@ -445,6 +445,7 @@ let tickerLocalLogo: [String: String] = [
     "TRI":        "logo_TRI",   // Thomson Reuters
     "TMUS":       "logo_TMUS",  // T-Mobile
     "TM":         "logo_TM",    // Toyota
+    "TMO":        "logo_TMO",   // Thermo
     "TER":        "logo_TER",   // Teradyne
     "TXN":        "logo_TXN",   // Texas Instruments
     "UNH":        "logo_UNH",   // UnitedHealth
@@ -522,6 +523,7 @@ let tickerLocalLogo: [String: String] = [
     "ECL":        "logo_ECL",   // Ecolab
     "AON":        "logo_AON",   // Aon
     "NSC":        "logo_NSC",   // Norfolk Southern
+    "UL":         "logo_UL",    // Unilever
 
     // KOSPI — 추가 종목
     "000100.KS":  "logo_000100KS",  // 유한양행
@@ -772,6 +774,8 @@ let tickersNeedLightBgRemoval: Set<String> = [
     "475830.KQ",   // 오름테라퓨틱
     "950160.KQ",   // 코오롱티슈진
     
+    "ITW",         // ITW
+    
 ]
 
 /// 로컬 PNG에 단색 컬러 배경(녹색·노랑 등)이 있는 로고 — 귀퉁이 픽셀 샘플링으로 배경색을 자동 제거.
@@ -788,15 +792,46 @@ let tickerLogoOffset: [String: CGPoint] = [
     "AXON": CGPoint(x: 0, y: -4),       // Axon
     "BKNG": CGPoint(x: 1, y: 0),        // Booking Holdings
     "CTAS": CGPoint(x: 0.5, y: 0),      // Cintas
-    "CVS": CGPoint(x: 0, y: 1),         // Chevron
+    "CVX": CGPoint(x: 0, y: 1.5),        // Chevron
     "GILD":  CGPoint(x:  0, y:  1),     // Gilead Sciences
     "IBKR": CGPoint(x: 1, y: 0),        // Interactive
     "INTC": CGPoint(x:  1, y:  0),      // Intel
-    "MCD":  CGPoint(x:  1, y:  0),
+    "MCD":  CGPoint(x:  0, y:  -1),
     "NVDA": CGPoint(x: -3, y:  0),      // Nvidia
     "NTES": CGPoint(x: -1, y:  0),      // NetEase
     "NXPI": CGPoint(x: 1, y:  0),       // NXP
     "PYPL": CGPoint(x: 1, y:  0),       // PayPal
+    "SAP": CGPoint(x: 0.5, y:  0),      // SAP
+    "BHP": CGPoint(x: 1, y:  0),        // BHP
+    "C": CGPoint(x: -0.5, y:  0),       // C
+    "ABT": CGPoint(x: 0.5, y:  0),      // Abbott
+    "TJX": CGPoint(x: 1.5, y:  1),      // TJX Companies
+    "UNP": CGPoint(x: 0, y:  0.5),      // Union Pacific
+    "NVO": CGPoint(x: 0.5, y:  0),      // Novo
+    "BLK": CGPoint(x: 0.5, y:  0),      // BlackRock
+    "DHR": CGPoint(x: 1, y:  1.5),      // DHR
+    "UBER": CGPoint(x: 0.5, y:  0),     // Uber
+    "SONY": CGPoint(x: 0.5, y:  0),     // Sony
+    "CB": CGPoint(x: 0.5, y:  0),       // Chubb
+    "RIO": CGPoint(x: 0.5, y:  0),      // Rio Tinto
+    "SYK": CGPoint(x: 0.5, y:  0),      // Stryker
+    "PGR": CGPoint(x: 0.5, y:  0),      // Progressive
+    "ACN": CGPoint(x: 3.5, y:  0),        // Accenture
+    "BK": CGPoint(x: 1.5, y:  0),        // BNY
+    "UL": CGPoint(x: 0.0, y:  1.5),        // UL
+    "SO": CGPoint(x: 0.0, y:  -0.5),        // Southern
+    "FCX": CGPoint(x: 0.0, y:  -1),        // Freeport
+    "MMM": CGPoint(x: -0.5, y:  0),        // 3M
+    "UPS": CGPoint(x: 0.5, y:  1),         // UPS
+    "MPC": CGPoint(x: 1, y:  -1.5),        // MPC
+    "ECL": CGPoint(x: 0.5, y:  1),        // Ecolab
+    "PSX": CGPoint(x: 0, y:  1),        // Phillips 66
+    "VLO": CGPoint(x: 0, y:  0.5),        // Valero
+    "WMB": CGPoint(x: 1, y:  0),        // Williams
+    "KKR": CGPoint(x: 0.5, y:  1),        // KKR
+    "TM": CGPoint(x: 0.5, y:  0),        // Toyota
+   
+   
     "000720.KS": CGPoint(x:  -1.5, y:  -2), // 현대건설
     "009540.KS": CGPoint(x:  3, y:  0),     // HD한국조선해양
     "021240.KS": CGPoint(x:  0, y:  1),     // 코웨이
@@ -841,6 +876,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "BAC":       6,    // Bank of America
     "BKR":       -4,   // Baker Hughes
     "BRK.B":     0,    // Berkshire
+    "BHP":       7,    // BHP
     "CAT":       0,    // Caterpillar
     "CCEP":      0,    // Coca-Cola
     "CDNS":      0,    // Cadence
@@ -869,6 +905,7 @@ let tickerLogoPadding: [String: CGFloat] = [
     "LLY":       0,    // Eli Lilly
     "LIN":       0,    // Linde
     "MAR":       2,    // Marriott
+    "MCD":       6,    // Mc
     "MDLZ":      0,    // Mondelez
     "MU":        0,    // Micron
     "MNST":      0,    // Monster Beverage
@@ -905,10 +942,62 @@ let tickerLogoPadding: [String: CGFloat] = [
     "WDC":       0,    // Western
     "KO":        0,    // Coca-Cola
     "CVX":       10,   // Chevron
-    "HSBC":       6,   // HSBC
-    
-    
-    
+    "HSBC":      6,   // HSBC
+    "HD":        0,   // Home Depot
+    "MS":        0,   // Morgan Stanley
+    "PG":        -0.5,   // P&G
+    "WFC":       0,   // Wells Fargo
+    "AXP":       0,   // American Express
+    "TM":        -2,   // TM
+    "VZ":        0,   // Verizon
+    "SCHW":      0,   // Charles
+    "ABT":       0,   // Abbott
+    "BA":        0,   // Boeing
+    "DIS":       0,   // Disney
+    "BX":        0,   // Blackstone
+    "CRM":       0,   // Salesforce
+    "NOW":       0,   // ServiceNow
+    "SPGI":      0,   // S&P Global
+    "GD":        0,   // General Dynamics
+    "USB":       0,   // U.S. Bancorp
+    "MMC":       0,   // Marsh
+    "SHW":       0,   // Sherwin
+    "ELV":       0,   // Elevance
+    "ICE":       0,   // Intercontinental
+    "NOC":       0,   // Northrop
+    "AMT":       0,   // American Tower
+    "NSC":       2,   // Norfolk Southern
+    "IBM":      -3,   // IBM
+    "BLK":       5,   // BlackRock
+    "TJX":       7,   // TJX
+    "TMO":       0,   // Thermo
+    "ETN":       7,   // Eaton
+    "COP":       7,   // COP
+    "UL":        10,   // Unilever
+    "RIO":       5,   // Rio Tinto
+    "LMT":       6,   // Lockheed
+    "CB":        4,   // Chubb
+    "COF":       6,   // Captial One
+    "SYK":       4,   // Stryker
+    "PGR":       2,   // Progressive
+    "CVS":       2,   // CVS Health
+    "NEM":       10,  // Newmont
+    "MDT":       2,   // Medtronic
+    "ACN":       10,  // Accenture
+    "BK":        2,    // BNY
+    "SO":        3,    // Southern Co.
+    "MO":        2,    // Altria
+    "HCA":       4,    // HCA Healthcare
+    "EMR":       4,    // EMR
+    "VLO":       4,    // Valero
+    "ITW":       0,    // ITW
+    "MPC":       4,    // Marathon
+    "PSX":       -4,   // Phillips 66
+    "ECL":       4,    // Ecolab
+    "AON":       4,    // Aon
+    "LOW":       0,    // Lowe's
+    "KKR":       4,    // KKR
+    "SAP":       4,    // SAP
     
     "000250.KQ": 2,   // Samchundang
     "0009K0.KQ": -3,  // 에임드바이오
@@ -1086,6 +1175,7 @@ let tickerCircleBackground: [String: Color] = [
     "AMD": Color.black,  // AMD
     "ADSK": Color.black, // Autodesk
     "AXON": Color.black, // Axon Enterprise
+    "BLK": Color.black,  // BlackRock
     "CDNS": Color.black, // Cadence
     "CCEP": Color.black, // Coca-Cola
     "EA": Color.black,   // Electronic Arts
@@ -1112,8 +1202,34 @@ let tickerCircleBackground: [String: Color] = [
     "TER": Color.black,  // Teradyne
     "HON": Color.red,    // Honeywell
     "VRTX": Color.black, // Vertax
+    "BUD": Color.black,  // AB InBev
+    "UBER": Color.black, // Uber
+    "SONY": Color.black, // Sony
+    "AON": Color.red,    // Aon
+    "FCX": Color.black,    // Freeport
+    "AMT": Color.black,    // American
+    "NOC": Color.black,    // Northrop
+    "ICE": Color.black,    // Intercontinental
+    "ELV": Color.black,    // Elevance
+    "SHW": Color.black,    // Sherwin
+    "USB": Color.black,    // US Bancorp
+    "GD": Color.black,    // GD
+    "LOW": Color.black,    // Lowe's
+    "NOW": Color.black,    // ServiceNow
+    "BX": Color.black,    // Blackstone
+    "DIS": Color.black,    // Disney
+    "BA": Color.black,    // Boeing
+    "VZ": Color.black,    // Verizon
+    "IBM": Color.black,    // IBM
+    "AXP": Color.black,    // AXP
+    "PG": Color.black,    // P&G
+    "MS": Color.black,    // Morgan
+    "CAT": Color.black,    // CAT
+    "KO": Color.black,    // Coca-cola
+    
     
     "ABNB": Color(red: 1.0000, green: 0.2078, blue: 0.3686),   // Airbnb
+    "ABBV": Color(red: 0.027, green: 0.114, blue: 0.286),      // ABBV
     "ADP": Color(red: 0.8078, green: 0.0980, blue: 0.1412),    // ADP
     "ASML": Color(red: 0.043, green: 0.114, blue: 0.522),      // ASML
     "AMGN": Color(red: 0.1020, green: 0.2196, blue: 0.3373),   // Amgen
@@ -1144,6 +1260,24 @@ let tickerCircleBackground: [String: Color] = [
     "QCOM": Color(red: 0.1647, green: 0.1647, blue: 0.9176),   // QCOM
     "V":     Color(red: 0.082, green: 0.204, blue: 0.800),     // Visa
     "WMT":   Color(red: 0.000, green: 0.322, blue: 0.894),     // Walmart
+    "GS":   Color(red: 0.471, green: 0.545, blue: 0.729),      // GS
+    "BABA":   Color(red: 1.0, green: 0.4, blue: 0.0),      // Alibaba
+    "NVO":   Color(red: 0.098, green: 0.098, blue: 0.439),      // Novo Nordisk
+    "MCD":   Color(red: 0.78, green: 0.0, blue: 0.0),      // McDonald's
+    "NEE":   Color(red: 0.29, green: 0.29, blue: 0.29),      // NextEra
+    "ETN":   Color(red: 0.0, green: 0.373, blue: 0.529),      // Eaton
+    "RIO":   Color(red: 0.8039, green: 0.1725, blue: 0.1725),      // Rio Tinto
+    "LMT":   Color(red: 0.0235, green: 0.3020, blue: 0.6392),      // Lockheed
+    "CB":   Color(red: 0.4118, green: 0.2078, blue: 0.6118),      // CB
+    "COF":   Color(red: 0.2, green: 0.2, blue: 0.2),      // Capital One
+    "SYK":   Color(red: 1.0, green: 0.7294, blue: 0.0),      // Stryker
+    "PGR":   Color(red: 0.0, green: 0.4824, blue: 0.6549),       // Progressive
+    "ECL":   Color(red: 0.0, green: 0.4, blue: 0.8),       // Ecolab
+    "KKR":   Color(red: 0.2078, green: 0.0549, blue: 0.2784),       // KKR
+    "WMB":   Color(red: 0.0, green: 0.4941, blue: 0.7804),          // WMB
+    "NSC":   Color(red: 0.133, green: 0.145, blue: 0.165),       // NSC
+    "ABT":   Color(red: 0.0, green: 0.0, blue: 0.5020),       // Abbott
+    
    
     "189300.KQ": Color.black, // 인텔리안테크
     "213420.KQ": Color.black, // 덕산네오룩스

@@ -83,7 +83,7 @@ enum WidgetSnapshotWriter {
 
     private static func fetchExchange(param: String) async throws
         -> (companies: [WidgetCompany], rate: Double?, basDt: String?) {
-        guard let url = URL(string: "http://\(MarketCapViewModel.host):3000/api/market-cap?exchange=\(param)")
+        guard let url = URL(string: "\(MarketCapViewModel.apiBase)/api/market-cap?exchange=\(param)")
         else { throw URLError(.badURL) }
 
         let (data, response) = try await URLSession.shared.data(from: url)

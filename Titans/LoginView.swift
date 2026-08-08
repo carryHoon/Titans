@@ -99,6 +99,7 @@ struct LoginView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 140, height: 140)
+                .offset(x: -5)
 
             VStack(spacing: 6) {
                 Text("RIDE THE MARKET")

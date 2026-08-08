@@ -83,6 +83,7 @@ private struct LoadingView: View {
                 .frame(width: 150, height: 150)
                 .scaleEffect(appear ? 1.0 : 0.88)
                 .opacity(appear ? 1.0 : 0.0)
+                .offset(x: -5.5)
         }
         .onAppear {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.7)) { appear = true }

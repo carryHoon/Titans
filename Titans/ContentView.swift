@@ -441,15 +441,12 @@ final class MarketCapViewModel: ObservableObject {
     // KR 종목 basDt 기준 스냅샷 — 영속 저장, 만료 없음(basDt 변경 시 자동 롤오버)
     private var krBaselines: [String: KRExchangeBaseline] = [:]  // exchangeParam → baseline
 
-    // 시뮬레이터는 Mac의 localhost로, 실제 기기는 같은 Wi-Fi의 Mac LAN IP로 자동 연결
-    #if targetEnvironment(simulator)
-    static let host = "localhost"
-    #else
-    static let host = "172.30.1.21"
-    #endif
+    // 데이터 API — Vercel 서버리스 상시가동 호스팅
+    static let host    = "titans-sooty.vercel.app"
+    static let apiBase = "https://\(host)"
 
-    private let endpoint      = URL(string: "http://\(host):3000/api/market-cap")!
-    private let indexEndpoint = URL(string: "http://\(host):3000/api/market-index")!
+    private let endpoint      = URL(string: "\(apiBase)/api/market-cap")!
+    private let indexEndpoint = URL(string: "\(apiBase)/api/market-index")!
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "krRankBaselines"),
@@ -531,7 +528,7 @@ final class MarketCapViewModel: ObservableObject {
     /// 반영해 ALL 피드와 간섭하지 않음.
     func fetchExchange(_ market: Market) async {
         guard let param = market.apiExchangeParam,
-              let url = URL(string: "http://\(Self.host):3000/api/market-cap?exchange=\(param)")
+              let url = URL(string: "\(Self.apiBase)/api/market-cap?exchange=\(param)")
         else { return }
         do {
             let result = try await loadCompanies(from: url, exchangeParam: param)
@@ -936,7 +933,7 @@ struct ErrorStateView: View {
                 .foregroundStyle(theme.secondaryLabel)
             Text("백엔드 서버에 연결할 수 없습니다")
                 .font(.system(size: 16, weight: .semibold))
-            Text("\(MarketCapViewModel.host):3000 이 실행 중인지 확인해주세요")
+            Text("네트워크 상태를 확인한 뒤 다시 시도해주세요")
                 .font(.system(size: 13))
                 .foregroundStyle(theme.secondaryLabel)
                 .multilineTextAlignment(.center)
@@ -1125,7 +1122,7 @@ enum DeviceID {
 /// titans-web `/api/launch-vote` 클라이언트.
 enum LaunchVoteAPI {
     private static var base: URL {
-        URL(string: "http://\(MarketCapViewModel.host):3000/api/launch-vote")!
+        URL(string: "\(MarketCapViewModel.apiBase)/api/launch-vote")!
     }
 
     /// 거래소별 하트 수. 실패 시 빈 딕셔너리.
