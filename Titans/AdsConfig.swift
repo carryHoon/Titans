@@ -22,9 +22,9 @@ enum AdsConfig {
     /// AdMob 앱 ID (Info.plist 의 GADApplicationIdentifier 와 동일해야 함)
     static let releaseAppID        = "ca-app-pub-1154843579671524~1864394354"
     /// 배너 광고 단위 ID
-    static let releaseBanner       = "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"   // TODO: 실제 배너 단위 ID
+    static let releaseBanner       = "ca-app-pub-1154843579671524/4714487194"
     /// 전면(Interstitial) 광고 단위 ID
-    static let releaseInterstitial = "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"   // TODO: 실제 전면 단위 ID
+    static let releaseInterstitial = "ca-app-pub-1154843579671524/2044091821"
 
     // MARK: - Google 공식 테스트 광고 단위 ID (DEBUG 전용, 교체 금지)
 
