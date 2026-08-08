@@ -1,0 +1,42 @@
+<svg version="1.1" id="svg2" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 344.8 343.3" style="enable-background:new 0 0 344.8 343.3;" xml:space="preserve">
+ <style type="text/css">
+  .st0{clip-path:url(#SVGID_2_);}
+	.st1{fill:url(#path28_1_);}
+ </style>
+ <sodipodi:namedview bordercolor="#666666" borderopacity="1" gridtolerance="10" guidetolerance="10" id="namedview4" inkscape:pageopacity="0" inkscape:pageshadow="2" inkscape:window-height="480" inkscape:window-width="640" objecttolerance="10" pagecolor="#ffffff">
+ </sodipodi:namedview>
+ <g id="g10" transform="matrix(1.3333333,0,0,-1.3333333,0,343.33333)" inkscape:groupmode="layer" inkscape:label="ink_ext_XXXXXX">
+  <g id="g12" transform="scale(0.1)">
+   <g id="g14">
+    <g>
+     <defs>
+      <path id="SVGID_1_" d="M264.5,977.2c-82.4,29.5-165.2,50.9-247.3,64.9c24.8-132.9,70.7-264.2,139.7-389
+						c201.5-364.6,553-593.5,935-653.1C1078,399.4,754.4,801.5,264.5,977.2z M311.2,1382.2c646.6,56.4,1144.3,560.3,1204.3,1172.9
+						c-281.7,49.9-581.7,7.4-851.5-141.8C271.8,2196.6,36.3,1806.4,0,1391.2C100.9,1376.6,205.1,1372.9,311.2,1382.2z M1291.9,980.8
+						c-16.5-359.6,96.9-695.1,298.8-961.1C1702.1,46.3,1812,87.9,1917.2,146c626.1,346.1,853.1,1134.2,507,1760.3
+						c-74.6,134.9-169.7,251.1-279.2,347.2C1662.4,2028.2,1318,1549.6,1291.9,980.8z">
+      </path>
+     </defs>
+     <clipPath id="SVGID_2_">
+      <use href="#SVGID_1_" style="overflow:visible;">
+      </use>
+     </clipPath>
+     <g id="g16" class="st0">
+      <linearGradient id="path28_1_" gradientUnits="userSpaceOnUse" x1="6214.4263" y1="533.3952" x2="6215.4263" y2="533.3952" gradientTransform="matrix(344.8093 0 0 -344.8093 -2142792.25 185207.125)">
+       <stop offset="0" style="stop-color:#CD9F28">
+       </stop>
+       <stop offset="1" style="stop-color:#ECD80B">
+       </stop>
+      </linearGradient>
+      <path id="path28" class="st1" d="M264.5,977.2c-82.4,29.5-165.2,50.9-247.3,64.9c24.8-132.9,70.7-264.2,139.7-389
+						c201.5-364.6,553-593.5,935-653.1C1078,399.4,754.4,801.5,264.5,977.2z M311.2,1382.2c646.6,56.4,1144.3,560.3,1204.3,1172.9
+						c-281.7,49.9-581.7,7.4-851.5-141.8C271.8,2196.6,36.3,1806.4,0,1391.2C100.9,1376.6,205.1,1372.9,311.2,1382.2z M1291.9,980.8
+						c-16.5-359.6,96.9-695.1,298.8-961.1C1702.1,46.3,1812,87.9,1917.2,146c626.1,346.1,853.1,1134.2,507,1760.3
+						c-74.6,134.9-169.7,251.1-279.2,347.2C1662.4,2028.2,1318,1549.6,1291.9,980.8">
+      </path>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

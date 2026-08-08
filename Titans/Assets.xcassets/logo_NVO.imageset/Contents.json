@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "Novo.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

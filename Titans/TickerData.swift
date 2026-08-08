@@ -325,6 +325,7 @@ let tickerDomain: [String: String] = [
 /// 직접 준비한 이미지를 넣을 때: Assets.xcassets에 "logo_[티커(점 제거)]" 이름으로 추가 후 여기 등록.
 let tickerLocalLogo: [String: String] = [
     "2222:TADAWUL":    "logo_2222SR", // Saudi Aramco
+    "ABBV":       "logo_ABBV",  // AbbVie
     "APP":        "logo_APP",   // AppLovin
     "AAPL":       "logo_AAPL",  // Apple
     "ABNB":       "logo_ABNB",  // Airbnb
@@ -342,9 +343,15 @@ let tickerLocalLogo: [String: String] = [
     "AMGN":       "logo_AMGN",  // Amgen
     "AMD":        "logo_AMD",   // AMD
     "AXON":       "logo_AXON",  // Axon Enterprise
+    "AXP":        "logo_AXP",   // American Express
+    "BABA":       "logo_BAC",   // Alibaba
+    "BAC":        "logo_BAC",   // Bank of America
     "BRK.B":      "logo_BRKB",  // Berkshire
     "BKNG":       "logo_BKNG",  // Booking Holdings
     "BKR":        "logo_BKR",   // Baker Hughes
+    "BHP":        "logo_BHP",   // BHP
+    "C":          "logo_C",     // Citigroup
+    "CAT":        "logo_CAT",   // Caterpillar
     "CCEP":       "logo_CCEP",  // Coca-Cola EP
     "CDNS":       "logo_CDNS",  // Cadence
     "CSCO":       "logo_CSCO",  // Cisco
@@ -353,6 +360,7 @@ let tickerLocalLogo: [String: String] = [
     "CRWV":       "logo_CRWV",  // CoreWeave
     "COST":       "logo_COST",  // Costco
     "CMCSA":      "logo_CMCSA", // Comcast
+    "CVX":        "logo_CVX",   // Chevron
     "CTAS":       "logo_CTAS",  // Cintas
     "CRWD":       "logo_CRWD",  // CrowdStrike
     "DASH":       "logo_DASH",  // DoorDash
@@ -363,11 +371,16 @@ let tickerLocalLogo: [String: String] = [
     "FTNT":       "logo_FTNT",  // Fortinet
     "FAST":       "logo_FAST",  // Fastenal
     "FER":        "logo_FER",   // Ferrovial
+    "GS":         "logo_GS",    // Goldman Sachs
+    "GE":         "logo_GE",    // GE Aerospace
     "GOOGL":      "logo_GOOGL", // Alphabet
     "GILD":       "logo_GILD",  // Gilead Sciences
+    "HD":         "logo_HD",    // Home Depot
     "HOOD":       "logo_HOOD",  // Robinhood
     "HON":        "logo_HON",   // Honeywell
+    "HSBC":       "logo_HSBC",  // HSBC
     "IBKR":       "logo_IBKR",  // Interactive Brokers
+    "IBM":        "logo_IBM",   // IBM
     "IDXX":       "logo_IDXX",  // Idexx Labs
     "ISRG":       "logo_ISRG",  // Intuitive Surgical
     "INTC":       "logo_INTC",  // Intel
@@ -377,6 +390,7 @@ let tickerLocalLogo: [String: String] = [
     "JPM":        "logo_JPM",   // JPMorgan
     "KLAC":       "logo_KLAC",  // KLA
     "KDP":        "logo_KDP",   // Keurig Dr Pepper
+    "KO":         "logo_KO",    // Coca-Cola
     "LLY":        "logo_LLY",   // Eli Lilly
     "LIN":        "logo_LIN",   // Linde
     "LITE":       "logo_LITE",  // Lumentum
@@ -386,11 +400,13 @@ let tickerLocalLogo: [String: String] = [
     "MCHP":       "logo_MCHP",  // Microchip
     "MNST":       "logo_MNST",  // Monster Beverage
     "MDLZ":       "logo_MDLZ",  // Mondelez
+    "MS":         "logo_MS",    // Morgan Stanley
     "MSFT":       "logo_MSFT",  // Microsoft
     "META":       "logo_META",  // Meta
     "MELI":       "logo_MELI",  // MercadoLibre
     "MPWR":       "logo_MPWR",  // Monolithic Power
     "MRVL":       "logo_MRVL",  // Marvell
+    "MRK":        "logo_MRK",   // Merck
     "MU":         "logo_MU",    // Micron
     "NBIS":       "logo_NBIS",  // Nebius Group
     "NDAQ":       "logo_NDAQ",  // Nasdaq Inc.
@@ -400,17 +416,23 @@ let tickerLocalLogo: [String: String] = [
     "NXPI":       "logo_NXPI",  // NXP Semiconductors
     "ODFL":       "logo_ODFL",  // Old Dominion
     "ORLY":       "logo_ORLY",  // O'Reilly Auto
+    "ORCL":       "logo_ORCL",  // Oracle
     "PANW":       "logo_PANW",  // Palo Alto Networks
     "PAYX":       "logo_PAYX",  // Paychex
     "PCAR":       "logo_PCAR",  // Paccar
     "PDD":        "logo_PDD",   // PDD Holdings
+    "PM":         "logo_PM",    // Philip Morris
     "PEP":        "logo_PEP",   // PepsiCo
     "PLTR":       "logo_PLTR",  // Palantir
     "PYPL":       "logo_PYPL",  // PayPal
+    "PG":         "logo_PG",    // P&G
     "QCOM":       "logo_QCOM",  // Qualcomm
+    "RTX":        "logo_RTX",   // RTX
     "REGN":       "logo_REGN",  // Regeneron
     "ROST":       "logo_ROST",  // Ross Stores
     "RKLB":       "logo_RKLB",  // Rocket Lab
+    "SAP":        "logo_SAP",   // SAP
+    "SHEL":       "logo_SHEL",  // Shell
     "SBUX":       "logo_SBUX",  // Starbucks
     "SPCX":       "logo_SPCX",  // SpaceX
     "SHOP":       "logo_SHOP",  // Shopify
@@ -422,25 +444,84 @@ let tickerLocalLogo: [String: String] = [
     "TTWO":       "logo_TTWO",  // Take-Two
     "TRI":        "logo_TRI",   // Thomson Reuters
     "TMUS":       "logo_TMUS",  // T-Mobile
+    "TM":         "logo_TM",    // Toyota
     "TER":        "logo_TER",   // Teradyne
     "TXN":        "logo_TXN",   // Texas Instruments
+    "UNH":        "logo_UNH",   // UnitedHealth
     "V":          "logo_V",     // Visa
     "VRTX":       "logo_VRTX",  // Vertex Pharma
     "WDC":        "logo_WDC",   // Western Digital
     "WBD":        "logo_WBD",   // Warner Bros. Disc.
     "WDAY":       "logo_WDAY",  // Workday
     "WMT":        "logo_WMT",   // Walmart
+    "WFC":        "logo_WFC",   // Wells Fargo
     "XOM":        "logo_XOM",   // ExxonMobil
     "XEL":        "logo_XEL",   // Xcel Energy
-    "BAC":        "logo_BAC",
-    "ABBV":       "logo_ABBV",
-    "UNH":        "logo_UNH",
-    "KO":         "logo_KO",
-    "CVX":        "logo_CVX",
-    "ORCL":       "logo_ORCL",
-    "HD":         "logo_HD",
-    "CAT":        "logo_CAT",
-    "GE":         "logo_GE",
+    "NVO":        "logo_NVO",   // Novo Nordisk
+    "VZ":         "logo_VZ",    // Verizon
+    "MCD":        "logo_MCD",   // McDonald's
+    "TTE":        "logo_TTE",   // TotalEnergies
+    "SCHW":       "logo_SCHW",  // Charles Schwab
+    "ABT":        "logo_ABT",   // Abbott
+    "BA":         "logo_BA",    // Boeing
+    "BLK":        "logo_BLK",   // BlackRock
+    "DIS":        "logo_DIS",   // Disney
+    "TJX":        "logo_TJX",   // TJX Companies
+    "NEE":        "logo_NEE",   // NextEraEnergy
+    "ETN":        "logo_ETN",   // Eaton
+    "UNP":        "logo_UNP",   // Union Pacific
+    "BX":         "logo_BX",    // Blackstone
+    "DE":         "logo_DE",    // Deere
+    "BUD":        "logo_BUD",   // AB InBev
+    "RIO":        "logo_RIO",   // Rio Tinto
+    "T":          "logo_T",     // AT&T
+    "CRM":        "logo_CRM",   // Salesforce
+    "UBER":       "logo_UBER",  // Uber
+    "PFE":        "logo_PFE",   // Pfizer
+    "DHR":        "logo_DHR",   // Danaher
+    "COP":        "logo_COP",   // ConocoPhillips
+    "SONY":       "logo_SONY",  // Sony
+    "LMT":        "logo_LMT",   // LockheedMartin
+    "CB":         "logo_CB",    // Chubb
+    "PLD":        "logo_PLD",   // Prologis
+    "COF":        "logo_COF",   // Capital One
+    "BMY":        "logo_BMY",   // Bristol Myers
+    "SYK":        "logo_SYK",   // Stryker
+    "NOW":        "logo_NOW",   // ServiceNow
+    "LOW":        "logo_LOW",   // Lowe's
+    "PGR":        "logo_PGR",   // Progressive
+    "CVS":        "logo_CVS",   // CVS Health
+    "SPGI":       "logo_SPGI",  // S&P Global
+    "NEM":        "logo_NEM",   // Newmont
+    "MO":         "logo_MO",    // Altria
+    "MDT":        "logo_MDT",   // Medtronic
+    "ACN":        "logo_ACN",   // Accenture
+    "BK":         "logo_BK",    // BNY
+    "SO":         "logo_SO",    // Southern Co.
+    "GD":         "logo_GD",    // General Dynamics
+    "PNC":        "logo_PNC",   // PNC Financial
+    "USB":        "logo_USB",   // U.S. Bancorp
+    "FCX":        "logo_FCX",   // Freeport
+    "DUK":        "logo_DUK",   // Duke Energy
+    "MMC":        "logo_MMC",   // Marsh McLennan
+    "MMM":        "logo_MMM",   // 3M
+    "KKR":        "logo_KKR",   // KKR
+    "SHW":        "logo_SHW",   // Sherwin-Williams
+    "HCA":        "logo_HCA",   // HCA Healthcare
+    "UPS":        "logo_UPS",   // UPS
+    "EMR":        "logo_EMR",   // Emerson
+    "WMB":        "logo_WMB",   // Williams
+    "VLO":        "logo_VLO",   // Valero
+    "ELV":        "logo_ELV",   // Elevance Health
+    "ITW":        "logo_ITW",   // Illinois
+    "ICE":        "logo_ICE",   // Intercontinental
+    "MPC":        "logo_MPC",   // Marathon Petrol
+    "PSX":        "logo_PSX",   // Phillips 66
+    "NOC":        "logo_NOC",   // Northrop
+    "AMT":        "logo_AMT",   // American Tower
+    "ECL":        "logo_ECL",   // Ecolab
+    "AON":        "logo_AON",   // Aon
+    "NSC":        "logo_NSC",   // Norfolk Southern
 
     // KOSPI — 추가 종목
     "000100.KS":  "logo_000100KS",  // 유한양행
@@ -707,6 +788,7 @@ let tickerLogoOffset: [String: CGPoint] = [
     "AXON": CGPoint(x: 0, y: -4),       // Axon
     "BKNG": CGPoint(x: 1, y: 0),        // Booking Holdings
     "CTAS": CGPoint(x: 0.5, y: 0),      // Cintas
+    "CVS": CGPoint(x: 0, y: 1),         // Chevron
     "GILD":  CGPoint(x:  0, y:  1),     // Gilead Sciences
     "IBKR": CGPoint(x: 1, y: 0),        // Interactive
     "INTC": CGPoint(x:  1, y:  0),      // Intel
@@ -756,8 +838,10 @@ let tickerLogoPadding: [String: CGFloat] = [
     "APP":       4,    // AppLovin
     "AEP":       2,    // American Elec. Pwr
     "ALAB":      0,    // Astera Labs
+    "BAC":       6,    // Bank of America
     "BKR":       -4,   // Baker Hughes
     "BRK.B":     0,    // Berkshire
+    "CAT":       0,    // Caterpillar
     "CCEP":      0,    // Coca-Cola
     "CDNS":      0,    // Cadence
     "CSCO":      0,    // Cisco
@@ -819,6 +903,11 @@ let tickerLogoPadding: [String: CGFloat] = [
     "WBD":       0,    // Warner Bros.
     "WDAY":      0,    // Workday
     "WDC":       0,    // Western
+    "KO":        0,    // Coca-Cola
+    "CVX":       10,   // Chevron
+    "HSBC":       6,   // HSBC
+    
+    
     
     
     "000250.KQ": 2,   // Samchundang
@@ -1024,7 +1113,6 @@ let tickerCircleBackground: [String: Color] = [
     "HON": Color.red,    // Honeywell
     "VRTX": Color.black, // Vertax
     
-    "ABBV": Color(red: 0.07, green: 0.13, blue: 0.30),
     "ABNB": Color(red: 1.0000, green: 0.2078, blue: 0.3686),   // Airbnb
     "ADP": Color(red: 0.8078, green: 0.0980, blue: 0.1412),    // ADP
     "ASML": Color(red: 0.043, green: 0.114, blue: 0.522),      // ASML
@@ -1046,6 +1134,7 @@ let tickerCircleBackground: [String: Color] = [
     "LRCX": Color(red: 0.416, green: 0.417, blue: 0.522),      // Lam Research
     "LIN": Color(red: 0.0, green: 0.1843, blue: 0.3529),       // Linde
     "MPWR": Color(red: 0.0, green: 0.4000, blue: 1.0000),      // Monolithic Power
+    "ORCL": Color(red: 0.78, green: 0.275, blue: 0.204),       // Oracle
     "PLTR": Color(red: 0.117, green: 0.129, blue: 0.141),      // Palantir
     "SHOP": Color(red: 0.5843, green: 0.7529, blue: 0.2863),   // Shopify
     "SNPS": Color(red: 0.4235, green: 0.1882, blue: 0.5098),   // Synopsys
