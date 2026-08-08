@@ -754,14 +754,18 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            ProportionalScaledLayout(referenceWidth: 402) {
-                HStack(alignment: .center, spacing: 12) {
-                    SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                    CurrencyToggle(selected: $selectedCurrency)
-                }
-                .padding(.leading, 6)
-                .padding(.trailing, 16)
+            // 통화 시세 + 통화 토글 행.
+            // 상단 바(LiveIndicatorBar)와 동일한 좌우 여백(leading 28 / trailing 32)으로 화면 전체 폭을
+            // 사용해, 어떤 기기 폭에서도 통화 토글 우측이 검색·메뉴 버튼 우측과 정확히 정렬되게 한다.
+            // (기존 ProportionalScaledLayout은 고정 402pt 폭으로 배치 후 좌측 정렬해서, 402pt보다 넓은
+            //  기기(예: 17 Pro Max 440pt)에서 통화 토글이 우측 끝에 못 붙고 안쪽으로 어긋났다.
+            //  티커는 내부 lineLimit(1)+minimumScaleFactor로 좁은 기기에서도 줄바꿈 없이 축소된다.)
+            HStack(alignment: .center, spacing: 12) {
+                SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
+                CurrencyToggle(selected: $selectedCurrency)
             }
+            .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
+            .padding(.trailing, 32)   // 상단 바 trailing과 동일 → 통화 토글 우측 = 메뉴 아이콘 우측 정렬
             .padding(.top, -4 * vScale)
             .padding(.bottom, 2 * vScale)
 
