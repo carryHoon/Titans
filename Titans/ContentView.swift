@@ -754,14 +754,21 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            ProportionalScaledLayout(referenceWidth: 402) {
-                HStack(alignment: .center, spacing: 12) {
-                    SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                    CurrencyToggle(selected: $selectedCurrency)
-                }
-                .padding(.leading, 6)
-                .padding(.trailing, 16)
+            // 통화 시세 + 통화 토글 행.
+            // 상단 바(LiveIndicatorBar)와 동일한 좌우 여백(leading 28 / trailing 32)으로 화면 전체 폭을
+            // 사용해, 어떤 기기 폭에서도 통화 토글 우측이 검색·메뉴 버튼 우측과 정확히 정렬되게 한다.
+            // (기존 ProportionalScaledLayout은 고정 402pt 폭으로 배치 후 좌측 정렬해서, 402pt보다 넓은
+            //  기기(예: 17 Pro Max 440pt)에서 통화 토글이 우측 끝에 못 붙고 안쪽으로 어긋났다.
+            //  티커는 내부 lineLimit(1)+minimumScaleFactor로 좁은 기기에서도 줄바꿈 없이 축소된다.)
+            HStack(alignment: .center, spacing: 12) {
+                SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
+                CurrencyToggle(selected: $selectedCurrency)
             }
+            .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
+            // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
+            // trailing을 검색/메뉴(40)보다 6pt 작게(34) 줘서 오른쪽으로 밀어 두 우측 끝을 시각적으로 맞춘다.
+            // (우측 여백은 화면 끝 기준 고정 pt라 모든 아이폰 기기에서 동일하게 적용된다.)
+            .padding(.trailing, 25)
             .padding(.top, -4 * vScale)
             .padding(.bottom, 2 * vScale)
 
@@ -1319,7 +1326,7 @@ struct LiveIndicatorBar: View {
             .font(.system(size: 20, weight: .medium))
         }
         .padding(.leading, 28)
-        .padding(.trailing, 32)
+        .padding(.trailing, 40)   // 검색·메뉴 버튼을 우측 끝에서 조금 안쪽으로. 통화 토글(테두리 pill)은 글리프보다 시각적으로 왼쪽에 보여, trailing을 더 작게(25) 줘 우측을 시각적으로 맞춘다.
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
@@ -1404,16 +1411,7 @@ struct SingleMarketTicker: View {
             ZStack {
                 ForEach(0..<indices.count, id: \.self) { i in
                     if i == currentIndex {
-                        MarketIndexRow(
-                            index: indices[i],
-                            changeTrailingPadding: {
-                                switch indices[i].id {
-                                case "kospi":  return 12
-                                case "kosdaq": return 15
-                                default:       return 0
-                                }
-                            }()
-                        )
+                        MarketIndexRow(index: indices[i])
                         .transition(.asymmetric(
                             insertion: .move(edge: .bottom).combined(with: .opacity),
                             removal:   .move(edge: .top).combined(with: .opacity)
@@ -1434,7 +1432,6 @@ struct SingleMarketTicker: View {
 
 struct MarketIndexRow: View {
     let index: MarketIndex
-    var changeTrailingPadding: CGFloat = 0
     @Environment(\.appTheme) private var theme
 
     private var isPositive: Bool { index.change >= 0 }
@@ -1463,28 +1460,26 @@ struct MarketIndexRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(index.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.secondaryLabel)
-                    .fixedSize()                       // 짧은 지수명은 항상 온전히 표시
-                Text(formattedValue)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
-                    .foregroundStyle(theme.label)
-                    .contentTransition(.numericText())
-                    .lineLimit(1)                      // 자릿수 많은 값도 절대 줄바꿈 금지
-                    .minimumScaleFactor(0.5)           // 공간 부족 시 폰트만 축소
-            }
-
-            Spacer(minLength: 4)
-
+        // name · value · percent 를 균일한 8pt 간격으로 묶어 좌측 정렬한다(토스식 tight 그룹).
+        // 값과 % 사이에 확장되는 Spacer를 두지 않으므로 둘이 양 끝으로 벌어지지 않는다.
+        // 남는 폭은 맨 뒤 Spacer(minLength: 0)가 흡수 → 어떤 기기 폭에서도 간격은 8pt로 동일.
+        HStack(alignment: .lastTextBaseline, spacing: 8) {
+            Text(index.name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.secondaryLabel)
+                .fixedSize()                       // 짧은 지수명은 항상 온전히 표시
+            Text(formattedValue)
+                .font(.system(size: 21, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.label)
+                .contentTransition(.numericText())
+                .lineLimit(1)                      // 자릿수 많은 값도 절대 줄바꿈 금지
+                .minimumScaleFactor(0.5)           // 공간 부족 시 값 폰트만 축소해 한 줄 유지
             Text(formattedChangePercent)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(trendColor)
                 .lineLimit(1)
-                .fixedSize()                           // 퍼센트도 항상 온전히 표시
-                .padding(.trailing, changeTrailingPadding)
+                .fixedSize()                       // 퍼센트도 항상 온전히 표시
+            Spacer(minLength: 0)                   // 그룹 좌측 정렬 (여분 폭 흡수)
         }
     }
 }
