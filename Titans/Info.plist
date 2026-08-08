@@ -4,5 +4,9 @@
 <dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1154843579671524~1864394354</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>맞춤형 광고를 제공하고 광고 성과를 측정하기 위해 사용자의 활동을 추적합니다. 동의하지 않아도 앱은 정상적으로 이용할 수 있으며, 광고는 맞춤형이 아닌 일반 광고로 표시됩니다.</string>
 </dict>
 </plist>
