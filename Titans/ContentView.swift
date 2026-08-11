@@ -766,9 +766,9 @@ struct ContentView: View {
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
-            // trailing을 검색/메뉴(40)보다 6pt 작게(34) 줘서 오른쪽으로 밀어 두 우측 끝을 시각적으로 맞춘다.
-            // (우측 여백은 화면 끝 기준 고정 pt라 모든 아이폰 기기에서 동일하게 적용된다.)
-            .padding(.trailing, 25)
+            // trailing을 검색/메뉴(32)보다 15pt 작게(17) 줘서 오른쪽으로 밀어 두 우측 끝을 시각적으로 맞춘다.
+            // (우측 여백은 화면 끝 기준 고정 pt라 모든 아이폰 기기에서 동일하게 적용된다. 검색/메뉴와 함께 8pt씩 오른쪽으로 이동: 25→17.)
+            .padding(.trailing, 17)
             .padding(.top, -4 * vScale)
             .padding(.bottom, 2 * vScale)
 
@@ -1326,7 +1326,7 @@ struct LiveIndicatorBar: View {
             .font(.system(size: 20, weight: .medium))
         }
         .padding(.leading, 28)
-        .padding(.trailing, 40)   // 검색·메뉴 버튼을 우측 끝에서 조금 안쪽으로. 통화 토글(테두리 pill)은 글리프보다 시각적으로 왼쪽에 보여, trailing을 더 작게(25) 줘 우측을 시각적으로 맞춘다.
+        .padding(.trailing, 32)   // 검색·메뉴 버튼을 우측 끝에서 조금 안쪽으로. 통화 토글(테두리 pill)은 글리프보다 시각적으로 왼쪽에 보여, trailing을 더 작게(17) 줘 우측을 시각적으로 맞춘다. (통화 토글과 함께 8pt씩 오른쪽으로 이동: 40→32.)
         .padding(.vertical, 6 * vScale)
         // market 변경 시 텍스트 너비 변화(레이아웃)를 스프링으로 애니메이션
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: market)
@@ -1660,7 +1660,9 @@ struct ColumnHeader: View {
             Spacer()
 
             sortButton("시가총액", field: .marketCap)
-                .padding(.trailing, 8)
+                // 헤더 "시가총액" 라벨만 오른쪽으로 조금 이동 — trailing 8→4로 4pt 우측 이동.
+                // 화면 끝 기준 고정 pt라 모든 기기에서 동일하게 적용된다.
+                .padding(.trailing, -3)
         }
         .font(.system(size: 12, weight: .semibold))
         // CompanyRow의 내부 좌우 패딩(16)과 정렬을 맞춤
