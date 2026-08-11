@@ -107,7 +107,7 @@ struct LoginView: View {
                     .tracking(6)
                     .foregroundStyle(Color(red: 0.2, green: 0.8, blue: 0.4))
 
-                Text("S&P 1")
+                Text("MarCap")
                     .font(.system(size: 76, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.label)
             }

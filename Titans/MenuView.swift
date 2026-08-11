@@ -19,7 +19,7 @@ struct MenuView: View {
     @State private var showMailUnavailableAlert = false
 
     /// 고객센터 문의 수신 주소.
-    private let supportEmail = "officialsurfinapp@gmail.com"
+    private let supportEmail = "marcap.official@gmail.com"
 
     /// 개인정보처리방침 URL (GitHub Pages 호스팅).
     private let privacyPolicyURL = URL(string: "https://carryhoon.github.io/Titans/privacy.html")!
@@ -209,7 +209,7 @@ struct MenuView: View {
         let device = deviceModelIdentifier()
         let os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
 
-        let subject = "S&P 1 의견 보내기"
+        let subject = "MarCap 의견 보내기"
         let body = """
         ── 아래 정보는 문의 처리를 위해 함께 전송됨을 미리 알려드립니다.(발송 전 수정·삭제 가능) ──
         • 계정: \(account)

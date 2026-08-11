@@ -402,12 +402,12 @@
 				CODE_SIGN_ENTITLEMENTS = Titans/Titans.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Titans/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "S&P 1";
+				INFOPLIST_KEY_CFBundleDisplayName = MarCap;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -419,7 +419,7 @@
 					"@executable_path/Frameworks",
 					/usr/lib/swift,
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -442,12 +442,12 @@
 				CODE_SIGN_ENTITLEMENTS = Titans/Titans.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Titans/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "S&P 1";
+				INFOPLIST_KEY_CFBundleDisplayName = MarCap;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -459,7 +459,7 @@
 					"@executable_path/Frameworks",
 					/usr/lib/swift,
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -482,18 +482,18 @@
 				CODE_SIGN_ENTITLEMENTS = surFinWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = surFinWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "S&P1Widget";
+				INFOPLIST_KEY_CFBundleDisplayName = MarCapWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans.surFinWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -514,18 +514,18 @@
 				CODE_SIGN_ENTITLEMENTS = surFinWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C24GVMX59M;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = surFinWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "S&P1Widget";
+				INFOPLIST_KEY_CFBundleDisplayName = MarCapWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.carryHoon.Titans.surFinWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

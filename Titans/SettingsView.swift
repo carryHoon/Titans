@@ -204,7 +204,7 @@ struct SettingsView: View {
                     }
 
                     section(title: "고객센터") {
-                        Link(destination: URL(string: "mailto:officialsurfinapp@gmail.com?subject=surFin%20의견%20보내기")!) {
+                        Link(destination: URL(string: "mailto:marcap.official@gmail.com?subject=MarCap%20의견%20보내기")!) {
                             linkRow(icon: "envelope.fill", iconColor: .blue,
                                     title: "피드백 보내기",
                                     subtitle: "불편한 점이나 요청 사항을 알려주세요")
