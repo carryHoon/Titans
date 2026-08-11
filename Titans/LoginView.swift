@@ -94,12 +94,14 @@ struct LoginView: View {
 
     private var brand: some View {
         VStack(spacing: 20) {
-            // 앱 아이콘과 통일된 브랜드 마크. 라이트=검정, 다크=흰색으로 유동 전환된다.
+            // 앱 아이콘과 통일된 브랜드 마크(MarCap "MC"). 라이트=검정, 다크=흰색으로 유동 전환된다.
+            // 스플래시와 동일하게 은은한 그림자로 담백한 입체감만 살짝 준다.
             Image("LaunchLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 140, height: 140)
-                .offset(x: -5)
+                .shadow(color: isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.12),
+                        radius: 14, y: 6)
 
             VStack(spacing: 6) {
                 Text("RIDE THE MARKET")
