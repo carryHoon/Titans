@@ -191,3 +191,15 @@ export const fx = new FxService([
 export async function getUsdKrwQuote(): Promise<FxQuote> {
   return (await fx.resolve(['KRW'])).KRW
 }
+
+// 다통화 표시(앱 온보딩에서 고른 표시 통화)용. 요청 통화들의 "1 USD 당 금액" rate만 맵으로 반환한다.
+// fx.resolve가 캐시·last-good·상수폴백까지 처리하므로 항상 전부 채워진다(실패해도 상수 폴백).
+// 기본값은 전 통화(KRW/JPY/CNY/EUR). USD는 기준 통화(rate=1)라 클라이언트가 처리하므로 여기 없음.
+export async function getFxRates(
+  currencies: Currency[] = ALL_CURRENCIES,
+): Promise<Record<Currency, number>> {
+  const quotes = await fx.resolve(currencies)
+  const out = {} as Record<Currency, number>
+  for (const c of currencies) out[c] = quotes[c].rate
+  return out
+}
