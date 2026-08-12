@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUsdKrwQuote } from '@/lib/fx'
+import { getUsdKrwQuote, getFxRates, type Currency } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
 import {
@@ -200,6 +200,16 @@ async function getKrwRate(): Promise<number> {
   }
 }
 
+// 다통화 표시용 rate 맵({KRW,JPY,CNY,EUR}). fx 레이어가 통화별 캐시·상수폴백을 하므로 항상 채워진다.
+// KRW는 위 getKrwRate와 동일 fx 캐시를 공유(중복 호출해도 캐시 히트). 전체 실패 시 KRW만이라도 채워 반환.
+async function getFxRateMap(krwFallback: number): Promise<Record<Currency, number>> {
+  try {
+    return await getFxRates()
+  } catch {
+    return { KRW: krwFallback, JPY: 155, CNY: 7.2, EUR: 0.92 }
+  }
+}
+
 // ─── KRX — 스냅샷 레이어 조회 ─────────────────────────────────────────────────
 
 async function getKRXResult(
@@ -335,6 +345,7 @@ async function handleAll() {
     if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
 
     const rate = await getKrwRate()
+    const rates = await getFxRateMap(rate)
 
     const [companyRows, krxResults] = await Promise.all([
       fetchRows(COMPANIES),
@@ -356,12 +367,12 @@ async function handleAll() {
     lastGoodAt           = Date.now()
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, data: ranked, updatedAt: lastGoodAt, stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: lastGoodAt, stale: false })
   } catch (err) {
     console.error('[market-cap] fetch error:', err)
     if (lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, data: lastGoodResult, updatedAt: lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: lastGoodResult, updatedAt: lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -376,6 +387,7 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
     if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
 
     const rate = await getKrwRate()
+    const rates = await getFxRateMap(rate)
     const rows = await fetchRows(universe)
     const allRows = rows.filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
 
@@ -392,12 +404,12 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${exchange}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -410,6 +422,7 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
   const state = exchangeFeeds[exchange]
   try {
     const rate   = await getKrwRate()
+    const rates  = await getFxRateMap(rate)
     const ds     = await getKrxDataset()
     const suffix = exchange === 'KOSPI' ? 'KS' : 'KQ'
     const rows   = exchange === 'KOSPI' ? ds.kospi : ds.kosdaq  // 이미 시총 내림차순
@@ -433,12 +446,12 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now(); state.lastBasDt = ds.basDt }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, basDt: ds.basDt, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, basDt: ds.basDt, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${exchange}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, basDt: state.lastBasDt, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), basDt: state.lastBasDt, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })

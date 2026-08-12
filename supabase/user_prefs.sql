@@ -11,9 +11,18 @@ create table if not exists public.user_prefs (
   user_id               uuid        primary key references auth.users(id) on delete cascade,
   is_dark_mode          boolean     not null default false,
   notifications_enabled boolean     not null default false,
+  nickname              text,                              -- 온보딩에서 설정하는 표시용 닉네임(유니크 제약 없음). nil = 온보딩 미완료
+  nickname_changed      boolean     not null default false,  -- 온보딩 이후 닉네임을 1회 변경했는지(true면 잠금)
+  display_currency      text        not null default 'USD', -- USD와 함께 볼 표시 통화(ISO 코드). 'USD'면 달러만
   watchlist             jsonb       not null default '[]'::jsonb,
   updated_at            timestamptz not null default now()
 );
+
+-- ── 기존 프로젝트용 마이그레이션(테이블이 이미 있는 경우) ──────────────────────
+-- 아래 두 컬럼 추가만 SQL Editor에서 실행하면 된다(additive, 기존 데이터 무손실).
+alter table public.user_prefs add column if not exists nickname         text;
+alter table public.user_prefs add column if not exists nickname_changed boolean not null default false;
+alter table public.user_prefs add column if not exists display_currency text not null default 'USD';
 
 -- 행 수준 보안: 로그인한 본인만 자신의 행에 접근.
 alter table public.user_prefs enable row level security;

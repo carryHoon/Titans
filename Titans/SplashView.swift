@@ -23,25 +23,37 @@ struct RootView: View {
     /// 로그인 화면을 한 번이라도 건너뛰었는지(익명 진입 완료). true면 다음부터 바로 메인.
     @AppStorage("hasSkippedLogin") private var hasSkippedLogin = false
 
-    private enum Screen: Equatable { case login, main }
+    private enum Screen: Equatable { case login, onboarding, main, pending }
 
     private var screen: Screen {
-        // 로그인돼 있거나 이미 둘러보기를 고른 사용자는 메인으로. 그 외(신규·비로그인)는 로그인.
-        if auth.isSignedIn { return .main }
+        // 로그인 유저: 원격 pull이 끝나야 온보딩 여부를 판단(그 전엔 pending=로딩 유지, 홈 깜빡임 방지).
+        // 닉네임이 없으면 신규 유저 → 온보딩, 있으면 기존 유저 → 메인.
+        if auth.isSignedIn {
+            let prefs = PrefsSync.shared
+            if !prefs.didLoadRemote { return .pending }
+            return prefs.nickname == nil ? .onboarding : .main
+        }
+        // 비로그인: 이미 둘러보기를 고른 사용자는 메인, 그 외(신규)는 로그인.
         return hasSkippedLogin ? .main : .login
     }
 
     var body: some View {
         ZStack {
-            if isLoading {
+            if isLoading || screen == .pending {
                 LoadingView().transition(.opacity)
             } else {
                 switch screen {
                 case .login:
                     LoginView(onContinueAnonymously: { hasSkippedLogin = true })
                         .transition(.opacity)
+                case .onboarding:
+                    OnboardingView(onComplete: {})
+                        .transition(.opacity)
                 case .main:
                     ContentView().transition(.opacity)
+                case .pending:
+                    // isLoading || pending 분기에서 LoadingView가 처리됨(도달하지 않음).
+                    LoadingView().transition(.opacity)
                 }
             }
         }

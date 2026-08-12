@@ -21,6 +21,7 @@ struct AccountView: View {
     private var theme: AppTheme { isDarkMode ? .dark : .light }
 
     private var email: String { auth.userEmail ?? "로그인됨" }
+    private var nickname: String? { PrefsSync.shared.nickname }
 
     var body: some View {
         ScrollView {
@@ -37,11 +38,43 @@ struct AccountView: View {
                             Image(systemName: "person.fill")
                                 .font(.system(size: 30, weight: .medium))
                                 .foregroundStyle(.white))
-                    Text(email)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(theme.label)
+                    // 닉네임이 있으면 이름으로, 이메일은 보조로 함께 노출.
+                    VStack(spacing: 4) {
+                        Text(nickname ?? email)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(theme.label)
+                        if nickname != nil {
+                            Text(email)
+                                .font(.system(size: 13))
+                                .foregroundStyle(theme.secondaryLabel)
+                        }
+                    }
                 }
                 .padding(.top, 24)
+
+                // 닉네임 수정하기 (온보딩 이후 1회만 변경 가능 — 잠금 상태는 NicknameEditView가 안내)
+                NavigationLink {
+                    NicknameEditView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.text.rectangle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(theme.secondaryLabel)
+                        Text("닉네임 변경하기")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(theme.label)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(theme.tertiaryLabel)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(theme.fill))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
 
                 // 로그아웃
                 Button {
@@ -72,7 +105,7 @@ struct AccountView: View {
             }
         }
         .background(theme.background.ignoresSafeArea())
-        .navigationTitle("내 계정")
+        .navigationTitle("계정 관리")
         .navigationBarTitleDisplayMode(.inline)
         .alert("알림", isPresented: .init(
             get: { errorMessage != nil },

@@ -13,6 +13,7 @@ struct MenuView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
     @AppStorage("notificationsEnabled") private var notificationsEnabled: Bool = false
+    @AppStorage("displayCurrency") private var displayCurrencyRaw: String = Currency.usd.rawValue
 
     @State private var showLogin = false
     @State private var showLoginRequiredAlert = false
@@ -43,6 +44,23 @@ struct MenuView: View {
                         accountCard
                     }
                     .padding(.top, 16)
+
+                    // MARK: 표시 (로그인 시에만) — 닉네임 변경은 계정(AccountView)으로 이동됨
+                    if auth.isSignedIn {
+                        sectionLabel("표시")
+                        sectionCard {
+                            NavigationLink {
+                                DisplayCurrencyEditView()
+                                    .environment(\.appTheme, theme)
+                            } label: {
+                                valueRow(icon: "wonsign.circle.fill",
+                                         iconColor: Color(red: 0.20, green: 0.60, blue: 1.00),
+                                         title: "통화 단위",
+                                         value: Currency.from(displayCurrencyRaw).onboardingLabel)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
 
                     // MARK: 알림
                     sectionLabel("알림")
@@ -247,8 +265,9 @@ struct MenuView: View {
                 AccountView()
                     .environment(auth)
             } label: {
-                accountRow(title: auth.userEmail ?? "내 계정",
-                           subtitle: "계정 관리 · 로그아웃",
+                // 닉네임을 설정했으면 이메일 대신 닉네임을 보여준다(없으면 이메일 폴백).
+                accountRow(title: PrefsSync.shared.nickname ?? auth.userEmail ?? "내 계정",
+                           subtitle: "내 정보 · 프로필 수정하기",
                            active: true)
             }
             .buttonStyle(.plain)
@@ -337,6 +356,28 @@ struct MenuView: View {
                 }
             }
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.tertiaryLabel)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+
+    /// 우측에 현재 값을 보여주는 행(프로필: 닉네임·표시 통화). 값 뒤에 chevron.
+    @ViewBuilder
+    private func valueRow(icon: String, iconColor: Color, title: String, value: String) -> some View {
+        HStack(spacing: 14) {
+            iconBadge(icon, iconColor)
+            Text(title)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(theme.label)
+            Spacer()
+            Text(value)
+                .font(.system(size: 15))
+                .foregroundStyle(theme.secondaryLabel)
+                .lineLimit(1)
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(theme.tertiaryLabel)

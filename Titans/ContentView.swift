@@ -13,7 +13,80 @@ import GoogleMobileAds // 적응형 배너 크기 계산(currentOrientationAncho
 
 // MARK: - Currency
 
-enum Currency { case usd, krw }
+/// 표시 통화. USD는 항상 기준(anchor)이고, 나머지는 USD와 함께 볼 "보조 표시 통화".
+/// rawValue = ISO 통화 코드(백엔드 exchangeRates 맵 키·user_prefs.display_currency 저장값과 일치).
+enum Currency: String, CaseIterable, Codable {
+    case usd = "USD"
+    case krw = "KRW"
+    case jpy = "JPY"
+    case cny = "CNY"
+    case eur = "EUR"
+
+    /// 저장값 파싱 실패 시 기본 통화(USD 전용 = 순수 달러 경험).
+    static func from(_ code: String?) -> Currency {
+        guard let code, let c = Currency(rawValue: code.uppercased()) else { return .usd }
+        return c
+    }
+
+    /// 헤더 통화 토글 pill에 표시되는 짧은 기호.
+    var toggleSymbol: String {
+        switch self {
+        case .usd: return "$"
+        case .krw: return "원"
+        case .jpy: return "¥"
+        case .cny: return "元"
+        case .eur: return "€"
+        }
+    }
+
+    /// 온보딩 통화 선택 카드의 제목(통화명 + 코드).
+    var onboardingLabel: String {
+        switch self {
+        case .usd: return "달러"
+        case .krw: return "원"
+        case .jpy: return "엔"
+        case .cny: return "위안"
+        case .eur: return "유로"
+        }
+    }
+
+    /// 온보딩 카드 우측 보조 표기(국가/설명).
+    var onboardingSubtitle: String {
+        switch self {
+        case .usd: return "USD · 달러만 보기"
+        case .krw: return "KRW · 대한민국"
+        case .jpy: return "JPY · 일본"
+        case .cny: return "CNY · 중국"
+        case .eur: return "EUR · 유로존"
+        }
+    }
+
+    /// 동아시아 만진법(1兆=10¹², 1億=10⁸) 표기를 쓰는 통화인지. false면 서구식 T/B/M.
+    var usesEastAsianUnits: Bool {
+        switch self {
+        case .krw, .jpy, .cny: return true
+        case .usd, .eur:       return false
+        }
+    }
+
+    /// 동아시아 통화의 (조 단위 접미사, 억 단위 접미사). 비동아시아는 사용 안 함.
+    var eastAsianUnitWords: (trillion: String, hundredMillion: String) {
+        switch self {
+        case .krw: return ("조원", "억원")
+        case .jpy: return ("조엔", "억엔")
+        case .cny: return ("조위안", "억위안")
+        default:   return ("", "")
+        }
+    }
+
+    /// 서구식 통화의 금액 앞 기호($/€). 동아시아는 사용 안 함.
+    var westernSymbol: String {
+        switch self {
+        case .eur: return "€"
+        default:   return "$"
+        }
+    }
+}
 
 // MARK: - Market (거래소 필터)
 
@@ -154,7 +227,8 @@ struct APICompanyResult: Decodable {
 }
 
 struct MarketCapResponse: Decodable {
-    let exchangeRate: Double?
+    let exchangeRate: Double?              // KRW/USD 단일 (위젯·구버전 호환)
+    let exchangeRates: [String: Double]?  // 다통화 rate 맵 {"KRW":..,"JPY":..} — 구버전 응답엔 없을 수 있어 옵셔널
     let basDt: String?         // KRX 기준일("YYYYMMDD") — 코스피/코스닥만 내려옴(EOD/D-1)
     let data: [APICompanyResult]
     let stale: Bool?
@@ -430,7 +504,8 @@ private struct KRExchangeBaseline: Codable {
 @MainActor
 final class MarketCapViewModel: ObservableObject {
     @Published var companies: [Company] = []
-    @Published var exchangeRate: Double = 1450.0
+    @Published var exchangeRate: Double = 1450.0            // KRW/USD (위젯·기존 로직 호환)
+    @Published var exchangeRates: [String: Double] = [:]    // 다통화 rate 맵 (표시 통화 환산용)
     @Published var isLoading = true
     @Published var isError   = false
     @Published var isStale   = false
@@ -473,7 +548,7 @@ final class MarketCapViewModel: ObservableObject {
     /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
     /// 순위변동 기준(previousRank)은 "전일 종가 순위 대비"로 통일: KR은 basDt 롤오버 baseline, 비KR은 서버 previousRank.
     private func loadCompanies(from url: URL, exchangeParam: String?) async throws
-        -> (companies: [Company], stale: Bool, rate: Double?, basDt: String?) {
+        -> (companies: [Company], stale: Bool, rate: Double?, rates: [String: Double]?, basDt: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw URLError(.badServerResponse)
@@ -504,7 +579,19 @@ final class MarketCapViewModel: ObservableObject {
                 domain:       api.domain
             )
         }
-        return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.basDt)
+        return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.exchangeRates, decoded.basDt)
+    }
+
+    /// 표시 통화의 "1 USD 당 금액" rate. USD는 기준 통화라 1.0.
+    /// 백엔드 다통화 맵을 우선 사용하고, 없으면(구버전 응답) KRW는 exchangeRate로, 그 외는 상수로 방어한다.
+    func rate(for currency: Currency) -> Double {
+        switch currency {
+        case .usd: return 1.0
+        case .krw: return exchangeRates["KRW"] ?? exchangeRate
+        default:
+            let fallback: [String: Double] = ["JPY": 155, "CNY": 7.2, "EUR": 0.92]
+            return exchangeRates[currency.rawValue] ?? fallback[currency.rawValue] ?? 1.0
+        }
     }
 
     func fetch() async {
@@ -517,6 +604,7 @@ final class MarketCapViewModel: ObservableObject {
             isError   = false
             isLoading = false
             if let rate = result.rate { exchangeRate = rate }
+            if let rates = result.rates { exchangeRates = rates }
         } catch {
             isError = true
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
@@ -542,6 +630,7 @@ final class MarketCapViewModel: ObservableObject {
                 basDt:     result.basDt
             )
             if let rate = result.rate { exchangeRate = rate }
+            if let rates = result.rates { exchangeRates = rates }
         } catch {
             // 기존 데이터가 있으면 Stale fallback으로 유지, 없으면 skeleton 유지
             var feed = exchangeFeeds[market] ?? ExchangeFeed()
@@ -605,6 +694,10 @@ struct ContentView: View {
     @State private var indices: [MarketIndex] = initialIndices
     @State private var currentMarketIndex: Int = 0
     @State private var currentTime: Date = Date()
+    // 온보딩에서 고른 표시 통화(=USD와 함께 볼 보조 통화). PrefsSync가 로그인 시 이 @AppStorage에 반영한다.
+    // USD면 통화 토글을 숨기고 순수 달러로만 표시한다.
+    @AppStorage("displayCurrency") private var displayCurrency: Currency = .usd
+    // 현재 화면에 적용 중인 통화(토글로 $ ↔ displayCurrency 전환). displayCurrency가 USD면 항상 .usd.
     @State private var selectedCurrency: Currency = .usd
     @State private var selectedMarket: Market = .all
     @State private var sortField: SortField = .rank
@@ -622,7 +715,8 @@ struct ContentView: View {
     @State private var showSearch = false
     @State private var showMenu = false
 
-    private var exchangeRate: Double { viewModel.exchangeRate }
+    /// 현재 표시 통화의 환산 rate(1 USD 당 금액). formatMarketCap에 전달된다.
+    private var displayRate: Double { viewModel.rate(for: selectedCurrency) }
 
     /// 검색 대상 유니버스 — ALL 피드 + 현재까지 로드된 거래소별 피드를 티커 기준으로 합침.
     /// (별도 API 없이 이미 라이브로 받고 있는 데이터를 그대로 검색에 재사용)
@@ -721,7 +815,7 @@ struct ContentView: View {
                         CompanyRow(
                             company: company,
                             currency: selectedCurrency,
-                            exchangeRate: exchangeRate
+                            exchangeRate: displayRate
                         )
                         if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
                             AdBannerSlot()
@@ -762,7 +856,9 @@ struct ContentView: View {
             //  티커는 내부 lineLimit(1)+minimumScaleFactor로 좁은 기기에서도 줄바꿈 없이 축소된다.)
             HStack(alignment: .center, spacing: 12) {
                 SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                CurrencyToggle(selected: $selectedCurrency)
+                // 표시 통화가 USD면 CurrencyToggle이 두 슬롯을 합친 단일 $ 버튼으로 그려 크기를 유지한다.
+                // 그 외엔 $ ↔ 보조통화 2-pill 토글.
+                CurrencyToggle(selected: $selectedCurrency, secondary: displayCurrency)
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
@@ -814,11 +910,16 @@ struct ContentView: View {
             // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
             InterstitialAdManager.shared.handleSectionSwitch()
         }
+        .onChange(of: displayCurrency, initial: true) { _, newValue in
+            // 표시 통화 확정/변경(온보딩·로그인 동기화) 시 현재 선택을 그 통화로 맞춘다.
+            // USD면 토글이 숨겨지므로 selectedCurrency도 .usd로 고정된다.
+            selectedCurrency = newValue
+        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
                 currency: selectedCurrency,
-                exchangeRate: exchangeRate,
+                exchangeRate: displayRate,
                 onDismiss: { showSearch = false }
             )
         }
@@ -1004,15 +1105,40 @@ struct SkeletonCompanyRow: View {
 
 struct CurrencyToggle: View {
     @Binding var selected: Currency
+    /// USD와 함께 토글할 보조 통화(온보딩에서 고른 표시 통화).
+    /// USD면 토글을 숨기지 않고, 두 슬롯 폭을 합친 "단일 $ 버튼"으로 그려 크기를 그대로 유지한다.
+    let secondary: Currency
     @Environment(\.appTheme) private var theme
+
+    // 한 슬롯(pill)의 기준 치수. 단일 $ 버튼이 2슬롯과 동일한 크기를 갖도록 아래 계산에 재사용한다.
+    private let pillMinWidth: CGFloat = 32
+    private let pillHPad:     CGFloat = 10
+    private let pillVPad:     CGFloat = 5
 
     var body: some View {
         HStack(spacing: 0) {
-            pill("$", currency: .usd)
-            pill("원", currency: .krw)
+            if secondary == .usd {
+                // USD 전용: 보조 슬롯까지 USD로 확장 → 2슬롯 폭(2×(minWidth+2×hPad))의 단일 $ 버튼.
+                usdOnlyPill
+            } else {
+                pill("$", currency: .usd)
+                pill(secondary.toggleSymbol, currency: secondary)
+            }
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 10).stroke(theme.stroke, lineWidth: 1))
+    }
+
+    /// USD 전용 단일 버튼. 2-pill 토글과 동일한 외곽 크기를 유지하도록 폭을 두 슬롯 합으로 고정.
+    /// 항상 선택 상태(채워짐)이고 전환 대상이 없어 탭 액션은 두지 않는다.
+    private var usdOnlyPill: some View {
+        Text("$")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(theme.background)
+            .frame(minWidth: pillMinWidth * 2 + pillHPad * 2)   // 두 슬롯 콘텐츠 폭 합
+            .padding(.horizontal, pillHPad)
+            .padding(.vertical, pillVPad)
+            .background(RoundedRectangle(cornerRadius: 7).fill(theme.label))
     }
 
     @ViewBuilder
@@ -1026,9 +1152,9 @@ struct CurrencyToggle: View {
             Text(title)
                 .font(.system(size: 13, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? theme.background : theme.secondaryLabel)
-                .frame(minWidth: 32)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .frame(minWidth: pillMinWidth)
+                .padding(.horizontal, pillHPad)
+                .padding(.vertical, pillVPad)
                 .background {
                     if isSelected {
                         RoundedRectangle(cornerRadius: 7)
@@ -1728,39 +1854,43 @@ private let krwTrillionFormatter: NumberFormatter = {
 }()
 
 /// 시총 표시 문자열 — 통화별 단위 동적 변환. 목록·검색 화면이 공유한다.
-/// · KRW: 1조원 미만 → 억원 정수; 100조원 미만 → 조원 소수 2자리; 1000조원 미만 → 1자리; 이상 → 정수
-/// · USD: 1T 이상은 T, 1T 미만이면 크기에 맞춰 B(십억)·M(백만)로 동적 전환
+/// `exchangeRate` = "1 USD 당 해당 통화 금액"(USD면 1.0). marketCapUSD 는 trillion USD 단위.
+/// · 서구식(USD·EUR): 1T 이상 T, 1T 미만이면 크기에 맞춰 B(십억)·M(백만)로 동적 전환, 통화기호 접두.
+/// · 동아시아(KRW·JPY·CNY): 만진법. 1조 미만 → 억 단위 정수; 100조 미만 → 조 소수 2자리; 1000조 미만 → 1자리; 이상 → 정수.
 func formatMarketCap(_ marketCapUSD: Double, currency: Currency, exchangeRate: Double) -> String {
-    switch currency {
-    case .usd:
-        let t = marketCapUSD                       // 조(兆) 달러(trillion USD) 단위
-        if t >= 1 {
-            return String(format: "$%.2fT", t)
-        } else if t >= 0.001 {                     // 1B = 0.001T
-            return String(format: "$%.2fB", t * 1_000)
-        } else {
-            return String(format: "$%.2fM", t * 1_000_000)
-        }
-    case .krw:
-        let krwTrillion = marketCapUSD * exchangeRate   // 조원 단위
-        if krwTrillion < 1 {
-            // 1조원 미만: 억원 정수로 표시
-            let eok = krwTrillion * 10_000
+    let converted = marketCapUSD * exchangeRate   // 해당 통화의 trillion(兆) 단위 금액
+
+    if currency.usesEastAsianUnits {
+        let words = currency.eastAsianUnitWords
+        if converted < 1 {
+            // 1조 미만: 억 단위 정수로 표시 (1조 = 1만 억)
+            let eok = converted * 10_000
             krwTrillionFormatter.minimumFractionDigits = 0
             krwTrillionFormatter.maximumFractionDigits = 0
             let s = krwTrillionFormatter.string(from: NSNumber(value: eok))
                 ?? "\(Int(eok.rounded()))"
-            return "\(s)억원"
+            return "\(s)\(words.hundredMillion)"
         } else {
             let digits: Int
-            if krwTrillion < 100       { digits = 2 }
-            else if krwTrillion < 1000 { digits = 1 }
-            else                       { digits = 0 }
+            if converted < 100       { digits = 2 }
+            else if converted < 1000 { digits = 1 }
+            else                     { digits = 0 }
             krwTrillionFormatter.minimumFractionDigits = digits
             krwTrillionFormatter.maximumFractionDigits = digits
-            let s = krwTrillionFormatter.string(from: NSNumber(value: krwTrillion))
-                ?? String(format: "%.\(digits)f", krwTrillion)
-            return "\(s)조원"
+            let s = krwTrillionFormatter.string(from: NSNumber(value: converted))
+                ?? String(format: "%.\(digits)f", converted)
+            return "\(s)\(words.trillion)"
+        }
+    } else {
+        // 서구식(USD·EUR): T/B/M
+        let symbol = currency.westernSymbol
+        let t = converted
+        if t >= 1 {
+            return String(format: "\(symbol)%.2fT", t)
+        } else if t >= 0.001 {                     // 1B = 0.001T
+            return String(format: "\(symbol)%.2fB", t * 1_000)
+        } else {
+            return String(format: "\(symbol)%.2fM", t * 1_000_000)
         }
     }
 }
