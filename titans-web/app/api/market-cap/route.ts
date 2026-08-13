@@ -4,6 +4,8 @@ import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
 import { getJpxDataset, startJpxStatsWarm } from '@/lib/jpx-snapshot'
 import { getEuStats, startEuStatsWarm } from '@/lib/eu-snapshot'
 import { EU_COMPANIES } from '@/lib/eu-universe'
+import { getCnStats, startCnStatsWarm } from '@/lib/cn-snapshot'
+import { CN_COMPANIES } from '@/lib/cn-universe'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
 import { ADR_SHARE_OUTSTANDING_M, type CompanyMeta } from '@/lib/us-universe'
 import {
@@ -27,6 +29,8 @@ startUsStatsWarm()
 startJpxStatsWarm()
 // Euronext stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startEuStatsWarm()
+// 중국 A주 stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+startCnStatsWarm()
 
 // ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
 // Venture 플랜: 610 credits/min. 이 라우트(유저 경로)는 /quote(1 credit/종목, 20s TTL)만 쓴다.
@@ -323,6 +327,7 @@ async function handleExchange(config: ExchangeConfig) {
     case 'krx': return handleKrxExchange(config, config.capModel.suffix)
     case 'jpx': return handleJpxExchange(config)
     case 'eu':  return handleEuExchange(config)
+    case 'cn':  return handleCnExchange(config, config.capModel.mic)
     default:    return handleTdExchange(config)
   }
 }
@@ -515,6 +520,91 @@ async function handleEuExchange(config: ExchangeConfig) {
         changePercent:   changePct,
         marketCapUSD:    capEUR     / eurPerUsd / 1_000_000_000_000,
         prevCloseCapUSD: prevCapEUR / eurPerUsd / 1_000_000_000_000,
+      }
+      lastGoodCompanyCache.set(co.symbol, result)
+      rows.push(result)
+    })
+
+    const ranked = rankWithBackfill(rows, state?.lastGoodResult, config.rankLimit)
+    if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
+    lastGoodExchangeRate = rate
+
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+  } catch (err) {
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
+    if (state?.lastGoodResult) {
+      return NextResponse.json(
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+      )
+    }
+    return NextResponse.json({ error: String(err) }, { status: 503 })
+  }
+}
+
+// 중국 A주 계열(SSE / SZSE): cn-snapshot(네이티브 CNY stats)을 base로, quote(close/prevClose)로
+// 라이브 스케일링. A주 quote는 지연/EOD라 등락은 직전 영업일 기준이며, quote 결손 시 stats 시총 +
+// 전일 스냅샷 대비 등락%로 폴백한다. mic으로 상하이(XSHG)/선전(XSHE) 유니버스를 가른다.
+// CNY→USD 환산은 요청 시점 fx. US/KRX/JPX/EU와 동일 응답 형태 유지.
+async function handleCnExchange(config: ExchangeConfig, mic: 'XSHG' | 'XSHE') {
+  const state = exchangeFeeds[config.code]
+  const companies = CN_COMPANIES.filter(c => c.mic === mic)
+  try {
+    if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
+
+    const rate  = await getKrwRate()
+    const rates = await getFxRateMap(rate)
+    const cnyPerUsd = rates.CNY
+    if (!cnyPerUsd || cnyPerUsd <= 0) throw new Error('CNY 환율 없음')
+
+    const { cap, prev } = await getCnStats()
+
+    // 종목별 라이브 quote 병렬 조회. 실패는 만료 캐시로 폴백(없으면 EOD 처리).
+    const quotes = await Promise.all(
+      companies.map(async (co): Promise<QuoteData | null> => {
+        try { return await getQuote(co.symbol, co.mic) }
+        catch { return quoteCache.get(`${co.symbol}:${co.mic}`)?.data ?? null }
+      }),
+    )
+
+    const rows: Omit<CompanyResult, 'rank'>[] = []
+    companies.forEach((co, i) => {
+      const base = cap[co.symbol]
+      if (!base || !base.capCNY) {
+        const stale = lastGoodCompanyCache.get(co.symbol)
+        if (stale) rows.push(stale)
+        return
+      }
+      const quote = quotes[i]
+      let capCNY: number, prevCapCNY: number, price: number, change: number, changePct: number
+
+      if (quote && quote.pc > 0) {
+        // 라이브: stats base(≈전일 종가 시총) × 당일 등락 비율. 등락/가격은 quote 그대로(CNY).
+        const ratio = quote.c / quote.pc
+        prevCapCNY  = base.capCNY
+        capCNY      = base.capCNY * ratio
+        price       = quote.c
+        change      = quote.d
+        changePct   = quote.dp
+      } else {
+        // EOD 폴백: stats 시총 그대로. 등락%는 전일 스냅샷 대비, 가격은 cap/shares 파생.
+        const prevCap = prev[co.symbol] && prev[co.symbol] > 0 ? prev[co.symbol] : base.capCNY
+        prevCapCNY = prevCap
+        capCNY     = base.capCNY
+        price      = base.shares > 0 ? base.capCNY / base.shares : 0
+        const prevPrice = base.shares > 0 ? prevCap / base.shares : 0
+        change     = price - prevPrice
+        changePct  = prevCap > 0 ? (base.capCNY - prevCap) / prevCap * 100 : 0
+      }
+
+      const result: Omit<CompanyResult, 'rank'> = {
+        ticker:          co.symbol,
+        name:            co.name,
+        color:           co.color,
+        currentPrice:    price,                                    // CNY 주당가격
+        change,
+        changePercent:   changePct,
+        marketCapUSD:    capCNY     / cnyPerUsd / 1_000_000_000_000,
+        prevCloseCapUSD: prevCapCNY / cnyPerUsd / 1_000_000_000_000,
       }
       lastGoodCompanyCache.set(co.symbol, result)
       rows.push(result)
