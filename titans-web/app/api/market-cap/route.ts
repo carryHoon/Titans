@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getUsdKrwQuote, getFxRates, type Currency } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
 import { getJpxDataset, startJpxStatsWarm } from '@/lib/jpx-snapshot'
+import { getEuStats, startEuStatsWarm } from '@/lib/eu-snapshot'
+import { EU_COMPANIES } from '@/lib/eu-universe'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
 import { ADR_SHARE_OUTSTANDING_M, type CompanyMeta } from '@/lib/us-universe'
 import {
@@ -23,6 +25,8 @@ startKrPoller()
 startUsStatsWarm()
 // JPX stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startJpxStatsWarm()
+// Euronext stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+startEuStatsWarm()
 
 // ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
 // Venture 플랜: 610 credits/min. 이 라우트(유저 경로)는 /quote(1 credit/종목, 20s TTL)만 쓴다.
@@ -92,33 +96,36 @@ const exchangeFeeds: Record<string, ExchangeFeedState> = Object.fromEntries(
 
 // ─── Twelve Data Fetchers (quote 전용) ─────────────────────────────────────────
 
-async function getQuote(ticker: string): Promise<QuoteData> {
-  const hit = quoteCache.get(ticker)
+// micCode 지정 시 심볼을 mic_code로 특정(Euronext 등 다중거래소 심볼 충돌 방지). 캐시 키에도 반영.
+async function getQuote(ticker: string, micCode?: string): Promise<QuoteData> {
+  const key = micCode ? `${ticker}:${micCode}` : ticker
+  const hit = quoteCache.get(key)
   if (hit && Date.now() - hit.ts < QUOTE_TTL_MS) return hit.data
 
-  const pending = quoteInFlight.get(ticker)
+  const pending = quoteInFlight.get(key)
   if (pending) return pending
 
   const task = (async (): Promise<QuoteData> => {
+    const micParam = micCode ? `&mic_code=${micCode}` : ''
     const res = await fetch(
-      `${TD_BASE}/quote?symbol=${encodeURIComponent(ticker)}&apikey=${TWELVE_DATA_KEY}`,
+      `${TD_BASE}/quote?symbol=${encodeURIComponent(ticker)}${micParam}&apikey=${TWELVE_DATA_KEY}`,
       { cache: 'no-store' },
     )
-    if (!res.ok) throw new Error(`quote ${ticker} → HTTP ${res.status}`)
+    if (!res.ok) throw new Error(`quote ${key} → HTTP ${res.status}`)
     const data = await res.json()
-    if (data.status === 'error') throw new Error(`quote ${ticker} → ${data.message}`)
+    if (data.status === 'error') throw new Error(`quote ${key} → ${data.message}`)
     const q: QuoteData = {
       c:  parseFloat(data.close),
       d:  parseFloat(data.change),
       dp: parseFloat(data.percent_change),
       pc: parseFloat(data.previous_close),
     }
-    if (!q.c || !isFinite(q.c)) throw new Error(`quote ${ticker} → 유효하지 않은 응답`)
-    quoteCache.set(ticker, { data: q, ts: Date.now() })
+    if (!q.c || !isFinite(q.c)) throw new Error(`quote ${key} → 유효하지 않은 응답`)
+    quoteCache.set(key, { data: q, ts: Date.now() })
     return q
-  })().finally(() => quoteInFlight.delete(ticker))
+  })().finally(() => quoteInFlight.delete(key))
 
-  quoteInFlight.set(ticker, task)
+  quoteInFlight.set(key, task)
   return task
 }
 
@@ -315,6 +322,7 @@ async function handleExchange(config: ExchangeConfig) {
   switch (config.capModel.kind) {
     case 'krx': return handleKrxExchange(config, config.capModel.suffix)
     case 'jpx': return handleJpxExchange(config)
+    case 'eu':  return handleEuExchange(config)
     default:    return handleTdExchange(config)
   }
 }
@@ -428,6 +436,90 @@ async function handleJpxExchange(config: ExchangeConfig) {
 
     // 등락 없는 EOD라 라이브 재정렬은 무의미하지만, previousRank(전일 대비 화살표) 계산과
     // 백필(일시 스냅샷 결손 방어)을 US/KRX와 동일하게 얻으려 rankWithBackfill 을 재사용한다.
+    const ranked = rankWithBackfill(rows, state?.lastGoodResult, config.rankLimit)
+    if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
+    lastGoodExchangeRate = rate
+
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+  } catch (err) {
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
+    if (state?.lastGoodResult) {
+      return NextResponse.json(
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+      )
+    }
+    return NextResponse.json({ error: String(err) }, { status: 503 })
+  }
+}
+
+// Euronext 계열: eu-snapshot(네이티브 EUR stats)을 base로, quote 있는 종목(XPAR/XAMS)은 라이브
+// 스케일링(cap=statsCap×close/prevClose), 없는 종목(XMIL)은 stats 시총 + 전일 스냅샷 대비 등락%.
+// EUR→USD 환산은 요청 시점 fx. US/KRX/JPX와 동일 응답 형태 유지.
+async function handleEuExchange(config: ExchangeConfig) {
+  const state = exchangeFeeds[config.code]
+  try {
+    if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
+
+    const rate  = await getKrwRate()
+    const rates = await getFxRateMap(rate)
+    const eurPerUsd = rates.EUR
+    if (!eurPerUsd || eurPerUsd <= 0) throw new Error('EUR 환율 없음')
+
+    const { cap, prev } = await getEuStats()
+
+    // quote 가능 종목(XPAR/XAMS)만 라이브 quote 병렬 조회. 실패는 만료 캐시로 폴백(없으면 EOD 처리).
+    const quotes = await Promise.all(
+      EU_COMPANIES.map(async (co): Promise<QuoteData | null> => {
+        if (co.mic === 'XMIL') return null                  // 밀라노는 quote 미제공 → EOD 경로
+        try { return await getQuote(co.symbol, co.mic) }
+        catch { return quoteCache.get(`${co.symbol}:${co.mic}`)?.data ?? null }
+      }),
+    )
+
+    const rows: Omit<CompanyResult, 'rank'>[] = []
+    EU_COMPANIES.forEach((co, i) => {
+      const base = cap[co.symbol]
+      if (!base || !base.capEUR) {
+        const stale = lastGoodCompanyCache.get(co.symbol)
+        if (stale) rows.push(stale)
+        return
+      }
+      const quote = quotes[i]
+      let capEUR: number, prevCapEUR: number, price: number, change: number, changePct: number
+
+      if (quote && quote.pc > 0) {
+        // 라이브: stats base(≈전일 종가 시총) × 당일 등락 비율. 등락/가격은 quote 그대로(EUR).
+        const ratio = quote.c / quote.pc
+        prevCapEUR  = base.capEUR
+        capEUR      = base.capEUR * ratio
+        price       = quote.c
+        change      = quote.d
+        changePct   = quote.dp
+      } else {
+        // EOD(밀라노 등): stats 시총 그대로. 등락%는 전일 스냅샷 대비, 가격은 cap/shares 파생.
+        const prevCap = prev[co.symbol] && prev[co.symbol] > 0 ? prev[co.symbol] : base.capEUR
+        prevCapEUR = prevCap
+        capEUR     = base.capEUR
+        price      = base.shares > 0 ? base.capEUR / base.shares : 0
+        const prevPrice = base.shares > 0 ? prevCap / base.shares : 0
+        change     = price - prevPrice
+        changePct  = prevCap > 0 ? (base.capEUR - prevCap) / prevCap * 100 : 0
+      }
+
+      const result: Omit<CompanyResult, 'rank'> = {
+        ticker:          co.symbol,
+        name:            co.name,
+        color:           co.color,
+        currentPrice:    price,                                    // EUR 주당가격
+        change,
+        changePercent:   changePct,
+        marketCapUSD:    capEUR     / eurPerUsd / 1_000_000_000_000,
+        prevCloseCapUSD: prevCapEUR / eurPerUsd / 1_000_000_000_000,
+      }
+      lastGoodCompanyCache.set(co.symbol, result)
+      rows.push(result)
+    })
+
     const ranked = rankWithBackfill(rows, state?.lastGoodResult, config.rankLimit)
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate

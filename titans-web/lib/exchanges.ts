@@ -92,10 +92,13 @@ export const KRX_DEFAULT_COLOR = '#3182F6'
 //   · krx : data.go.kr 스냅샷(kr-snapshot)이 시총을 직접 제공(EOD, 라이브 스케일링 없음)
 //   · jpx : TD /statistics 스냅샷(jpx-snapshot)이 네이티브 JPY 시총 제공 → 요청 시 USD 환산(EOD).
 //           TD가 JPX 가격 피드를 안 줘 라이브 스케일링 불가 — 등락%는 전일 스냅샷 대비 자체계산.
+//   · eu  : TD /statistics 스냅샷(eu-snapshot, 네이티브 EUR) base + quote 있는 종목(XPAR/XAMS)은
+//           라이브 스케일링, 없는 종목(XMIL)은 EOD. 유니버스는 eu-universe(EuCompanyMeta+mic) 소유.
 export type CapModel =
   | { kind: 'td' }
   | { kind: 'krx'; suffix: 'KS' | 'KQ' }
   | { kind: 'jpx' }
+  | { kind: 'eu' }
 
 export interface ExchangeConfig {
   code:       string             // 'NASDAQ' | 'NYSE' | 'KOSPI' | 'KOSDAQ'
@@ -112,6 +115,8 @@ export const EXCHANGES: ExchangeConfig[] = [
   { code: 'KOSPI',  param: 'kospi',  rankLimit: 100, capModel: { kind: 'krx', suffix: 'KS' } },
   { code: 'KOSDAQ', param: 'kosdaq', rankLimit: 100, capModel: { kind: 'krx', suffix: 'KQ' } },
   { code: 'JPX',    param: 'jpx',    rankLimit: 100, capModel: { kind: 'jpx' }, universe: JPX_COMPANIES },
+  // Euronext 유니버스(mic 포함)는 eu-universe가 소유 → route가 직접 참조(config.universe 미사용).
+  { code: 'EURONEXT', param: 'euronext', rankLimit: 100, capModel: { kind: 'eu' } },
 ]
 
 // ALL 피드: US 큐레이션(COMPANIES) + KRX 상위 몇 종목 주입 후 top-20.
