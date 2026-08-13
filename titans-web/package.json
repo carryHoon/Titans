@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "refresh:us": "tsx scripts/refresh-us-stats.ts",
-    "refresh:jpx": "tsx scripts/refresh-jpx-stats.ts"
+    "refresh:jpx": "tsx scripts/refresh-jpx-stats.ts",
+    "refresh:eu": "tsx scripts/refresh-eu-stats.ts"
   },
   "dependencies": {
     "next": "^16.2.11",
