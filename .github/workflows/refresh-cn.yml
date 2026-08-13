@@ -4,8 +4,9 @@ name: Refresh China A-share market-cap stats
 # 라우트가 quote로 라이브 스케일링하므로 여기선 시총 base(≈전일 종가)만 하루 1회 받는다.
 on:
   schedule:
-    # 08:00 UTC 평일 — A주 정규장 마감(15:00 CST = 07:00 UTC) 후.
-    - cron: '0 8 * * 1-5'
+    # 09:00 UTC 평일 — A주 정규장 마감(15:00 CST = 07:00 UTC) 후.
+    # JPX(0 8, ~15분 소요)와 겹치면 TD 610크레딧/분을 함께 초과해 양쪽 429 → 1시간 뒤로 분리.
+    - cron: '0 9 * * 1-5'
   workflow_dispatch: {}
 
 concurrency:
