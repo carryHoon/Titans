@@ -9,7 +9,8 @@
     "refresh:us": "tsx scripts/refresh-us-stats.ts",
     "refresh:jpx": "tsx scripts/refresh-jpx-stats.ts",
     "refresh:eu": "tsx scripts/refresh-eu-stats.ts",
-    "refresh:cn": "tsx scripts/refresh-cn-stats.ts"
+    "refresh:cn": "tsx scripts/refresh-cn-stats.ts",
+    "refresh:nse": "tsx scripts/refresh-nse-stats.ts"
   },
   "dependencies": {
     "next": "^16.2.11",

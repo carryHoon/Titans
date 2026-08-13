@@ -97,12 +97,15 @@ export const KRX_DEFAULT_COLOR = '#3182F6'
 //   · cn  : TD /statistics 스냅샷(cn-snapshot, 네이티브 CNY) base + quote(close/prevClose)로 라이브
 //           스케일링(A주 quote는 지연/EOD). mic으로 SSE(XSHG)/SZSE(XSHE) 섹션을 가른다.
 //           유니버스는 cn-universe(CnCompanyMeta+mic) 소유 → route가 mic으로 필터.
+//   · nse : TD /statistics 스냅샷(nse-snapshot, 네이티브 INR) base + quote 라이브 스케일링. 전 종목
+//           단일 mic(XNSE). 유니버스는 nse-universe 소유 → route가 직접 참조(config.universe 미사용).
 export type CapModel =
   | { kind: 'td' }
   | { kind: 'krx'; suffix: 'KS' | 'KQ' }
   | { kind: 'jpx' }
   | { kind: 'eu' }
   | { kind: 'cn'; mic: 'XSHG' | 'XSHE' }
+  | { kind: 'nse' }
 
 export interface ExchangeConfig {
   code:       string             // 'NASDAQ' | 'NYSE' | 'KOSPI' | 'KOSDAQ'
@@ -124,6 +127,8 @@ export const EXCHANGES: ExchangeConfig[] = [
   // 중국 A주 유니버스(mic 포함)는 cn-universe가 소유 → route가 mic으로 필터(config.universe 미사용).
   { code: 'SSE',  param: 'sse',  rankLimit: 100, capModel: { kind: 'cn', mic: 'XSHG' } },
   { code: 'SZSE', param: 'szse', rankLimit: 100, capModel: { kind: 'cn', mic: 'XSHE' } },
+  // NSE 유니버스는 nse-universe가 소유 → route가 직접 참조(config.universe 미사용).
+  { code: 'NSE',  param: 'nse',  rankLimit: 100, capModel: { kind: 'nse' } },
 ]
 
 // ALL 피드: US 큐레이션(COMPANIES) + KRX 상위 몇 종목 주입 후 top-20.

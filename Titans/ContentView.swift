@@ -137,8 +137,8 @@ enum Market: String, CaseIterable, Identifiable {
     /// 상업용 데이터 소스 연동 시 해당 case를 false로 내리고 apiExchangeParam만 열어주면 됨.
     var comingSoon: Bool {
         switch self {
-        case .all, .nasdaq, .nyse, .kospi, .kosdaq, .jpx, .euronext, .sse, .szse: return false
-        default:                                                                 return true
+        case .all, .nasdaq, .nyse, .kospi, .kosdaq, .jpx, .euronext, .sse, .szse, .nse: return false
+        default:                                                                       return true
         }
     }
 
@@ -169,7 +169,8 @@ enum Market: String, CaseIterable, Identifiable {
         case .euronext: return "euronext"   // 파리/암스=라이브(quote), 밀라노=EOD. EUR→USD 환산.
         case .sse:      return "sse"        // 상하이 A주. TD /statistics(CNY) base + quote 스케일링. CNY→USD 환산.
         case .szse:     return "szse"       // 선전 A주. 위와 동일.
-        // hkex/twse/nse 는 아직 범위 밖(comingSoon)이라 백엔드 피드가 없다.
+        case .nse:      return "nse"        // 인도 NSE. TD /statistics(INR) base + quote 스케일링. INR→USD 환산.
+        // hkex/twse 는 아직 범위 밖(comingSoon)이라 백엔드 피드가 없다.
         // 상업용 데이터 소스 확장 시 백엔드 핸들러와 함께 여기서 개방하면 별도 UI 변경 없이 활성화된다.
         default:        return nil
         }
