@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsdKrwQuote, getFxRates, type Currency } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
+import { getJpxDataset, startJpxStatsWarm } from '@/lib/jpx-snapshot'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
 import { ADR_SHARE_OUTSTANDING_M, type CompanyMeta } from '@/lib/us-universe'
 import {
@@ -20,6 +21,8 @@ export const dynamic = 'force-dynamic'
 startKrPoller()
 // US stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startUsStatsWarm()
+// JPX stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+startJpxStatsWarm()
 
 // ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
 // Venture 플랜: 610 credits/min. 이 라우트(유저 경로)는 /quote(1 credit/종목, 20s TTL)만 쓴다.
@@ -309,9 +312,11 @@ async function handleAll() {
 // config 구동 거래소 핸들러. capModel로 TD(발행주수×가격) / KRX(EOD 스냅샷) 경로를 가른다.
 // ALL과 동일한 응답 형태(exchangeRate/data/updatedAt/stale, KRX는 basDt 추가)를 유지해 클라이언트 디코딩 공유.
 async function handleExchange(config: ExchangeConfig) {
-  return config.capModel.kind === 'krx'
-    ? handleKrxExchange(config, config.capModel.suffix)
-    : handleTdExchange(config)
+  switch (config.capModel.kind) {
+    case 'krx': return handleKrxExchange(config, config.capModel.suffix)
+    case 'jpx': return handleJpxExchange(config)
+    default:    return handleTdExchange(config)
+  }
 }
 
 // TD 계열(NASDAQ / NYSE): 큐레이션 유니버스를 stats×quote로 재정렬, config.injections 주입.
@@ -384,6 +389,55 @@ async function handleKrxExchange(config: ExchangeConfig, suffix: 'KS' | 'KQ') {
     if (state?.lastGoodResult) {
       return NextResponse.json(
         { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), basDt: state.lastBasDt, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+      )
+    }
+    return NextResponse.json({ error: String(err) }, { status: 503 })
+  }
+}
+
+// JPX 계열: TD /statistics 스냅샷(jpx-snapshot, 네이티브 JPY)에서 상위 N개를 USD 환산 후 반환.
+// TD가 JPX 가격 피드를 안 줘 라이브 스케일링 불가 → 주당가격=capJPY/shares(파생), 등락%=전일
+// 스냅샷 시총 대비 자체계산(EOD). US/KRX와 동일 응답 형태를 유지해 클라이언트 디코딩을 공유한다.
+async function handleJpxExchange(config: ExchangeConfig) {
+  const state = exchangeFeeds[config.code]
+  // 유니버스(config)에서 ticker → 표시메타(영문명·색) 맵 구성.
+  const meta = new Map((config.universe ?? []).map(c => [c.ticker, c]))
+  try {
+    const rate  = await getKrwRate()               // 응답 exchangeRate(원화 카드)용 — US/KRX와 동일
+    const rates = await getFxRateMap(rate)          // 다통화 표시 + JPY 환산에 사용
+    const jpyPerUsd = rates.JPY
+    if (!jpyPerUsd || jpyPerUsd <= 0) throw new Error('JPY 환율 없음')
+
+    const ds = await getJpxDataset()
+    const rows: Omit<CompanyResult, 'rank'>[] = ds.map((r) => {
+      const m         = meta.get(r.ticker)
+      const price     = r.shares > 0 ? r.capJPY     / r.shares : 0  // 주당가격(JPY, 파생)
+      const prevPrice = r.shares > 0 ? r.prevCapJPY / r.shares : 0
+      const changePct = r.prevCapJPY > 0 ? (r.capJPY - r.prevCapJPY) / r.prevCapJPY * 100 : 0
+      return {
+        ticker:          r.ticker,
+        name:            m?.name  ?? r.ticker,
+        color:           m?.color ?? '#3182F6',
+        currentPrice:    price,                                     // JPY 주당가격
+        change:          price - prevPrice,                         // JPY 등락
+        changePercent:   changePct,
+        marketCapUSD:    r.capJPY     / jpyPerUsd / 1_000_000_000_000,
+        prevCloseCapUSD: r.prevCapJPY / jpyPerUsd / 1_000_000_000_000,
+      }
+    })
+
+    // 등락 없는 EOD라 라이브 재정렬은 무의미하지만, previousRank(전일 대비 화살표) 계산과
+    // 백필(일시 스냅샷 결손 방어)을 US/KRX와 동일하게 얻으려 rankWithBackfill 을 재사용한다.
+    const ranked = rankWithBackfill(rows, state?.lastGoodResult, config.rankLimit)
+    if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
+    lastGoodExchangeRate = rate
+
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+  } catch (err) {
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
+    if (state?.lastGoodResult) {
+      return NextResponse.json(
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
