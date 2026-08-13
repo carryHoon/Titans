@@ -19,9 +19,11 @@ const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? ''
 const TD_BASE         = 'https://api.twelvedata.com'
 const STATS_TTL_MS    = 24 * 3_600_000  // 로컬 워밍 판정용(스냅샷이 이보다 오래되면 재취득)
 
-// JPX /statistics 는 호출당 ~3 credits(US 50c보다 저렴). 그래도 버스트 방지 위해 2.5초당 1콜로
-// 순차 페이싱한다 → 106종목 ≈ 4.4분. 유저 경로가 아니라 스케줄러가 돌므로 시간 제한 없음.
-const STATS_GAP_MS      = 2_500
+// TD /statistics 는 호출당 ~50 credits(api_usage 실측). Venture 610/분 ÷ 50 ≈ 12콜/분 상한이라
+// 옛 2.5s(=24콜/분=1200크레딧/분)로는 후반부가 대량 429로 떨어져 여러 날 누적으로만 채워졌다.
+// 6s(=10콜/분=500크레딧/분)로 늦춰 단일 실행에 전 유니버스가 들어오게 한다 → 106종목 ≈ 10.6분.
+// 유저 경로가 아니라 스케줄러가 돌므로 시간 제한은 워크플로 timeout(25분)로만 잡는다.
+const STATS_GAP_MS      = 6_000
 const RETRY_COOLDOWN_MS = 30_000  // 1차 실패(429 등) 종목은 이만큼 쉰 뒤 1회 재시도
 
 // 종목별 시총 기준값(네이티브 JPY)과 발행주수. 주당가격 = capJPY / shares(파생)에 쓴다.
@@ -41,6 +43,7 @@ const store = createSnapshotStore<JpxSnapshot>('jpx-stats')
 
 let current:    JpxSnapshot | null = null
 let refreshing: Promise<{ updated: number; failed: number }> | null = null
+let loadedAt = 0  // current를 store에서 마지막으로 읽은 시각(읽기 경로 TTL 재로드용)
 
 // JST(UTC+9) 기준 YYYY-MM-DD.
 function jstDateStr(): string {
@@ -113,6 +116,7 @@ export async function refreshJpxStats(): Promise<{ updated: number; failed: numb
     const updated = tickers.length - failedTickers.length
     const snap: JpxSnapshot = { fetchedAt: Date.now(), asOfDate: todayDate, current: next, prev }
     current = snap
+    loadedAt = Date.now()  // 방금 갱신 → 읽기 경로 재조회 억제
     await store.save(snap)
     console.log(`[jpx-stats] refreshed → ${updated}/${tickers.length} ok, ${failedTickers.length} failed, asOf=${todayDate}`)
     return { updated, failed: failedTickers.length }
@@ -130,9 +134,15 @@ export interface JpxRow {
   prevCapJPY: number  // 없으면 capJPY(등락 0 처리)
 }
 
+// 읽기 경로 재로드 주기. 서버리스 웜 인스턴스가 옛 스냅샷을 계속 서빙하지 않도록 이 TTL마다 store
+// 재조회(크론이 Upstash 갱신해도 인스턴스 재활용 전엔 옛 스냅샷을 내던 문제 방지). Upstash GET 1회.
+const READ_REFRESH_MS = 5 * 60_000
+
 async function ensureLoaded(): Promise<void> {
-  if (current) return
-  current = await store.load()
+  if (current && Date.now() - loadedAt < READ_REFRESH_MS) return
+  const loaded = await store.load()
+  if (loaded) { current = loaded }
+  loadedAt = Date.now()  // 결손(null)이어도 타임스탬프 갱신 → 매 요청 재조회 방지
 }
 
 // 스냅샷을 시총(JPY) 내림차순 배열로 반환. 업스트림 호출 없음. 스냅샷 부재면 빈 배열(라우트가 방어).
