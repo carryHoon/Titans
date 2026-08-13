@@ -3,7 +3,8 @@ import { refreshJpxStats } from '@/lib/jpx-snapshot'
 
 export const runtime        = 'nodejs'
 export const dynamic        = 'force-dynamic'
-export const maxDuration    = 300  // 106종목 × 2.5s ≈ 4.4분 (+ 재시도 여유)
+export const maxDuration    = 300  // Vercel 상한. gap 6s면 106종목 ≈ 10.6분이라 이 라우트(서버리스)는
+                                   // 완주 못 함 — 프로덕션 갱신은 GH Actions(무제한). 이 라우트는 로컬/수동 편의용.
 
 // JPX 시총 스냅샷 갱신 트리거(내부용, 로컬·수동 편의).
 // ⚠️ 프로덕션 정기 갱신은 GitHub Actions(.github/workflows/refresh-jpx.yml)가 러너에서

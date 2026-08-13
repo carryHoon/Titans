@@ -16,7 +16,10 @@ const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? ''
 const TD_BASE         = 'https://api.twelvedata.com'
 const STATS_TTL_MS    = 24 * 3_600_000
 
-const STATS_GAP_MS      = 2_500
+// TD /statistics 는 호출당 ~50 credits(api_usage 실측). Venture 610/분 ÷ 50 ≈ 12콜/분 상한이라
+// 옛 2.5s(=24콜/분=1200크레딧/분)로는 후반부 429가 잦았다. 6s(=10콜/분=500크레딧/분)로 늦춰
+// 단일 실행에 전 유니버스가 들어오게 한다 → 65종목 ≈ 6.5분. (cn/jpx-snapshot과 동일 사유·수치)
+const STATS_GAP_MS      = 6_000
 const RETRY_COOLDOWN_MS = 30_000
 
 export interface EuStatEntry {
@@ -35,6 +38,7 @@ const store = createSnapshotStore<EuSnapshot>('eu-stats')
 
 let current:    EuSnapshot | null = null
 let refreshing: Promise<{ updated: number; failed: number }> | null = null
+let loadedAt = 0  // current를 store에서 마지막으로 읽은 시각(읽기 경로 TTL 재로드용)
 
 // 유럽 대륙 시간대(CET, 서머타임 무시 근사) 기준 YYYY-MM-DD. prev 롤링용이라 근사로 충분.
 function cetDateStr(): string {
@@ -103,6 +107,7 @@ export async function refreshEuStats(): Promise<{ updated: number; failed: numbe
     const updated = EU_COMPANIES.length - failed.length
     const snap: EuSnapshot = { fetchedAt: Date.now(), asOfDate: todayDate, current: next, prev }
     current = snap
+    loadedAt = Date.now()  // 방금 갱신 → 읽기 경로 재조회 억제
     await store.save(snap)
     console.log(`[eu-stats] refreshed → ${updated}/${EU_COMPANIES.length} ok, ${failed.length} failed, asOf=${todayDate}`)
     return { updated, failed: failed.length }
@@ -118,9 +123,15 @@ export interface EuStatsRead {
   prev: Record<string, number>       // symbol → 전 영업일 capEUR
 }
 
+// 읽기 경로 재로드 주기. 서버리스 웜 인스턴스가 옛 스냅샷을 계속 서빙하지 않도록 이 TTL마다 store
+// 재조회(크론이 Upstash 갱신해도 인스턴스 재활용 전엔 옛 스냅샷을 내던 문제 방지). Upstash GET 1회.
+const READ_REFRESH_MS = 5 * 60_000
+
 async function ensureLoaded(): Promise<void> {
-  if (current) return
-  current = await store.load()
+  if (current && Date.now() - loadedAt < READ_REFRESH_MS) return
+  const loaded = await store.load()
+  if (loaded) { current = loaded }
+  loadedAt = Date.now()  // 결손(null)이어도 타임스탬프 갱신 → 매 요청 재조회 방지
 }
 
 export async function getEuStats(): Promise<EuStatsRead> {
