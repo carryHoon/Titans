@@ -1,0 +1,41 @@
+name: Refresh JPX market-cap stats
+
+# JPX 시총 기준값(/statistics) 스냅샷을 Upstash에 갱신한다.
+# TD가 JPX 가격 피드를 안 줘 하루 1회 시총만 받는다(EOD 섹션). Vercel 함수 시간 제약을 우회해
+# 러너에서 직접 페칭→Upstash write.
+on:
+  schedule:
+    # 08:00 UTC 평일 — 도쿄 정규장 마감(15:00 JST = 06:00 UTC) 후 약 2시간(펀더멘털 반영 여유).
+    # GitHub Actions 예약은 UTC이며 부하에 따라 다소 지연될 수 있다(일 1회 데이터라 무방).
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch: {}  # 수동 실행 허용
+
+# 동시 중복 실행 방지.
+concurrency:
+  group: refresh-jpx-stats
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # 106종목 × 2.5s ≈ 4.4분 (+ 재시도) → 여유 확보
+    defaults:
+      run:
+        working-directory: titans-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: titans-web/package-lock.json
+
+      - run: npm ci
+
+      - name: Refresh jpx-stats snapshot
+        run: npm run refresh:jpx
+        env:
+          TWELVE_DATA_API_KEY:      ${{ secrets.TWELVE_DATA_API_KEY }}
+          UPSTASH_REDIS_REST_URL:   ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

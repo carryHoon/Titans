@@ -8,6 +8,7 @@
 //       config는 그것을 "참조"만 한다. 값은 옮기지 않는다.
 
 import { COMPANIES, NASDAQ_COMPANIES, NYSE_COMPANIES, type CompanyMeta } from './us-universe'
+import { JPX_COMPANIES } from './jpx-universe'
 
 // ─── KRX 표시 메타 ─────────────────────────────────────────────────────────────
 // 유니버스·시세·시총은 kr-snapshot 레이어가 동적으로 관리(상위 100개 이상).
@@ -89,9 +90,12 @@ export const KRX_DEFAULT_COLOR = '#3182F6'
 // capModel: 시총 기준값을 어디서/어떻게 얻는가
 //   · td  : TD /statistics 스냅샷(us-stats) × (quote 현재가/전일종가) 라이브 스케일링
 //   · krx : data.go.kr 스냅샷(kr-snapshot)이 시총을 직접 제공(EOD, 라이브 스케일링 없음)
+//   · jpx : TD /statistics 스냅샷(jpx-snapshot)이 네이티브 JPY 시총 제공 → 요청 시 USD 환산(EOD).
+//           TD가 JPX 가격 피드를 안 줘 라이브 스케일링 불가 — 등락%는 전일 스냅샷 대비 자체계산.
 export type CapModel =
   | { kind: 'td' }
   | { kind: 'krx'; suffix: 'KS' | 'KQ' }
+  | { kind: 'jpx' }
 
 export interface ExchangeConfig {
   code:       string             // 'NASDAQ' | 'NYSE' | 'KOSPI' | 'KOSDAQ'
@@ -107,6 +111,7 @@ export const EXCHANGES: ExchangeConfig[] = [
   { code: 'NYSE',   param: 'nyse',   rankLimit: 100, capModel: { kind: 'td' },  universe: NYSE_COMPANIES },
   { code: 'KOSPI',  param: 'kospi',  rankLimit: 100, capModel: { kind: 'krx', suffix: 'KS' } },
   { code: 'KOSDAQ', param: 'kosdaq', rankLimit: 100, capModel: { kind: 'krx', suffix: 'KQ' } },
+  { code: 'JPX',    param: 'jpx',    rankLimit: 100, capModel: { kind: 'jpx' }, universe: JPX_COMPANIES },
 ]
 
 // ALL 피드: US 큐레이션(COMPANIES) + KRX 상위 몇 종목 주입 후 top-20.
