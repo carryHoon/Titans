@@ -38,6 +38,7 @@ const store = createSnapshotStore<CnSnapshot>('cn-stats')
 
 let current:    CnSnapshot | null = null
 let refreshing: Promise<{ updated: number; failed: number }> | null = null
+let loadedAt = 0  // current를 store에서 마지막으로 읽은 시각(읽기 경로 TTL 재로드용)
 
 // 중국 표준시(CST=UTC+8) 기준 YYYY-MM-DD. prev 롤링용이라 근사로 충분.
 function cstDateStr(): string {
@@ -106,6 +107,7 @@ export async function refreshCnStats(): Promise<{ updated: number; failed: numbe
     const updated = CN_COMPANIES.length - failed.length
     const snap: CnSnapshot = { fetchedAt: Date.now(), asOfDate: todayDate, current: next, prev }
     current = snap
+    loadedAt = Date.now()  // 방금 갱신 → 읽기 경로 재조회 억제
     await store.save(snap)
     console.log(`[cn-stats] refreshed → ${updated}/${CN_COMPANIES.length} ok, ${failed.length} failed, asOf=${todayDate}`)
     return { updated, failed: failed.length }
@@ -121,9 +123,17 @@ export interface CnStatsRead {
   prev: Record<string, number>       // symbol → 전 영업일 capCNY
 }
 
+// 읽기 경로 재로드 주기. 서버리스(Vercel) 웜 인스턴스는 모듈 메모리의 current를 계속 재사용하는데,
+// 크론이 Upstash에 새 스냅샷을 써도 인스턴스가 재활용되기 전엔 옛 스냅샷을 그대로 낸다(신규 종목·시총
+// 갱신 누락). 이 TTL마다 store에서 다시 읽어 갱신을 최대 이 시간 내로 반영한다(Upstash GET 1회, 저비용).
+// (jpx/eu-snapshot도 동일 잠복 이슈 — 우선 cn에만 적용.)
+const READ_REFRESH_MS = 5 * 60_000
+
 async function ensureLoaded(): Promise<void> {
-  if (current) return
-  current = await store.load()
+  if (current && Date.now() - loadedAt < READ_REFRESH_MS) return
+  const loaded = await store.load()
+  if (loaded) { current = loaded }
+  loadedAt = Date.now()  // 결손(null)이어도 타임스탬프 갱신 → 매 요청 재조회 방지
 }
 
 export async function getCnStats(): Promise<CnStatsRead> {
