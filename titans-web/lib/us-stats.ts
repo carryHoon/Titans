@@ -12,8 +12,8 @@
 // 저장소는 lib/snapshot-store 추상화를 공유한다(로컬=파일, Vercel=Upstash). key='us-stats'.
 
 import { createSnapshotStore } from './snapshot-store'
+import { ALL_TD_TICKERS } from './exchanges'
 import {
-  ALL_US_TICKERS,
   ADR_SHARE_RATIO,
   SAR_PER_USD,
   SAR_STATS_TICKERS,
@@ -71,7 +71,7 @@ export async function refreshUsStats(): Promise<{ updated: number; failed: numbe
     const prev = current?.stats ?? {}
     const next: Record<string, number> = { ...prev }  // 실패 종목은 직전 값 유지
 
-    const tickers = ALL_US_TICKERS.filter(t => !ADR_SHARE_RATIO[t])
+    const tickers = ALL_TD_TICKERS.filter(t => !ADR_SHARE_RATIO[t])
 
     // 리스트를 6초당 1콜로 순차 처리하고, 실패한 티커 목록을 돌려준다.
     const attempt = async (list: string[]): Promise<string[]> => {

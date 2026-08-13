@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server'
 import { getUsdKrwQuote, getFxRates, type Currency } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
+import { ADR_SHARE_OUTSTANDING_M, type CompanyMeta } from '@/lib/us-universe'
 import {
-  COMPANIES,
-  NASDAQ_COMPANIES,
-  NYSE_COMPANIES,
-  ADR_SHARE_OUTSTANDING_M,
-  type CompanyMeta,
-} from '@/lib/us-universe'
+  EXCHANGES,
+  ALL_FEED,
+  getExchange,
+  KRX_META,
+  KRX_DEFAULT_COLOR,
+  type ExchangeConfig,
+  type KoreanStockMeta,
+} from '@/lib/exchanges'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,81 +29,9 @@ startUsStatsWarm()
 const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? ''
 const TD_BASE         = 'https://api.twelvedata.com'
 
-// ─── KRX (한국거래소) ──────────────────────────────────────────────────────────
-// 공공데이터포털 금융위원회_주식시세정보 — EOD D-1 데이터, 무료·라이선스 클린.
-// 유니버스·시세·시총은 kr-snapshot 레이어가 동적으로 관리(상위 100개 이상).
-// 아래 배열은 "종목코드 → 영문명/색" 표시 메타의 소스로만 사용. 없는 종목은 한글명+기본색 폴백.
-
-interface KoreanStockMeta {
-  ticker: string
-  name:   string
-  color:  string
-}
-
-// ALL 피드에 포함될 KRX 종목 (시총 상위권 한국 기업)
-const KOREAN_STOCKS: KoreanStockMeta[] = [
-  { ticker: '005930.KS', name: 'Samsung',  color: '#1428A0' },
-  { ticker: '000660.KS', name: 'SK Hynix', color: '#EA5504' },
-]
-
-// SK Hynix: NASDAQ 공식에는 ADR로 상위권에 오르지만, Twelve Data에 US 심볼이 없어
-// KRX 시총(000660.KS)을 USD 환산해 NASDAQ 섹션에 주입 → 나스닥 공식 순위와 일치.
-const SKHYNIX_KRX: KoreanStockMeta = { ticker: '000660.KS', name: 'SK Hynix', color: '#EA5504' }
-
-const KOSPI_COMPANIES: KoreanStockMeta[] = [
-  { ticker: '005930.KS', name: 'Samsung Elec.',    color: '#1428A0' },
-  { ticker: '000660.KS', name: 'SK Hynix',         color: '#EA5504' },
-  { ticker: '402340.KS', name: 'SK Square',        color: '#E4002B' },
-  { ticker: '009150.KS', name: 'Samsung EM',       color: '#1428A0' },
-  { ticker: '005380.KS', name: 'Hyundai Motor',    color: '#002C5F' },
-  { ticker: '373220.KS', name: 'LG Energy Sol.',   color: '#A50034' },
-  { ticker: '032830.KS', name: 'Samsung Life',     color: '#1428A0' },
-  { ticker: '207940.KS', name: 'Samsung Bio.',     color: '#1428A0' },
-  { ticker: '105560.KS', name: 'KB Financial',     color: '#FFB819' },
-  { ticker: '028260.KS', name: 'Samsung C&T',      color: '#1428A0' },
-  { ticker: '000270.KS', name: 'Kia',              color: '#05141F' },
-  { ticker: '055550.KS', name: 'Shinhan Fin.',     color: '#0046FF' },
-  { ticker: '329180.KS', name: 'HD Hyundai HI',    color: '#00A0B0' },
-  { ticker: '012330.KS', name: 'Hyundai Mobis',    color: '#002C5F' },
-  { ticker: '012450.KS', name: 'Hanwha Aero.',     color: '#F37021' },
-  { ticker: '034730.KS', name: 'SK Inc.',          color: '#E4002B' },
-  { ticker: '034020.KS', name: 'Doosan Enerb.',    color: '#00A9CE' },
-  { ticker: '068270.KS', name: 'Celltrion',        color: '#00A6D6' },
-  { ticker: '086790.KS', name: 'Hana Financial',   color: '#008485' },
-  { ticker: '006400.KS', name: 'Samsung SDI',      color: '#1428A0' },
-]
-
-const KOSDAQ_COMPANIES: KoreanStockMeta[] = [
-  { ticker: '196170.KQ', name: 'Alteogen',         color: '#0067AC' },
-  { ticker: '247540.KQ', name: 'Ecopro BM',        color: '#008C44' },
-  { ticker: '086520.KQ', name: 'Ecopro',           color: '#008C44' },
-  { ticker: '277810.KQ', name: 'Rainbow Robotics', color: '#2D2D2D' },
-  { ticker: '036930.KQ', name: 'Jusung Eng.',      color: '#004C97' },
-  { ticker: '240810.KQ', name: 'Wonik IPS',        color: '#0091D0' },
-  { ticker: '058470.KQ', name: 'Leeno Ind.',       color: '#E60012' },
-  { ticker: '319660.KQ', name: 'PSK',              color: '#005BAC' },
-  { ticker: '298380.KQ', name: 'ABL Bio',          color: '#00A651' },
-  { ticker: '039030.KQ', name: 'EO Technics',      color: '#003DA5' },
-  { ticker: '028300.KQ', name: 'HLB',              color: '#00A650' },
-  { ticker: '222800.KQ', name: 'Simmtech',         color: '#005EAB' },
-  { ticker: '000250.KQ', name: 'Samchundang',      color: '#0068B7' },
-  { ticker: '440110.KQ', name: 'FADU',             color: '#1A1A1A' },
-  { ticker: '141080.KQ', name: 'LigaChem Bio',     color: '#0075C1' },
-  { ticker: '214450.KQ', name: 'Pharma Research',  color: '#00953A' },
-  { ticker: '108490.KQ', name: 'Robotis',          color: '#EE2E24' },
-  { ticker: '403870.KQ', name: 'HPSP',             color: '#005BAC' },
-  { ticker: '095610.KQ', name: 'Tes',              color: '#004EA2' },
-  { ticker: '095340.KQ', name: 'ISC',              color: '#0060A9' },
-]
-
-// 종목코드(6자리) → 영문명·색 맵. kr-snapshot 동적 유니버스에 없는 종목은 한글명+기본색 폴백.
-const KRX_META: Record<string, { name: string; color: string }> = Object.fromEntries(
-  [...KOSPI_COMPANIES, ...KOSDAQ_COMPANIES].map(c => [
-    c.ticker.replace(/\.(KS|KQ)$/, ''),
-    { name: c.name, color: c.color },
-  ]),
-)
-const KRX_DEFAULT_COLOR = '#3182F6'
+// ─── 거래소 정의 ────────────────────────────────────────────────────────────────
+// 유니버스·시세·시총·주입·표시메타는 전부 lib/exchanges 의 EXCHANGES / ALL_FEED config가 소유한다.
+// 거래소 추가는 이 라우트가 아니라 config에 항목을 더하는 것으로 이뤄진다.
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -151,12 +82,10 @@ interface ExchangeFeedState {
   lastGoodAt:     number
   lastBasDt?:     string
 }
-const exchangeFeeds: Record<string, ExchangeFeedState> = {
-  NASDAQ: { lastGoodResult: null, lastGoodAt: 0 },
-  NYSE:   { lastGoodResult: null, lastGoodAt: 0 },
-  KOSPI:  { lastGoodResult: null, lastGoodAt: 0 },
-  KOSDAQ: { lastGoodResult: null, lastGoodAt: 0 },
-}
+// 거래소별 마지막 성공 피드 상태. EXCHANGES config에서 자동 생성 → 거래소 추가 시 여기 수정 불필요.
+const exchangeFeeds: Record<string, ExchangeFeedState> = Object.fromEntries(
+  EXCHANGES.map(e => [e.code, { lastGoodResult: null, lastGoodAt: 0 } as ExchangeFeedState]),
+)
 
 // ─── Twelve Data Fetchers (quote 전용) ─────────────────────────────────────────
 
@@ -332,11 +261,9 @@ function rankWithBackfill(
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function GET(req: Request) {
-  const exchange = new URL(req.url).searchParams.get('exchange')?.toLowerCase()
-  if (exchange === 'nasdaq') return handleExchange('NASDAQ', NASDAQ_COMPANIES)
-  if (exchange === 'nyse')   return handleExchange('NYSE',   NYSE_COMPANIES)
-  if (exchange === 'kospi')  return handleKoreanExchange('KOSPI')
-  if (exchange === 'kosdaq') return handleKoreanExchange('KOSDAQ')
+  const param  = new URL(req.url).searchParams.get('exchange')?.toLowerCase()
+  const config = param ? getExchange(param) : undefined
+  if (config) return handleExchange(config)
   return handleAll()
 }
 
@@ -348,9 +275,9 @@ async function handleAll() {
     const rates = await getFxRateMap(rate)
 
     const [companyRows, krxResults] = await Promise.all([
-      fetchRows(COMPANIES),
+      fetchRows(ALL_FEED.tdUniverse),
       Promise.all(
-        KOREAN_STOCKS.map(meta =>
+        ALL_FEED.krxInjections.map(meta =>
           getKRXResult(meta, rate).catch((err) => {
             console.warn(`[market-cap] KRX ${meta.ticker} 실패, 스킵:`, err)
             return null
@@ -362,7 +289,7 @@ async function handleAll() {
     const allRows = [...companyRows, ...krxResults]
       .filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
 
-    const ranked = rankWithBackfill(allRows, lastGoodResult)
+    const ranked = rankWithBackfill(allRows, lastGoodResult, ALL_FEED.rankLimit)
     lastGoodResult       = ranked
     lastGoodAt           = Date.now()
     lastGoodExchangeRate = rate
@@ -379,34 +306,41 @@ async function handleAll() {
   }
 }
 
-// 거래소 전용 핸들러 (NASDAQ / NYSE 공통).
-// ALL과 동일한 응답 형태(exchangeRate/data/updatedAt/stale)를 유지해 클라이언트 디코딩 공유.
-async function handleExchange(exchange: string, universe: CompanyMeta[]) {
-  const state = exchangeFeeds[exchange]
+// config 구동 거래소 핸들러. capModel로 TD(발행주수×가격) / KRX(EOD 스냅샷) 경로를 가른다.
+// ALL과 동일한 응답 형태(exchangeRate/data/updatedAt/stale, KRX는 basDt 추가)를 유지해 클라이언트 디코딩 공유.
+async function handleExchange(config: ExchangeConfig) {
+  return config.capModel.kind === 'krx'
+    ? handleKrxExchange(config, config.capModel.suffix)
+    : handleTdExchange(config)
+}
+
+// TD 계열(NASDAQ / NYSE): 큐레이션 유니버스를 stats×quote로 재정렬, config.injections 주입.
+async function handleTdExchange(config: ExchangeConfig) {
+  const state = exchangeFeeds[config.code]
   try {
     if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
 
     const rate = await getKrwRate()
     const rates = await getFxRateMap(rate)
-    const rows = await fetchRows(universe)
+    const rows = await fetchRows(config.universe ?? [])
     const allRows = rows.filter((r): r is Omit<CompanyResult, 'rank'> => r !== null)
 
-    // SK Hynix: KRX 시총을 USD 환산해 NASDAQ 섹션에 주입 → 나스닥 공식 순위와 일치.
-    if (exchange === 'NASDAQ') {
-      const hynix = await getKRXResult(SKHYNIX_KRX, rate).catch((err) => {
-        console.warn('[market-cap:NASDAQ] SK Hynix 주입 실패, 스킵:', err)
+    // 주입 종목(예: SK Hynix): KRX 시총을 USD 환산해 이 섹션에 주입 → 공식 순위와 일치.
+    for (const inj of config.injections ?? []) {
+      const row = await getKRXResult(inj, rate).catch((err) => {
+        console.warn(`[market-cap:${config.code}] ${inj.ticker} 주입 실패, 스킵:`, err)
         return null
       })
-      if (hynix) allRows.push(hynix)
+      if (row) allRows.push(row)
     }
 
-    const ranked = rankWithBackfill(allRows, state?.lastGoodResult, 100)  // NASDAQ/NYSE는 top-100
+    const ranked = rankWithBackfill(allRows, state?.lastGoodResult, config.rankLimit)
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
     return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
-    console.error(`[market-cap:${exchange}] fetch error:`, err)
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
         { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
@@ -416,18 +350,16 @@ async function handleExchange(exchange: string, universe: CompanyMeta[]) {
   }
 }
 
-// 한국거래소 전용 핸들러 (KOSPI / KOSDAQ 공통).
-// 공공데이터포털 동적 유니버스에서 시총 상위 100개를 뽑아 USD 환산 후 반환.
-async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
-  const state = exchangeFeeds[exchange]
+// KRX 계열(KOSPI / KOSDAQ): 공공데이터포털 동적 유니버스에서 시총 상위 N개를 USD 환산 후 반환.
+async function handleKrxExchange(config: ExchangeConfig, suffix: 'KS' | 'KQ') {
+  const state = exchangeFeeds[config.code]
   try {
     const rate   = await getKrwRate()
     const rates  = await getFxRateMap(rate)
     const ds     = await getKrxDataset()
-    const suffix = exchange === 'KOSPI' ? 'KS' : 'KQ'
-    const rows   = exchange === 'KOSPI' ? ds.kospi : ds.kosdaq  // 이미 시총 내림차순
+    const rows   = suffix === 'KS' ? ds.kospi : ds.kosdaq  // 이미 시총 내림차순
 
-    const ranked: CompanyResult[] = rows.slice(0, 100).map((row, i) => {
+    const ranked: CompanyResult[] = rows.slice(0, config.rankLimit).map((row, i) => {
       const meta = KRX_META[row.code]
       return {
         rank:          i + 1,
@@ -448,7 +380,7 @@ async function handleKoreanExchange(exchange: 'KOSPI' | 'KOSDAQ') {
 
     return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, basDt: ds.basDt, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
-    console.error(`[market-cap:${exchange}] fetch error:`, err)
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
         { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), basDt: state.lastBasDt, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
