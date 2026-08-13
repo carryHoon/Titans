@@ -16,7 +16,10 @@ const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY ?? ''
 const TD_BASE         = 'https://api.twelvedata.com'
 const STATS_TTL_MS    = 24 * 3_600_000
 
-const STATS_GAP_MS      = 2_500
+// TD /statistics는 콜당 ~50 크레딧(실측). Venture 610/분 ÷ 50 ≈ 12콜/분이 상한이므로 2.5s(=24콜/분)
+// 로는 후반부가 대량 429로 떨어진다(CATL·BYD 등 SZSE 대형주 누락). 6s(=10콜/분=500크레딧/분)로
+// 늦춰 유저 경로 quote 트래픽(~80/분)까지 얹혀도 한도 안에 들도록 한다. 70종목 × 6s ≈ 7분(GH 15분 여유).
+const STATS_GAP_MS      = 6_000
 const RETRY_COOLDOWN_MS = 30_000
 
 export interface CnStatEntry {
