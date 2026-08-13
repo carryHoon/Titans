@@ -1,0 +1,38 @@
+name: Refresh China A-share market-cap stats
+
+# 중국 A주(SSE/XSHG·SZSE/XSHE) 시총 기준값(/statistics) 스냅샷을 Upstash에 갱신한다.
+# 라우트가 quote로 라이브 스케일링하므로 여기선 시총 base(≈전일 종가)만 하루 1회 받는다.
+on:
+  schedule:
+    # 08:00 UTC 평일 — A주 정규장 마감(15:00 CST = 07:00 UTC) 후.
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch: {}
+
+concurrency:
+  group: refresh-cn-stats
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # 70종목 × 2.5s ≈ 2.9분 (+ 재시도) → 여유
+    defaults:
+      run:
+        working-directory: titans-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: titans-web/package-lock.json
+
+      - run: npm ci
+
+      - name: Refresh cn-stats snapshot
+        run: npm run refresh:cn
+        env:
+          TWELVE_DATA_API_KEY:      ${{ secrets.TWELVE_DATA_API_KEY }}
+          UPSTASH_REDIS_REST_URL:   ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
