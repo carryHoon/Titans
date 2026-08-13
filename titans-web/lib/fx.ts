@@ -17,8 +17,8 @@
 // ▷ 환율 표기 규약: rate = "1 USD 당 해당 통화 금액" (KRW/USD, JPY/USD …).
 //   TD forex 심볼 USD/KRW·USD/JPY … 의 close 가 정확히 이 방향이라 그대로 매핑된다.
 
-export type Currency = 'KRW' | 'JPY' | 'CNY' | 'EUR'
-export const ALL_CURRENCIES: Currency[] = ['KRW', 'JPY', 'CNY', 'EUR']
+export type Currency = 'KRW' | 'JPY' | 'CNY' | 'EUR' | 'INR'
+export const ALL_CURRENCIES: Currency[] = ['KRW', 'JPY', 'CNY', 'EUR', 'INR']
 
 /** 환율 한 건. 카드 표시용 등락(change)까지 포함 — 제공 못 하는 소스는 0. */
 export interface FxQuote {
@@ -39,7 +39,7 @@ export interface FxProvider {
 }
 
 // 모든 소스가 죽었을 때의 최종 폴백 상수 (통화당 USD 근사값). 하드코딩 숫자 → 라이선스 무관.
-const FALLBACK: Record<Currency, number> = { KRW: 1450, JPY: 155, CNY: 7.2, EUR: 0.92 }
+const FALLBACK: Record<Currency, number> = { KRW: 1450, JPY: 155, CNY: 7.2, EUR: 0.92, INR: 83 }
 
 // ─── 시간대 헬퍼 (KST 벽시계) ──────────────────────────────────────────────────
 // 서버(Vercel)는 UTC로 돌기 때문에 +9h 보정한 Date를 만들어 getUTC*로 읽는다.
@@ -81,6 +81,7 @@ const TD_SYMBOL: Record<Currency, string> = {
   JPY: 'USD/JPY',
   CNY: 'USD/CNY',
   EUR: 'USD/EUR',
+  INR: 'USD/INR',
 }
 
 interface TdQuoteResponse {
@@ -95,7 +96,7 @@ interface TdQuoteResponse {
 
 class TwelveDataFxProvider implements FxProvider {
   readonly name = 'twelvedata'
-  readonly supports = ['KRW', 'JPY', 'CNY', 'EUR'] as const
+  readonly supports = ['KRW', 'JPY', 'CNY', 'EUR', 'INR'] as const
 
   async fetch(currencies: Currency[]): Promise<Partial<Record<Currency, FxQuote>>> {
     const key = process.env.TWELVE_DATA_API_KEY ?? ''

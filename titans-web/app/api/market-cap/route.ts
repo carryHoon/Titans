@@ -6,6 +6,8 @@ import { getEuStats, startEuStatsWarm } from '@/lib/eu-snapshot'
 import { EU_COMPANIES } from '@/lib/eu-universe'
 import { getCnStats, startCnStatsWarm } from '@/lib/cn-snapshot'
 import { CN_COMPANIES } from '@/lib/cn-universe'
+import { getNseStats, startNseStatsWarm } from '@/lib/nse-snapshot'
+import { NSE_COMPANIES, NSE_MIC } from '@/lib/nse-universe'
 import { getUsStats, startUsStatsWarm } from '@/lib/us-stats'
 import { ADR_SHARE_OUTSTANDING_M, type CompanyMeta } from '@/lib/us-universe'
 import {
@@ -31,6 +33,8 @@ startJpxStatsWarm()
 startEuStatsWarm()
 // 중국 A주 stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startCnStatsWarm()
+// 인도 NSE stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+startNseStatsWarm()
 
 // ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
 // Venture 플랜: 610 credits/min. 이 라우트(유저 경로)는 /quote(1 credit/종목, 20s TTL)만 쓴다.
@@ -149,7 +153,7 @@ async function getFxRateMap(krwFallback: number): Promise<Record<Currency, numbe
   try {
     return await getFxRates()
   } catch {
-    return { KRW: krwFallback, JPY: 155, CNY: 7.2, EUR: 0.92 }
+    return { KRW: krwFallback, JPY: 155, CNY: 7.2, EUR: 0.92, INR: 83 }
   }
 }
 
@@ -328,6 +332,7 @@ async function handleExchange(config: ExchangeConfig) {
     case 'jpx': return handleJpxExchange(config)
     case 'eu':  return handleEuExchange(config)
     case 'cn':  return handleCnExchange(config, config.capModel.mic)
+    case 'nse': return handleNseExchange(config)
     default:    return handleTdExchange(config)
   }
 }
@@ -605,6 +610,88 @@ async function handleCnExchange(config: ExchangeConfig, mic: 'XSHG' | 'XSHE') {
         changePercent:   changePct,
         marketCapUSD:    capCNY     / cnyPerUsd / 1_000_000_000_000,
         prevCloseCapUSD: prevCapCNY / cnyPerUsd / 1_000_000_000_000,
+      }
+      lastGoodCompanyCache.set(co.symbol, result)
+      rows.push(result)
+    })
+
+    const ranked = rankWithBackfill(rows, state?.lastGoodResult, config.rankLimit)
+    if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
+    lastGoodExchangeRate = rate
+
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+  } catch (err) {
+    console.error(`[market-cap:${config.code}] fetch error:`, err)
+    if (state?.lastGoodResult) {
+      return NextResponse.json(
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+      )
+    }
+    return NextResponse.json({ error: String(err) }, { status: 503 })
+  }
+}
+
+// 인도 NSE 계열: nse-snapshot(네이티브 INR stats)을 base로, quote(close/prevClose)로 라이브 스케일링.
+// quote 결손 시 stats 시총 + 전일 스냅샷 대비로 폴백. 전 종목 단일 mic(XNSE). INR→USD는 요청 시 fx.
+// cn 핸들러와 동일 구조(mic 분기만 없음). US/KRX/JPX/EU/CN과 동일 응답 형태 유지.
+async function handleNseExchange(config: ExchangeConfig) {
+  const state = exchangeFeeds[config.code]
+  try {
+    if (!TWELVE_DATA_KEY) throw new Error('TWELVE_DATA_API_KEY 환경변수 없음')
+
+    const rate  = await getKrwRate()
+    const rates = await getFxRateMap(rate)
+    const inrPerUsd = rates.INR
+    if (!inrPerUsd || inrPerUsd <= 0) throw new Error('INR 환율 없음')
+
+    const { cap, prev } = await getNseStats()
+
+    const quotes = await Promise.all(
+      NSE_COMPANIES.map(async (co): Promise<QuoteData | null> => {
+        try { return await getQuote(co.symbol, NSE_MIC) }
+        catch { return quoteCache.get(`${co.symbol}:${NSE_MIC}`)?.data ?? null }
+      }),
+    )
+
+    const rows: Omit<CompanyResult, 'rank'>[] = []
+    NSE_COMPANIES.forEach((co, i) => {
+      const base = cap[co.symbol]
+      if (!base || !base.capINR) {
+        const stale = lastGoodCompanyCache.get(co.symbol)
+        if (stale) rows.push(stale)
+        return
+      }
+      const quote = quotes[i]
+      let capINR: number, prevCapINR: number, price: number, change: number, changePct: number
+
+      if (quote && quote.pc > 0) {
+        // 라이브: stats base(≈전일 종가 시총) × 당일 등락 비율. 등락/가격은 quote 그대로(INR).
+        const ratio = quote.c / quote.pc
+        prevCapINR  = base.capINR
+        capINR      = base.capINR * ratio
+        price       = quote.c
+        change      = quote.d
+        changePct   = quote.dp
+      } else {
+        // EOD 폴백: stats 시총 그대로. 등락%는 전일 스냅샷 대비, 가격은 cap/shares 파생.
+        const prevCap = prev[co.symbol] && prev[co.symbol] > 0 ? prev[co.symbol] : base.capINR
+        prevCapINR = prevCap
+        capINR     = base.capINR
+        price      = base.shares > 0 ? base.capINR / base.shares : 0
+        const prevPrice = base.shares > 0 ? prevCap / base.shares : 0
+        change     = price - prevPrice
+        changePct  = prevCap > 0 ? (base.capINR - prevCap) / prevCap * 100 : 0
+      }
+
+      const result: Omit<CompanyResult, 'rank'> = {
+        ticker:          co.symbol,
+        name:            co.name,
+        color:           co.color,
+        currentPrice:    price,                                    // INR 주당가격
+        change,
+        changePercent:   changePct,
+        marketCapUSD:    capINR     / inrPerUsd / 1_000_000_000_000,
+        prevCloseCapUSD: prevCapINR / inrPerUsd / 1_000_000_000_000,
       }
       lastGoodCompanyCache.set(co.symbol, result)
       rows.push(result)
