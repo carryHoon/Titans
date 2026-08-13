@@ -15,7 +15,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # 70종목 × 2.5s ≈ 2.9분 (+ 재시도) → 여유
+    timeout-minutes: 20  # 70종목 × 6s ≈ 7분 (+ 재시도) → 여유 (gap 6s = /statistics 429 회피)
     defaults:
       run:
         working-directory: titans-web
