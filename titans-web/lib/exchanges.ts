@@ -94,11 +94,15 @@ export const KRX_DEFAULT_COLOR = '#3182F6'
 //           TD가 JPX 가격 피드를 안 줘 라이브 스케일링 불가 — 등락%는 전일 스냅샷 대비 자체계산.
 //   · eu  : TD /statistics 스냅샷(eu-snapshot, 네이티브 EUR) base + quote 있는 종목(XPAR/XAMS)은
 //           라이브 스케일링, 없는 종목(XMIL)은 EOD. 유니버스는 eu-universe(EuCompanyMeta+mic) 소유.
+//   · cn  : TD /statistics 스냅샷(cn-snapshot, 네이티브 CNY) base + quote(close/prevClose)로 라이브
+//           스케일링(A주 quote는 지연/EOD). mic으로 SSE(XSHG)/SZSE(XSHE) 섹션을 가른다.
+//           유니버스는 cn-universe(CnCompanyMeta+mic) 소유 → route가 mic으로 필터.
 export type CapModel =
   | { kind: 'td' }
   | { kind: 'krx'; suffix: 'KS' | 'KQ' }
   | { kind: 'jpx' }
   | { kind: 'eu' }
+  | { kind: 'cn'; mic: 'XSHG' | 'XSHE' }
 
 export interface ExchangeConfig {
   code:       string             // 'NASDAQ' | 'NYSE' | 'KOSPI' | 'KOSDAQ'
@@ -117,6 +121,9 @@ export const EXCHANGES: ExchangeConfig[] = [
   { code: 'JPX',    param: 'jpx',    rankLimit: 100, capModel: { kind: 'jpx' }, universe: JPX_COMPANIES },
   // Euronext 유니버스(mic 포함)는 eu-universe가 소유 → route가 직접 참조(config.universe 미사용).
   { code: 'EURONEXT', param: 'euronext', rankLimit: 100, capModel: { kind: 'eu' } },
+  // 중국 A주 유니버스(mic 포함)는 cn-universe가 소유 → route가 mic으로 필터(config.universe 미사용).
+  { code: 'SSE',  param: 'sse',  rankLimit: 100, capModel: { kind: 'cn', mic: 'XSHG' } },
+  { code: 'SZSE', param: 'szse', rankLimit: 100, capModel: { kind: 'cn', mic: 'XSHE' } },
 ]
 
 // ALL 피드: US 큐레이션(COMPANIES) + KRX 상위 몇 종목 주입 후 top-20.
