@@ -21,7 +21,7 @@ let tickerMarket: [String: Market] = [
     "GILD": .nasdaq,
     "INTC": .nasdaq, "LRCX": .nasdaq, "ARM": .nasdaq, "KLAC": .nasdaq, "PANW": .nasdaq,
     "LIN": .nasdaq, "ASML": .nasdaq,
-    // Walmart는 Finnhub·나스닥 공식 모두 NASDAQ으로 분류
+    // Walmart는 나스닥 공식 분류 기준 NASDAQ
     "WMT": .nasdaq,
     // NYSE
     "BRK.B": .nyse, "JPM": .nyse, "TSM": .nyse, "LLY": .nyse,
@@ -449,7 +449,7 @@ let tickerDomain: [String: String] = [
     "PIRC":    "pirelli.com",
     "CPR":     "camparigroup.com",
     "LDO":     "leonardo.com",
-    // XETRA (독일 Deutsche Börse) — 앱 티커 = TD 심볼. SAP·MRK·AIR는 기존 키로 이미 존재해 제외(중복키 방지).
+    // FWB (독일 Deutsche Börse) — 앱 티커 = TD 심볼. SAP·MRK·AIR는 기존 키로 이미 존재해 제외(중복키 방지).
     "SIE":     "siemens.com",
     "DTE":     "telekom.com",
     "ALV":     "allianz.com",

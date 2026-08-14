@@ -92,7 +92,7 @@ enum Currency: String, CaseIterable, Codable {
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
 enum Market: String, CaseIterable, Identifiable {
-    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, xetra, hkex, twse, nse
+    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, fwb, hkex, twse, nse
 
     var id: String { rawValue }
 
@@ -108,29 +108,10 @@ enum Market: String, CaseIterable, Identifiable {
         case .sse:      return "SSE"
         case .szse:     return "SZSE"
         case .euronext: return "EURONEXT"
-        case .xetra:    return "XETRA"
+        case .fwb:      return "FWB"
         case .hkex:     return "HKEX"
         case .twse:     return "TWSE"
         case .nse:      return "NSE"
-        }
-    }
-
-    /// US는 `.US` 하나로 오고 종목별 상장거래소 필드로 NASDAQ/NYSE를 분리한다.
-    var eodhdCode: [String] {
-        switch self {
-        case .all:      return []                       // 전 섹션 통합
-        case .nasdaq:   return ["US"]                   // + 상장거래소=NASDAQ 필터
-        case .nyse:     return ["US"]                   // + 상장거래소=NYSE 필터
-        case .kospi:    return ["KO"]
-        case .kosdaq:   return ["KQ"]
-        case .jpx:      return ["TSE"]
-        case .sse:      return ["SHG"]
-        case .szse:     return ["SHE"]
-        case .euronext: return ["PA", "AS", "MI"]
-        case .xetra:    return ["XETRA"]
-        case .hkex:     return ["HK"]
-        case .twse:     return ["TW"]
-        case .nse:      return ["NSE"]
         }
     }
 
@@ -139,7 +120,7 @@ enum Market: String, CaseIterable, Identifiable {
     /// 상업용 데이터 소스 연동 시 해당 case를 false로 내리고 apiExchangeParam만 열어주면 됨.
     var comingSoon: Bool {
         switch self {
-        case .all, .nasdaq, .nyse, .kospi, .kosdaq, .jpx, .euronext, .xetra, .sse, .szse, .nse: return false
+        case .all, .nasdaq, .nyse, .kospi, .kosdaq, .jpx, .euronext, .fwb, .sse, .szse, .nse: return false
         default:                                                                              return true
         }
     }
@@ -153,7 +134,7 @@ enum Market: String, CaseIterable, Identifiable {
         case .jpx:             return "flag_jp"
         case .sse, .szse:      return "flag_cn"
         case .euronext:        return "flag_eu"
-        case .xetra:           return "flag_de"
+        case .fwb:             return "flag_de"
         case .hkex:            return "flag_hk"
         case .twse:            return "flag_tw"
         case .nse:             return "flag_in"
@@ -173,7 +154,7 @@ enum Market: String, CaseIterable, Identifiable {
         case .sse:      return "sse"        // 상하이 A주. TD /statistics(CNY) base + quote 스케일링. CNY→USD 환산.
         case .szse:     return "szse"       // 선전 A주. 위와 동일.
         case .nse:      return "nse"        // 인도 NSE. TD /statistics(INR) base + quote 스케일링. INR→USD 환산.
-        case .xetra:    return "xetra"      // 독일 XETRA. TD /statistics(EUR) base + quote 스케일링. EUR→USD 환산.
+        case .fwb:      return "fwb"      // 독일 FWB. TD /statistics(EUR) base + quote 스케일링. EUR→USD 환산.
         // hkex/twse 는 아직 범위 밖(comingSoon)이라 백엔드 피드가 없다.
         // 상업용 데이터 소스 확장 시 백엔드 핸들러와 함께 여기서 개방하면 별도 UI 변경 없이 활성화된다.
         default:        return nil
