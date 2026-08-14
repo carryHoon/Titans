@@ -92,7 +92,9 @@ enum Currency: String, CaseIterable, Codable {
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
 enum Market: String, CaseIterable, Identifiable {
-    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, fwb, hkex, twse, six, tsx, nse
+    // 선언 순서 = 홈 화면 필터 칩·스와이프 페이지 순서(둘 다 allCases를 따름).
+    // 활성 거래소를 앞에 모으고(…fwb → nse), 준비 중(comingSoon)인 거래소를 뒤로 몬다.
+    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, fwb, nse, hkex, twse, six, tsx
 
     var id: String { rawValue }
 
