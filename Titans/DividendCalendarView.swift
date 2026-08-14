@@ -5,19 +5,17 @@
 //  배당락일(ex-dividend date) 캘린더. 사용자가 원하는 기업의 배당락일을 월간 달력에서
 //  한눈에 확인하는 화면이다.
 //
-//  ⚠️ 데이터 소스: 배당락일/배당금은 실시간 시세와 달리 '기업 액션(corporate action)' 데이터로,
-//     무료 소스로는 안정적으로 얻기 어렵다. 출시 전 Finnhub 유료 플랜(`/stock/dividend`)을
-//     연동하면 ex-date·record date·pay date·배당금·통화를 그대로 채울 수 있다.
+//  ⚠️ 데이터 소스: 배당락일/배당금은 실시간 시세와 달리 '기업 액션(corporate action)' 데이터다.
+//     출시 시 US는 Twelve Data, KR은 DART(전자공시)를 연동해 ex-date·pay date·배당금·통화를 채운다.
 //     이 화면은 그 연동을 그대로 끼우면 되도록 UI/모델을 미리 완성해 둔 '껍데기'이며,
 //     지금은 가짜 배당일을 노출하지 않고 '연동 예정' 상태를 정직하게 보여준다.
 //
 
 import SwiftUI
 
-// MARK: - Model (Finnhub /stock/dividend 응답에 1:1 대응)
+// MARK: - Model
 
-/// 배당 이벤트 한 건. Finnhub `/stock/dividend` 의 필드명을 그대로 따 두어
-/// 유료 연동 시 디코딩 → 매핑이 바로 되도록 했다.
+/// 배당 이벤트 한 건. 연동 시 공급자 응답을 디코딩 → 매핑해 채운다.
 struct DividendEvent: Identifiable {
     let id = UUID()
     let ticker: String
@@ -31,8 +29,7 @@ struct DividendEvent: Identifiable {
 // MARK: - Data Provider (연동 지점)
 
 /// 배당 데이터 공급자. 지금은 항상 빈 배열을 돌려주는 플레이스홀더.
-/// 유료 연동 시 이 구현만 Finnhub 호출로 교체하면 화면 코드는 그대로 동작한다.
-///   GET https://finnhub.io/api/v1/stock/dividend?symbol=AAPL&from=YYYY-MM-DD&to=YYYY-MM-DD&token=...
+/// 연동 시 이 구현만 실제 호출(US=Twelve Data, KR=DART)로 교체하면 화면 코드는 그대로 동작한다.
 protocol DividendProvider {
     func events(in month: Date, for tickers: [String]) async -> [DividendEvent]
 }
