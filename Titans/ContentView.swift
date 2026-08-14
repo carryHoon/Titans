@@ -92,7 +92,7 @@ enum Currency: String, CaseIterable, Codable {
 
 /// 거래소 카테고리 필터. 새 거래소는 case만 추가하면 칩이 자동 확장됨.
 enum Market: String, CaseIterable, Identifiable {
-    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, fwb, hkex, twse, nse
+    case all, nasdaq, nyse, kospi, kosdaq, jpx, sse, szse, euronext, fwb, hkex, twse, six, tsx, nse
 
     var id: String { rawValue }
 
@@ -111,6 +111,8 @@ enum Market: String, CaseIterable, Identifiable {
         case .fwb:      return "FWB"
         case .hkex:     return "HKEX"
         case .twse:     return "TWSE"
+        case .six:      return "SIX"
+        case .tsx:      return "TSX"
         case .nse:      return "NSE"
         }
     }
@@ -137,6 +139,8 @@ enum Market: String, CaseIterable, Identifiable {
         case .fwb:             return "flag_de"
         case .hkex:            return "flag_hk"
         case .twse:            return "flag_tw"
+        case .six:             return "flag_ch"
+        case .tsx:             return "flag_ca"
         case .nse:             return "flag_in"
         }
     }
@@ -160,6 +164,111 @@ enum Market: String, CaseIterable, Identifiable {
         default:        return nil
         }
     }
+
+    // MARK: 데이터 기준(as-of) 분류
+
+    enum DataBasis {
+        case realtime    // 발행주식수 × 실시간 주가 (US·EU 라이브 quote 스케일링)
+        case eodDated    // 거래일 종가 기준 EOD — 기준일(basDt/asOf)을 함께 표기
+        case comingSoon  // 데이터 미제공(준비 중)
+    }
+
+    /// 상단 기준 섹션 문구를 가르는 데이터 형태.
+    ///  · realtime: 장중 실시간 시총(마감 후 기준값 갱신) — nasdaq/nyse/euronext/fwb.
+    ///  · eodDated: 거래일 종가 기준 시총 — kospi/kosdaq(basDt) · jpx/sse/szse/nse(asOf).
+    /// (ALL은 US 실시간 + KR 종가 혼합이라 MarketStatusView가 별도 문구로 직접 처리한다.)
+    var dataBasis: DataBasis {
+        if comingSoon { return .comingSoon }
+        switch self {
+        case .kospi, .kosdaq, .jpx, .sse, .szse, .nse: return .eodDated
+        default:                                       return .realtime
+        }
+    }
+
+    /// ⓘ 상세 시트에 표시할 거래소별 정적 설명. comingSoon(hkex/twse)은 nil → 버튼 미노출.
+    var info: MarketInfo? {
+        switch self {
+        case .all:
+            return MarketInfo(
+                fullName: "전체 시장",
+                basis: "미국(NASDAQ·NYSE) 실시간 시가총액과 한국(KOSPI·KOSDAQ) 종가 기준 시가총액을 함께 모아 시총 상위 기업을 보여줍니다.",
+                schedule: "미국 종목은 실시간, 한국 종목은 영업일 종가 기준입니다.",
+                officialName: nil, officialURLString: nil)
+        case .nasdaq:
+            return MarketInfo(
+                fullName: "Nasdaq Stock Market",
+                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
+                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
+                officialName: "nasdaq.com", officialURLString: "https://www.nasdaq.com")
+        case .nyse:
+            return MarketInfo(
+                fullName: "New York Stock Exchange",
+                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
+                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
+                officialName: "nyse.com", officialURLString: "https://www.nyse.com")
+        case .kospi:
+            return MarketInfo(
+                fullName: "유가증권시장 (KRX)",
+                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
+                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
+                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr")
+        case .kosdaq:
+            return MarketInfo(
+                fullName: "코스닥시장 (KRX)",
+                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
+                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
+                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr")
+        case .jpx:
+            return MarketInfo(
+                fullName: "Japan Exchange Group (도쿄증권거래소)",
+                basis: "도쿄증권거래소 종가 기준 시가총액입니다.",
+                schedule: "도쿄 증시 마감 후 매 거래일(한국시간 오후) 갱신됩니다.",
+                officialName: "jpx.co.jp", officialURLString: "https://www.jpx.co.jp")
+        case .sse:
+            return MarketInfo(
+                fullName: "Shanghai Stock Exchange (상하이증권거래소)",
+                basis: "상하이 A주 종가 기준 시가총액입니다.",
+                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
+                officialName: "english.sse.com.cn", officialURLString: "http://english.sse.com.cn")
+        case .szse:
+            return MarketInfo(
+                fullName: "Shenzhen Stock Exchange (선전증권거래소)",
+                basis: "선전 A주 종가 기준 시가총액입니다.",
+                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
+                officialName: "szse.cn", officialURLString: "https://www.szse.cn/English/")
+        case .nse:
+            return MarketInfo(
+                fullName: "National Stock Exchange of India (인도 NSE)",
+                basis: "인도 NSE 종가 기준 시가총액입니다.",
+                schedule: "인도 증시 마감 후 매 거래일(한국시간 밤) 갱신됩니다.",
+                officialName: "nseindia.com", officialURLString: "https://www.nseindia.com")
+        case .euronext:
+            return MarketInfo(
+                fullName: "Euronext (유럽)",
+                basis: "파리·암스테르담 상장 종목은 실시간, 밀라노 상장 종목은 종가 기준 시가총액입니다.",
+                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
+                officialName: "euronext.com", officialURLString: "https://live.euronext.com")
+        case .fwb:
+            return MarketInfo(
+                fullName: "Frankfurt Stock Exchange (Deutsche Börse)",
+                basis: "Xetra 시스템 기준 실시간 시가총액입니다.",
+                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
+                officialName: "boerse-frankfurt.de", officialURLString: "https://www.boerse-frankfurt.de/en")
+        case .hkex, .twse, .six, .tsx:
+            return nil   // comingSoon — ⓘ 미노출
+        }
+    }
+}
+
+// MARK: - Market Info (거래소 데이터 기준 상세)
+
+/// ⓘ 상세 시트에 표시할 거래소별 정적 설명. 데이터 산출 기준·갱신 주기·공식 사이트 링크를 담는다.
+struct MarketInfo {
+    let fullName: String              // 거래소 정식명
+    let basis: String                 // 시가총액 산출 기준 설명
+    let schedule: String              // 갱신 주기(한국시간 안내)
+    let officialName: String?         // 공식 사이트 표시명 (없으면 링크 미노출)
+    let officialURLString: String?    // 공식 홈페이지 URL 문자열
 }
 
 // MARK: - Sort State
@@ -219,6 +328,7 @@ struct MarketCapResponse: Decodable {
     let exchangeRate: Double?              // KRW/USD 단일 (위젯·구버전 호환)
     let exchangeRates: [String: Double]?  // 다통화 rate 맵 {"KRW":..,"JPY":..} — 구버전 응답엔 없을 수 있어 옵셔널
     let basDt: String?         // KRX 기준일("YYYYMMDD") — 코스피/코스닥만 내려옴(EOD/D-1)
+    let asOf: String?          // EOD 계열(JPX/SSE/SZSE/NSE 등) 스냅샷 거래일("YYYY-MM-DD"). 없으면 nil. basDt와 별개(표시 전용, KR 순위 baseline 무관)
     let data: [APICompanyResult]
     let stale: Bool?
     let error: String?
@@ -475,6 +585,7 @@ struct ExchangeFeed {
     var isError   = false
     var isStale   = false
     var basDt: String? = nil   // KRX 기준일("YYYYMMDD") — 코스피/코스닥 "종가 기준" 표기용
+    var asOf: String? = nil    // EOD 계열(JPX/SSE/SZSE/NSE) 스냅샷 거래일("YYYY-MM-DD") — "종가 기준" 표기용
 }
 
 // MARK: - KR Rank Baseline (basDt 기준)
@@ -537,7 +648,7 @@ final class MarketCapViewModel: ObservableObject {
     /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
     /// 순위변동 기준(previousRank)은 "전일 종가 순위 대비"로 통일: KR은 basDt 롤오버 baseline, 비KR은 서버 previousRank.
     private func loadCompanies(from url: URL, exchangeParam: String?) async throws
-        -> (companies: [Company], stale: Bool, rate: Double?, rates: [String: Double]?, basDt: String?) {
+        -> (companies: [Company], stale: Bool, rate: Double?, rates: [String: Double]?, basDt: String?, asOf: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw URLError(.badServerResponse)
@@ -568,7 +679,7 @@ final class MarketCapViewModel: ObservableObject {
                 domain:       api.domain
             )
         }
-        return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.exchangeRates, decoded.basDt)
+        return (mapped, decoded.stale ?? false, decoded.exchangeRate, decoded.exchangeRates, decoded.basDt, decoded.asOf)
     }
 
     /// 표시 통화의 "1 USD 당 금액" rate. USD는 기준 통화라 1.0.
@@ -616,7 +727,8 @@ final class MarketCapViewModel: ObservableObject {
                 isLoading: false,
                 isError:   false,
                 isStale:   result.stale,
-                basDt:     result.basDt
+                basDt:     result.basDt,
+                asOf:      result.asOf
             )
             if let rate = result.rate { exchangeRate = rate }
             if let rates = result.rates { exchangeRates = rates }
@@ -626,6 +738,21 @@ final class MarketCapViewModel: ObservableObject {
             feed.isError = true
             if feed.companies.isEmpty { feed.isLoading = true }
             exchangeFeeds[market] = feed
+        }
+    }
+
+    /// 검색 유니버스 워밍업 — 백엔드 전용 피드를 가진 모든 거래소를 실행 직후 1회 프리페치해,
+    /// 사용자가 해당 거래소 탭을 방문하지 않아도 검색에 전 종목이 잡히게 한다.
+    /// (탭 진입 시 .task(id:) 루프가 라이브 갱신을 이어받으므로 여기서는 1회성 로드로 충분)
+    /// 이미 종목이 채워진 피드는 건너뛴다. 백엔드가 스냅샷을 캐시 서빙하므로 추가 벤더 크레딧 소모는 없다.
+    func prefetchExchangesForSearch() async {
+        let markets = Market.allCases.filter {
+            $0.apiExchangeParam != nil && (exchangeFeeds[$0]?.companies.isEmpty ?? true)
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for market in markets {
+                group.addTask { await self.fetchExchange(market) }
+            }
         }
     }
 
@@ -777,6 +904,7 @@ struct ContentView: View {
     }
 
     private func basDt(for market: Market) -> String? { feed(for: market)?.basDt }
+    private func asOf(for market: Market) -> String? { feed(for: market)?.asOf }
 
     // MARK: 섹션 페이지 — 각 거래소별 스크롤 가능한 기업 목록
 
@@ -831,6 +959,7 @@ struct ContentView: View {
                 market: selectedMarket,
                 currentTime: currentTime,
                 basDt: basDt(for: selectedMarket),
+                asOf: asOf(for: selectedMarket),
                 vScale: vScale,
                 onSearch: { showSearch = true },
                 onMenu: { withAnimation(.easeInOut(duration: 0.32)) { showMenu = true } }
@@ -919,6 +1048,12 @@ struct ContentView: View {
                 // 서버 quote 캐시(20초)와 정렬. sleep이 fetch 뒤라 실제 간격은 항상 20초 초과 → 매 호출 신선.
                 try? await Task.sleep(for: .seconds(20))
             }
+        }
+        .task {
+            // 검색 유니버스 워밍업: 홈 기본 데이터(ALL)가 먼저 뜨도록 잠깐 양보한 뒤,
+            // 백엔드 피드를 가진 모든 거래소를 1회 프리페치한다. 이후 거래소 탭 방문 없이도 검색이 전 종목을 커버한다.
+            try? await Task.sleep(for: .seconds(1))
+            await viewModel.prefetchExchangesForSearch()
         }
         .task(id: selectedMarket) {
             guard selectedMarket.apiExchangeParam != nil else { return }
@@ -1411,6 +1546,7 @@ struct LiveIndicatorBar: View {
     let market: Market                      // 현재 섹션 — 상태 문구(실시간/종가 기준)를 결정
     let currentTime: Date                   // 실시간 섹션 시계
     let basDt: String?                      // 코스피/코스닥 기준일("YYYYMMDD")
+    var asOf: String? = nil                 // JPX/SSE/SZSE/NSE 스냅샷 거래일("YYYY-MM-DD")
     var vScale: CGFloat = 1                 // 헤더 세로 비례 계수 (기기별 동일 비율)
     var onSearch: () -> Void = {}           // 돋보기 → 검색 화면
     var onMenu: () -> Void = {}             // ≡ → 메뉴
@@ -1420,7 +1556,7 @@ struct LiveIndicatorBar: View {
         HStack(spacing: 8) {
             // market이 바뀌면 텍스트 내용이 교체되고, 그 너비 변화가 스프링으로 자연스럽게 애니메이션됨.
             // 왼쪽 시작점은 고정, 오른쪽만 텍스트 길이에 맞춰 늘었다 줄었다 함.
-            MarketStatusView(market: market, currentTime: currentTime, basDt: basDt)
+            MarketStatusView(market: market, currentTime: currentTime, basDt: basDt, asOf: asOf)
 
             Spacer()
 
@@ -1452,14 +1588,17 @@ struct LiveIndicatorBar: View {
 
 /// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
 /// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
-///  · 실시간(NASDAQ/NYSE, 60초 폴링): "● NASDAQ/NYSE는 HH:mm 기준" / ALL은 "HH:mm 기준 (일부 기업 전일 종가)"
-///  · EOD(KOSPI/KOSDAQ, 공공데이터포털 D-1): "● KOSPI 2026.07.23 종가 기준" (실제 기준일 basDt)
-///  · 준비 중 섹션(데이터 없음): "● JPX 출시 준비 중" (초록 대신 흐린 색·정적 원으로 구분)
+///  · realtime(NASDAQ/NYSE/EURONEXT/FWB, 60초 폴링): "NASDAQ HH:mm 기준" / ALL은 "HH:mm 기준 · 일부 종가"
+///  · eodDated(KOSPI/KOSDAQ=basDt, JPX/SSE/SZSE/NSE=asOf): "KOSPI 2026.07.23 종가 기준" (갱신된 실제 거래일)
+///  · comingSoon(데이터 없음): "HKEX 출시 준비 중" (초록 대신 흐린 색으로 구분)
+/// 우측 ⓘ 버튼으로 거래소별 데이터 기준·갱신 주기·공식 사이트 링크(MarketInfoSheet)를 연다.
 struct MarketStatusView: View {
     let market: Market
     let currentTime: Date
     let basDt: String?                      // "20260723" (코스피/코스닥만)
+    var asOf: String? = nil                 // "2026-07-23" (JPX/SSE/SZSE/NSE EOD 스냅샷 거래일)
     @Environment(\.appTheme) private var theme
+    @State private var showInfo = false
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -1467,22 +1606,31 @@ struct MarketStatusView: View {
         return f
     }()
 
-    private var isEOD: Bool { market == .kospi || market == .kosdaq }
-
-    /// "20260723" → "2026.07.23". 형식이 다르면 원본 그대로.
-    private func formatBasDt(_ s: String) -> String {
-        guard s.count == 8 else { return s }
-        return "\(s.prefix(4)).\(s.dropFirst(4).prefix(2)).\(s.dropFirst(6).prefix(2))"
+    /// basDt("YYYYMMDD")·asOf("YYYY-MM-DD") 둘 다 "YY.MM.DD"로 정규화(연도 2자리 — ⓘ 버튼 공간 확보용,
+    /// 모든 EOD 거래소 공통). 형식이 다르면 원본 그대로.
+    private func formatDate(_ s: String) -> String {
+        let digits = s.filter { $0.isNumber }
+        guard digits.count == 8 else { return s }
+        return "\(digits.dropFirst(2).prefix(2)).\(digits.dropFirst(4).prefix(2)).\(digits.dropFirst(6).prefix(2))"
     }
 
-    /// 거래소명 옆 부가 문구 — 섹션 성격에 따라 기준일/실시간 시각/준비 중.
+    /// EOD 섹션의 기준일 원본 — KR은 basDt, 그 외(JPX/CN/NSE)는 asOf.
+    private var eodDate: String? { basDt ?? asOf }
+
+    /// 거래소명 옆 부가 문구 — 데이터 형태(dataBasis)에 따라 기준일/실시간 시각/준비 중.
     private var detail: String {
-        if market.comingSoon { return "출시 준비 중" }
-        if isEOD { return basDt.map { "\(formatBasDt($0)) 종가 기준" } ?? "불러오는 중" }
-        let time = Self.timeFormatter.string(from: currentTime)
-        // ALL은 KR(EOD/전일 종가) + US(실시간)를 섞어 보여주므로 단서를 덧붙인다.
-        if market == .all { return "\(time) 기준 · 일부 전일 종가" }
-        return "\(time) 기준"
+        switch market.dataBasis {
+        case .comingSoon:
+            return "출시 준비 중"
+        case .eodDated:
+            // KR·JPX·중국·인도: "YYYY.MM.DD 종가 기준". 날짜는 갱신된 거래일이라 주말/공휴일 오해가 없다.
+            return eodDate.map { "\(formatDate($0)) 종가 기준" } ?? "불러오는 중"
+        case .realtime:
+            let time = Self.timeFormatter.string(from: currentTime)
+            // ALL은 KR(종가) + US(실시간)를 섞어 보여주므로 단서를 덧붙인다.
+            if market == .all { return "\(time) 기준 · 일부 종가" }
+            return "\(time) 기준"
+        }
     }
 
     var body: some View {
@@ -1510,6 +1658,122 @@ struct MarketStatusView: View {
                 .font(.system(size: 12, weight: .medium))
                 .monospacedDigit()          // 실시간 시계 자릿수 흔들림 방지
                 .foregroundStyle(theme.secondaryLabel)
+
+            // ⓘ 데이터 기준 상세 — 무엇을 기준으로 어떻게 갱신되는지 + 공식 사이트 링크.
+            // 배치: 국기 → 거래소명 → 기준일 → ⓘ (맨 오른쪽이라 탭하기 쉬움). comingSoon(정보 없음)은 숨긴다.
+            if let info = market.info {
+                Button { showInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.secondaryLabel)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(market.title) 데이터 기준 안내")
+                .sheet(isPresented: $showInfo) {
+                    MarketInfoSheet(market: market, info: info)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Market Info Sheet (거래소 데이터 기준 상세 + 공식 사이트 링크)
+
+/// ⓘ 버튼으로 열리는 상세 시트. "이 시가총액이 무엇을 기준으로 어떻게 갱신되는지"를 명확히 밝혀
+/// 유저가 공식 거래소 사이트와 직접 대조할 수 있게 한다(리텐션·신뢰 목적).
+struct MarketInfoSheet: View {
+    let market: Market
+    let info: MarketInfo
+    @Environment(\.appTheme) private var theme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 헤더 — 국기 + 거래소 정식명 + 닫기
+            HStack(spacing: 10) {
+                Image(market.flagImageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 26, height: 26)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(market.title)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(theme.label)
+                    Text(info.fullName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(theme.secondaryLabel)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(theme.tertiaryLabel)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("닫기")
+            }
+            .padding(.bottom, 20)
+
+            // 데이터 기준 · 갱신 주기
+            infoRow(icon: "chart.bar.doc.horizontal", title: "시가총액 기준", body: info.basis)
+            Divider().overlay(theme.stroke).padding(.vertical, 14)
+            infoRow(icon: "clock.arrow.circlepath", title: "갱신 주기", body: info.schedule)
+
+            // USD 환산 안내 — 공식 사이트 수치와의 소폭 차이 이유를 미리 밝혀 신뢰 확보.
+            Text("시가총액은 미국 달러(USD)로 환산해 순위를 매깁니다. 환율 변동 및 발행주식수 반영 시점 차이로 공식 사이트 수치와 소폭 다를 수 있습니다.")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(theme.tertiaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 16)
+
+            Spacer(minLength: 20)
+
+            // 공식 사이트 링크 — 유저가 직접 대조. 대표 도메인으로 오픈(Safari).
+            if let name = info.officialName,
+               let urlString = info.officialURLString,
+               let url = URL(string: urlString) {
+                Link(destination: url) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "safari")
+                        Text("공식 사이트에서 확인  ·  \(name)")
+                            .font(.system(size: 14, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(theme.label)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .background(theme.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(theme.background)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder
+    private func infoRow(icon: String, title: String, body: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.green)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(theme.label)
+                Text(body)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(theme.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

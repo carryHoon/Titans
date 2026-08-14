@@ -162,6 +162,12 @@ export async function getJpxDataset(): Promise<JpxRow[]> {
   return rows
 }
 
+// 현재 스냅샷의 거래일(JST YYYY-MM-DD). 라우트가 앱에 기준일(asOf) 표기용으로 내려준다. 없으면 null.
+export async function getJpxAsOfDate(): Promise<string | null> {
+  await ensureLoaded()
+  return current?.asOfDate ?? null
+}
+
 // ─── 로컬/상시 프로세스 부팅 워밍 ───────────────────────────────────────────────
 // 서버리스(Vercel)에선 크론이 갱신하므로 워밍 불필요. 로컬(next dev/start)·VPS에서만:
 // 부팅 시 스냅샷이 없거나 24h 초과면 1회 새로 받는다.

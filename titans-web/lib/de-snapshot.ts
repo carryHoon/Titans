@@ -119,8 +119,9 @@ export async function refreshDeStats(): Promise<{ updated: number; failed: numbe
 // ─── 유저 경로 read API ─────────────────────────────────────────────────────────
 
 export interface DeStatsRead {
-  cap:  Record<string, DeStatEntry>  // symbol → {capEUR, shares} (base = 전일 종가 시총)
-  prev: Record<string, number>       // symbol → 전 영업일 capEUR
+  cap:      Record<string, DeStatEntry>  // symbol → {capEUR, shares} (base = 전일 종가 시총)
+  prev:     Record<string, number>       // symbol → 전 영업일 capEUR
+  asOfDate: string | null                // 스냅샷 거래일 YYYY-MM-DD (기준일 표기용). 없으면 null.
 }
 
 // 읽기 경로 재로드 주기. 서버리스 웜 인스턴스가 옛 스냅샷을 계속 서빙하지 않도록 이 TTL마다 store
@@ -136,7 +137,7 @@ async function ensureLoaded(): Promise<void> {
 
 export async function getDeStats(): Promise<DeStatsRead> {
   await ensureLoaded()
-  return { cap: current?.current ?? {}, prev: current?.prev ?? {} }
+  return { cap: current?.current ?? {}, prev: current?.prev ?? {}, asOfDate: current?.asOfDate ?? null }
 }
 
 export function startDeStatsWarm(): void {
