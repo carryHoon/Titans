@@ -1,7 +1,7 @@
-// ─── 독일 XETRA 시총 기준값(stats) 스냅샷 레이어 ───────────────────────────────
+// ─── 독일 FWB 시총 기준값(stats) 스냅샷 레이어 ───────────────────────────────
 //
-// XETRA(Deutsche Börse) 대형주의 시총 기준값(/statistics: market_cap EUR + shares)을 하루 1회
-// 스냅샷으로 굳힌다. 라우트(유저 경로)는 이 스냅샷을 base로 쓰고, quote가 있는 종목(XETRA는 전 종목
+// FWB(Deutsche Börse) 대형주의 시총 기준값(/statistics: market_cap EUR + shares)을 하루 1회
+// 스냅샷으로 굳힌다. 라우트(유저 경로)는 이 스냅샷을 base로 쓰고, quote가 있는 종목(FWB는 전 종목
 // quote 有)은 요청 시 라이브 스케일링(cap = statsCap × close/prevClose)한다. quote가 일시적으로
 // 없으면 stats 시총 그대로 + 전일 스냅샷 대비 등락%로 폴백한다. USD 환산은 라우트에서 fx(EUR/USD)로.
 //

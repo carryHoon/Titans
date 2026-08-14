@@ -6,7 +6,7 @@ export const dynamic        = 'force-dynamic'
 export const maxDuration    = 300  // Vercel 상한. gap 6s면 39종목 ≈ 4분이라 이 라우트(서버리스)는 완주
                                    // 가능하나, 프로덕션 갱신은 GH Actions(무제한)로 돌린다. 이 라우트는 로컬/수동 편의용.
 
-// 독일 XETRA 시총 스냅샷 갱신 트리거(내부용, 로컬·수동 편의).
+// 독일 FWB 시총 스냅샷 갱신 트리거(내부용, 로컬·수동 편의).
 // ⚠️ 프로덕션 정기 갱신은 GitHub Actions(.github/workflows/refresh-de.yml)가 러너에서
 //    scripts/refresh-de-stats.ts 를 직접 실행해 Upstash에 write 한다(refresh-us/jpx/eu 와 동일 이유).
 //

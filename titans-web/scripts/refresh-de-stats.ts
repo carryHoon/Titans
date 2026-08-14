@@ -1,4 +1,4 @@
-// 독일 XETRA 시총 스냅샷 갱신 스크립트 — GitHub Actions 스케줄러가 실행한다.
+// 독일 FWB 시총 스냅샷 갱신 스크립트 — GitHub Actions 스케줄러가 실행한다.
 // lib/de-snapshot 의 refreshDeStats()를 재사용(페이싱·재시도·prev 롤링·Upstash 저장 공유).
 //
 // 필요 env (GitHub Secrets → workflow env):
