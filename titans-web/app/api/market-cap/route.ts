@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsdKrwQuote, getFxRates, type Currency } from '@/lib/fx'
 import { getKrxDataset, startKrPoller } from '@/lib/kr-snapshot'
-import { getJpxDataset, startJpxStatsWarm } from '@/lib/jpx-snapshot'
+import { getJpxDataset, getJpxAsOfDate, startJpxStatsWarm } from '@/lib/jpx-snapshot'
 import { getEuStats, startEuStatsWarm } from '@/lib/eu-snapshot'
 import { EU_COMPANIES } from '@/lib/eu-universe'
 import { getCnStats, startCnStatsWarm } from '@/lib/cn-snapshot'
@@ -99,7 +99,8 @@ let lastGoodExchangeRate      = 1450.0  // KRW/USD 초기값 (최후 방어선)
 interface ExchangeFeedState {
   lastGoodResult: CompanyResult[] | null
   lastGoodAt:     number
-  lastBasDt?:     string
+  lastBasDt?:     string          // KRX 기준일(YYYYMMDD)
+  lastAsOf?:      string | null   // EOD 계열(JPX/CN/NSE/EU/DE) 스냅샷 거래일(YYYY-MM-DD) — 앱 기준일 표기용
 }
 // 거래소별 마지막 성공 피드 상태. EXCHANGES config에서 자동 생성 → 거래소 추가 시 여기 수정 불필요.
 const exchangeFeeds: Record<string, ExchangeFeedState> = Object.fromEntries(
@@ -366,12 +367,12 @@ async function handleTdExchange(config: ExchangeConfig) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -432,6 +433,7 @@ async function handleJpxExchange(config: ExchangeConfig) {
     if (!jpyPerUsd || jpyPerUsd <= 0) throw new Error('JPY 환율 없음')
 
     const ds = await getJpxDataset()
+    if (state) state.lastAsOf = await getJpxAsOfDate()
     const rows: Omit<CompanyResult, 'rank'>[] = ds.map((r) => {
       const m         = meta.get(r.ticker)
       const price     = r.shares > 0 ? r.capJPY     / r.shares : 0  // 주당가격(JPY, 파생)
@@ -455,12 +457,12 @@ async function handleJpxExchange(config: ExchangeConfig) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -480,7 +482,8 @@ async function handleEuExchange(config: ExchangeConfig) {
     const eurPerUsd = rates.EUR
     if (!eurPerUsd || eurPerUsd <= 0) throw new Error('EUR 환율 없음')
 
-    const { cap, prev } = await getEuStats()
+    const { cap, prev, asOfDate } = await getEuStats()
+    if (state) state.lastAsOf = asOfDate
 
     // quote 가능 종목(XPAR/XAMS)만 라이브 quote 병렬 조회. 실패는 만료 캐시로 폴백(없으면 EOD 처리).
     const quotes = await Promise.all(
@@ -539,12 +542,12 @@ async function handleEuExchange(config: ExchangeConfig) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -566,7 +569,8 @@ async function handleCnExchange(config: ExchangeConfig, mic: 'XSHG' | 'XSHE') {
     const cnyPerUsd = rates.CNY
     if (!cnyPerUsd || cnyPerUsd <= 0) throw new Error('CNY 환율 없음')
 
-    const { cap, prev } = await getCnStats()
+    const { cap, prev, asOfDate } = await getCnStats()
+    if (state) state.lastAsOf = asOfDate
 
     // 종목별 라이브 quote 병렬 조회. 실패는 만료 캐시로 폴백(없으면 EOD 처리).
     const quotes = await Promise.all(
@@ -624,12 +628,12 @@ async function handleCnExchange(config: ExchangeConfig, mic: 'XSHG' | 'XSHE') {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -649,7 +653,8 @@ async function handleNseExchange(config: ExchangeConfig) {
     const inrPerUsd = rates.INR
     if (!inrPerUsd || inrPerUsd <= 0) throw new Error('INR 환율 없음')
 
-    const { cap, prev } = await getNseStats()
+    const { cap, prev, asOfDate } = await getNseStats()
+    if (state) state.lastAsOf = asOfDate
 
     const quotes = await Promise.all(
       NSE_COMPANIES.map(async (co): Promise<QuoteData | null> => {
@@ -706,12 +711,12 @@ async function handleNseExchange(config: ExchangeConfig) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })
@@ -731,7 +736,8 @@ async function handleDeExchange(config: ExchangeConfig) {
     const eurPerUsd = rates.EUR
     if (!eurPerUsd || eurPerUsd <= 0) throw new Error('EUR 환율 없음')
 
-    const { cap, prev } = await getDeStats()
+    const { cap, prev, asOfDate } = await getDeStats()
+    if (state) state.lastAsOf = asOfDate
 
     const quotes = await Promise.all(
       DE_COMPANIES.map(async (co): Promise<QuoteData | null> => {
@@ -788,12 +794,12 @@ async function handleDeExchange(config: ExchangeConfig) {
     if (state) { state.lastGoodResult = ranked; state.lastGoodAt = Date.now() }
     lastGoodExchangeRate = rate
 
-    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
+    return NextResponse.json({ exchangeRate: rate, exchangeRates: rates, asOf: state?.lastAsOf ?? null, data: ranked, updatedAt: state?.lastGoodAt ?? Date.now(), stale: false })
   } catch (err) {
     console.error(`[market-cap:${config.code}] fetch error:`, err)
     if (state?.lastGoodResult) {
       return NextResponse.json(
-        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
+        { exchangeRate: lastGoodExchangeRate, exchangeRates: await getFxRateMap(lastGoodExchangeRate), asOf: state.lastAsOf ?? null, data: state.lastGoodResult, updatedAt: state.lastGoodAt, stale: true },
       )
     }
     return NextResponse.json({ error: String(err) }, { status: 503 })

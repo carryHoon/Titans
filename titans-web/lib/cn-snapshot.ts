@@ -119,8 +119,9 @@ export async function refreshCnStats(): Promise<{ updated: number; failed: numbe
 // ─── 유저 경로 read API ─────────────────────────────────────────────────────────
 
 export interface CnStatsRead {
-  cap:  Record<string, CnStatEntry>  // symbol → {capCNY, shares} (base = 전일 종가 시총)
-  prev: Record<string, number>       // symbol → 전 영업일 capCNY
+  cap:      Record<string, CnStatEntry>  // symbol → {capCNY, shares} (base = 전일 종가 시총)
+  prev:     Record<string, number>       // symbol → 전 영업일 capCNY
+  asOfDate: string | null                // 스냅샷 거래일 YYYY-MM-DD (기준일 표기용). 없으면 null.
 }
 
 // 읽기 경로 재로드 주기. 서버리스(Vercel) 웜 인스턴스는 모듈 메모리의 current를 계속 재사용하는데,
@@ -138,7 +139,7 @@ async function ensureLoaded(): Promise<void> {
 
 export async function getCnStats(): Promise<CnStatsRead> {
   await ensureLoaded()
-  return { cap: current?.current ?? {}, prev: current?.prev ?? {} }
+  return { cap: current?.current ?? {}, prev: current?.prev ?? {}, asOfDate: current?.asOfDate ?? null }
 }
 
 export function startCnStatsWarm(): void {
