@@ -100,7 +100,7 @@ export const KRX_DEFAULT_COLOR = '#3182F6'
 //   · nse : TD /statistics 스냅샷(nse-snapshot, 네이티브 INR) base + quote 라이브 스케일링. 전 종목
 //           단일 mic(XNSE). 유니버스는 nse-universe 소유 → route가 직접 참조(config.universe 미사용).
 //   · de  : TD /statistics 스냅샷(de-snapshot, 네이티브 EUR) base + quote 라이브 스케일링. 전 종목
-//           단일 mic(XETR = Deutsche Börse XETRA). 유니버스는 de-universe 소유 → route가 직접 참조.
+//           단일 mic(XETR = Deutsche Börse). 유니버스는 de-universe 소유 → route가 직접 참조.
 export type CapModel =
   | { kind: 'td' }
   | { kind: 'krx'; suffix: 'KS' | 'KQ' }
@@ -132,8 +132,8 @@ export const EXCHANGES: ExchangeConfig[] = [
   { code: 'SZSE', param: 'szse', rankLimit: 100, capModel: { kind: 'cn', mic: 'XSHE' } },
   // NSE 유니버스는 nse-universe가 소유 → route가 직접 참조(config.universe 미사용).
   { code: 'NSE',  param: 'nse',  rankLimit: 100, capModel: { kind: 'nse' } },
-  // 독일 XETRA 유니버스(단일 mic XETR)는 de-universe가 소유 → route가 직접 참조(config.universe 미사용).
-  { code: 'XETRA', param: 'xetra', rankLimit: 100, capModel: { kind: 'de' } },
+  // 독일 FWB 유니버스(단일 mic XETR)는 de-universe가 소유 → route가 직접 참조(config.universe 미사용).
+  { code: 'FWB', param: 'fwb', rankLimit: 100, capModel: { kind: 'de' } },
 ]
 
 // ALL 피드: US 큐레이션(COMPANIES) + KRX 상위 몇 종목 주입 후 top-20.

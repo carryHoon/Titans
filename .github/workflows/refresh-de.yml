@@ -1,10 +1,10 @@
-name: Refresh XETRA market-cap stats
+name: Refresh FWB market-cap stats
 
-# 독일 XETRA(Deutsche Börse) 시총 기준값(/statistics) 스냅샷을 Upstash에 갱신한다.
+# 독일 FWB(Deutsche Börse) 시총 기준값(/statistics) 스냅샷을 Upstash에 갱신한다.
 # 라우트가 quote 있는 종목은 라이브 스케일링하므로 여기선 시총 base(≈전일 종가)만 하루 1회 받는다.
 on:
   schedule:
-    # 19:00 UTC 평일 — XETRA 정규장 마감(17:30 CET = 16:30 UTC 겨울 / 15:30 UTC 여름) 후.
+    # 19:00 UTC 평일 — FWB 정규장 마감(17:30 CET = 16:30 UTC 겨울 / 15:30 UTC 여름) 후.
     # Euronext 크론(18:00 UTC)과 겹치지 않게 stagger(둘 다 /statistics 500크레딧/분이라 동시 실행
     # 시 Venture 610/분 한도 초과 — EU 65종목은 18:07경 종료되므로 19:00은 충분히 여유).
     - cron: '0 19 * * 1-5'

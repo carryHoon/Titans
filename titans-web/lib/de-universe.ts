@@ -1,12 +1,12 @@
-// ─── 독일 XETRA 유니버스 (단일 소스) ───────────────────────────────────────────
+// ─── 독일 FWB 유니버스 (단일 소스) ───────────────────────────────────────────
 //
-// XETRA(Deutsche Börse, mic=XETR) 시총 상위 = 독일 대표지수 DAX 40 구성종목 중심. 통화는 전 종목
+// FWB(Deutsche Börse, mic=XETR) 시총 상위 = 독일 대표지수 DAX 40 구성종목 중심. 통화는 전 종목
 // EUR 단일(lib/fx에 이미 배선 — Euronext와 공유). TD 커버리지(라이브 프로브 확인, 2026-08-14):
 // 대형주 전부 /quote(close/prevClose) + /statistics(시총 EUR + shares) 둘 다 제공 →
 // Euronext XPAR/XAMS식 라이브 스케일링(cap = statsCap × close/prevClose)이 전 종목 가능.
-// (Euronext 밀라노(XMIL)식 quote 미제공 EOD 분기는 XETRA엔 불필요 — 단일 mic·전종목 라이브.)
+// (Euronext 밀라노(XMIL)식 quote 미제공 EOD 분기는 FWB엔 불필요 — 단일 mic·전종목 라이브.)
 //
-// TD엔 XETRA 시총 스크리너가 없어 유니버스는 정적 큐레이션(jpx/cn/nse/eu와 동일). 아래 심볼·회사명은
+// TD엔 FWB 시총 스크리너가 없어 유니버스는 정적 큐레이션(jpx/cn/nse/eu와 동일). 아래 심볼·회사명은
 // TD symbol_search로 전수 검증한다(scripts/de-validate.mjs, mic=XETR·currency=EUR 확인). 순서 무관
 // — 라우트가 시총 재정렬. 앱 표시용 ticker = 심볼. TD 조회는 심볼+mic_code(XETR)로 종목을 특정한다.
 

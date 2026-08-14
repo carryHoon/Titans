@@ -37,7 +37,7 @@ startEuStatsWarm()
 startCnStatsWarm()
 // 인도 NSE stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startNseStatsWarm()
-// 독일 XETRA stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
+// 독일 FWB stats 부팅 워밍 (로컬/상시 프로세스 전용; 서버리스는 크론이 채운다)
 startDeStatsWarm()
 
 // ─── Twelve Data (quote 전용) ──────────────────────────────────────────────────
@@ -718,7 +718,7 @@ async function handleNseExchange(config: ExchangeConfig) {
   }
 }
 
-// 독일 XETRA 계열: de-snapshot(네이티브 EUR stats)을 base로, quote(close/prevClose)로 라이브 스케일링.
+// 독일 FWB 계열: de-snapshot(네이티브 EUR stats)을 base로, quote(close/prevClose)로 라이브 스케일링.
 // quote 결손 시 stats 시총 + 전일 스냅샷 대비로 폴백. 전 종목 단일 mic(XETR). EUR→USD는 요청 시 fx.
 // nse 핸들러와 동일 구조(통화만 EUR). US/KRX/JPX/EU/CN/NSE와 동일 응답 형태 유지.
 async function handleDeExchange(config: ExchangeConfig) {
