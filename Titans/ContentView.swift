@@ -289,12 +289,6 @@ struct MarketIndex: Identifiable {
     var changePercent: Double
 }
 
-private let initialIndices: [MarketIndex] = [
-    MarketIndex(id: "usd",    name: "달러 환율", value: 1450.00, change:  0.00, changePercent:  0.00),
-    MarketIndex(id: "kospi",  name: "코스피",   value: 2856.78, change: 12.34, changePercent:  0.43),
-    MarketIndex(id: "kosdaq", name: "코스닥",   value:  854.23, change: -4.56, changePercent: -0.53),
-]
-
 // MARK: - Company Data
 
 struct Company: Identifiable {
@@ -765,8 +759,8 @@ struct ContentView: View {
     @StateObject private var viewModel = MarketCapViewModel()
     @Environment(AuthManager.self) private var auth
 
-    @State private var indices: [MarketIndex] = initialIndices
-    @State private var currentMarketIndex: Int = 0
+    // 상단 하이라이트 티커의 현재 로테이션 인덱스. 거래소 전환 시 0으로 리셋.
+    @State private var highlightIndex: Int = 0
     @State private var currentTime: Date = Date()
     // 시가총액을 표시할 단일 통화. 온보딩에서 선택하고 메뉴에서 변경 가능(USD 포함 전 통화가 동등한 선택지).
     // PrefsSync가 로그인 시 이 @AppStorage에 반영한다. 홈/검색/행 전부 이 값 하나로 표시.
@@ -842,6 +836,54 @@ struct ContentView: View {
                 ? list.sorted { $0.marketCapUSD < $1.marketCapUSD }
                 : list.sorted { $0.marketCapUSD > $1.marketCapUSD }
         }
+    }
+
+    /// 현재 거래소의 "오늘의 순위 사건"을 우선순위대로 만든다.
+    /// 마지막에 현재 1위(폴백)를 항상 넣어 변동이 없어도 비지 않게 한다(👑 서열 프레이밍).
+    private func highlights(for market: Market) -> [Highlight] {
+        let list = companies(for: market)
+        guard !list.isEmpty else { return [] }
+        // 하나라도 previousRank가 있으면 "전일 비교 기준(baseline)"이 존재한다고 본다.
+        // (배포 직후 KR처럼 전부 nil이면 순위변동 사건을 만들지 않고 현재 1위만 보여준다.)
+        let hasBaseline = list.contains { $0.previousRank != nil }
+        var result: [Highlight] = []
+        var used = Set<String>()
+
+        // 1) 정상 탈환 — 현재 1위인데 전일엔 1위가 아니었던 종목(가장 극적).
+        if let top = list.first(where: { $0.rank == 1 }),
+           let prev = top.previousRank, prev > 1 {
+            result.append(Highlight(kind: .overtake, company: top,
+                title: "정상 탈환", detail: "\(top.name), 1위 등극 ▲\(prev - 1)"))
+            used.insert(top.ticker)
+        }
+
+        // 2) 최대 상승 — (previousRank - rank)가 가장 큰 종목.
+        if let riser = list.compactMap({ c -> (Company, Int)? in
+            guard let p = c.previousRank else { return nil }
+            let d = p - c.rank
+            return d > 0 ? (c, d) : nil
+        }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
+            let c = riser.0
+            result.append(Highlight(kind: .topGainer, company: c,
+                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위 ▲\(riser.1)"))
+            used.insert(c.ticker)
+        }
+
+        // 3) 신규 진입 — baseline이 있는데 이 종목만 전일 순위가 없던 경우.
+        if hasBaseline, let newbie = list.first(where: { $0.previousRank == nil }),
+           !used.contains(newbie.ticker) {
+            result.append(Highlight(kind: .newEntry, company: newbie,
+                title: "신규 진입", detail: "\(newbie.name), Top\(list.count) 첫 진입"))
+            used.insert(newbie.ticker)
+        }
+
+        // 4) 폴백/기본 — 현재 1위(서열). 변화가 없어도 항상 채워 절대 비지 않게 한다.
+        if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
+            let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
+            result.append(Highlight(kind: .leader, company: leader,
+                title: "현재 1위", detail: "\(leader.name) · \(cap)"))
+        }
+        return result
     }
 
     private func isLoading(for market: Market) -> Bool {
@@ -922,10 +964,14 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            // 상단 하이라이트 행. (통화 토글은 단일 통화 모델 전환으로 제거 — 통화 변경은 메뉴에서.)
-            // 現 지수 티커 자리이며, 다음 단계에서 거래소별 "오늘의 하이라이트"로 콘텐츠를 교체한다.
+            // 상단 하이라이트 행 — 현재 거래소의 "오늘의 순위 사건"을 로테이션으로 보여준다.
+            // (통화 토글은 단일 통화 모델 전환으로 제거 — 통화 변경은 메뉴에서.)
             HStack(alignment: .center, spacing: 12) {
-                SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
+                MarketHighlightTicker(
+                    highlights: highlights(for: selectedMarket),
+                    currentIndex: highlightIndex,
+                    vScale: vScale
+                )
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
@@ -974,6 +1020,8 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedMarket) { _, _ in
+            // 거래소 전환 시 하이라이트 로테이션을 처음(우선순위 최상단)부터 다시 시작.
+            highlightIndex = 0
             // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
             InterstitialAdManager.shared.handleSectionSwitch()
         }
@@ -1007,16 +1055,6 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(20))
             }
         }
-        .task(id: "market-index") {
-            while !Task.isCancelled {
-                if let newIndices = await viewModel.fetchIndices() {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        indices = newIndices
-                    }
-                }
-                try? await Task.sleep(for: .seconds(30))
-            }
-        }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -1024,10 +1062,13 @@ struct ContentView: View {
             }
         }
         .task {
+            // 상단 하이라이트 로테이션 — 현재 거래소 하이라이트 개수만큼 순환. 1개(폴백만)면 정지.
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(3.5))
+                let count = highlights(for: selectedMarket).count
+                guard count > 1 else { continue }
                 withAnimation(.easeInOut(duration: 0.4)) {
-                    currentMarketIndex = (currentMarketIndex + 1) % indices.count
+                    highlightIndex = (highlightIndex + 1) % count
                 }
             }
         }
@@ -1683,6 +1724,86 @@ struct SingleMarketTicker: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 6 * vScale)
+    }
+}
+
+// MARK: - Highlight (오늘의 순위 사건)
+
+/// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
+struct Highlight: Identifiable {
+    enum Kind { case overtake, topGainer, newEntry, leader }
+    let id = UUID()
+    let kind: Kind
+    let company: Company
+    let title: String
+    let detail: String
+
+    var emoji: String {
+        switch kind {
+        case .overtake:  return "⚔️"
+        case .topGainer: return "🔥"
+        case .newEntry:  return "🆕"
+        case .leader:    return "👑"
+        }
+    }
+
+    /// 타이틀 칩 색. 상승/추월=빨강, 신규=파랑, 1위=골드(토스식 상승=빨강 관습 유지).
+    var accent: Color {
+        switch kind {
+        case .overtake, .topGainer: return Color(red: 0.95, green: 0.20, blue: 0.20)
+        case .newEntry:             return Color(red: 0.10, green: 0.43, blue: 0.92)
+        case .leader:               return Color(red: 0.86, green: 0.62, blue: 0.10)
+        }
+    }
+}
+
+// MARK: - Market Highlight Ticker (지수 티커 자리 재사용)
+
+/// SingleMarketTicker와 동일한 로테이션/전환을 재사용해 하이라이트를 한 줄로 순환 노출.
+struct MarketHighlightTicker: View {
+    let highlights: [Highlight]
+    let currentIndex: Int
+    var vScale: CGFloat = 1
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
+                if i == currentIndex {
+                    HighlightRow(highlight: h)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal:   .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 50 * vScale)
+        .clipped()
+        .padding(.horizontal, 18)
+        .padding(.vertical, 6 * vScale)
+    }
+}
+
+struct HighlightRow: View {
+    let highlight: Highlight
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(highlight.emoji)
+                .font(.system(size: 16))
+            Text(highlight.title)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(highlight.accent)
+                .fixedSize()
+            Text(highlight.detail)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.label)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Spacer(minLength: 0)
+        }
     }
 }
 
