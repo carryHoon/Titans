@@ -13,7 +13,7 @@ import GoogleMobileAds // 적응형 배너 크기 계산(currentOrientationAncho
 
 // MARK: - Currency
 
-/// 표시 통화. USD는 항상 기준(anchor)이고, 나머지는 USD와 함께 볼 "보조 표시 통화".
+/// 표시 통화. 시가총액을 이 통화 하나로 표시한다(USD 포함 전 통화가 동등한 선택지).
 /// rawValue = ISO 통화 코드(백엔드 exchangeRates 맵 키·user_prefs.display_currency 저장값과 일치).
 enum Currency: String, CaseIterable, Codable {
     case usd = "USD"
@@ -28,7 +28,7 @@ enum Currency: String, CaseIterable, Codable {
         return c
     }
 
-    /// 헤더 통화 토글 pill에 표시되는 짧은 기호.
+    /// 통화 기호(온보딩·메뉴 카드 등에 표시되는 짧은 기호).
     var toggleSymbol: String {
         switch self {
         case .usd: return "$"
@@ -53,7 +53,7 @@ enum Currency: String, CaseIterable, Codable {
     /// 온보딩 카드 우측 보조 표기(국가/설명).
     var onboardingSubtitle: String {
         switch self {
-        case .usd: return "USD · 달러만 보기"
+        case .usd: return "USD · 미국 달러"
         case .krw: return "KRW · 대한민국"
         case .jpy: return "JPY · 일본"
         case .cny: return "CNY · 중국"
@@ -288,12 +288,6 @@ struct MarketIndex: Identifiable {
     var change: Double
     var changePercent: Double
 }
-
-private let initialIndices: [MarketIndex] = [
-    MarketIndex(id: "usd",    name: "달러 환율", value: 1450.00, change:  0.00, changePercent:  0.00),
-    MarketIndex(id: "kospi",  name: "코스피",   value: 2856.78, change: 12.34, changePercent:  0.43),
-    MarketIndex(id: "kosdaq", name: "코스닥",   value:  854.23, change: -4.56, changePercent: -0.53),
-]
 
 // MARK: - Company Data
 
@@ -590,17 +584,6 @@ struct ExchangeFeed {
     var asOf: String? = nil    // EOD 계열(JPX/SSE/SZSE/NSE) 스냅샷 거래일("YYYY-MM-DD") — "종가 기준" 표기용
 }
 
-// MARK: - KR Rank Baseline (basDt 기준)
-
-/// KOSPI/KOSDAQ 전용. 공공데이터포털 EOD 스냅샷의 basDt(기준일)가 바뀔 때마다 롤오버.
-/// previousRanks = 직전 basDt 스냅샷 순위 → 화살표 비교 기준으로 사용.
-/// 언제 앱을 처음 열어도 "이전 종가 vs 현재 종가" 비교가 항상 성립한다.
-private struct KRExchangeBaseline: Codable {
-    var currentBasDt: String         // 가장 최근에 수신한 basDt ("YYYYMMDD")
-    var currentRanks: [String: Int]  // currentBasDt 기준 순위
-    var previousRanks: [String: Int] // 직전 basDt 기준 순위 (rank change 비교 대상)
-}
-
 // MARK: - ViewModel
 
 @MainActor
@@ -615,9 +598,6 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
     @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
-    // KR 종목 basDt 기준 스냅샷 — 영속 저장, 만료 없음(basDt 변경 시 자동 롤오버)
-    private var krBaselines: [String: KRExchangeBaseline] = [:]  // exchangeParam → baseline
-
     // 데이터 API — Vercel 서버리스 상시가동 호스팅
     static let host    = "titans-sooty.vercel.app"
     static let apiBase = "https://\(host)"
@@ -625,31 +605,11 @@ final class MarketCapViewModel: ObservableObject {
     private let endpoint      = URL(string: "\(apiBase)/api/market-cap")!
     private let indexEndpoint = URL(string: "\(apiBase)/api/market-index")!
 
-    init() {
-        if let data = UserDefaults.standard.data(forKey: "krRankBaselines"),
-           let saved = try? JSONDecoder().decode([String: KRExchangeBaseline].self, from: data) {
-            krBaselines = saved
-        }
-    }
-
-    /// KR 전용. basDt가 변경될 때마다 currentRanks → previousRanks 롤오버 후 저장.
-    /// 같은 basDt가 반복 수신되면 아무것도 하지 않는다.
-    private func updateKRBaseline(param: String, newBasDt: String, newRanks: [String: Int]) {
-        var bl = krBaselines[param] ?? KRExchangeBaseline(currentBasDt: "", currentRanks: [:], previousRanks: [:])
-        guard bl.currentBasDt != newBasDt else { return }
-        bl.previousRanks = bl.currentRanks
-        bl.currentRanks  = newRanks
-        bl.currentBasDt  = newBasDt
-        krBaselines[param] = bl
-        if let data = try? JSONEncoder().encode(krBaselines) {
-            UserDefaults.standard.set(data, forKey: "krRankBaselines")
-        }
-    }
-
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
-    /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
-    /// 순위변동 기준(previousRank)은 "전일 종가 순위 대비"로 통일: KR은 basDt 롤오버 baseline, 비KR은 서버 previousRank.
-    private func loadCompanies(from url: URL, exchangeParam: String?) async throws
+    /// ALL 피드와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
+    /// 순위변동(previousRank)은 전 거래소 서버 제공값을 그대로 사용한다.
+    /// (KR도 백엔드가 직전 basDt 스냅샷 대비로 계산해 내려주므로 클라이언트 baseline이 불필요.)
+    private func loadCompanies(from url: URL) async throws
         -> (companies: [Company], stale: Bool, rate: Double?, rates: [String: Double]?, basDt: String?, asOf: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -659,20 +619,10 @@ final class MarketCapViewModel: ObservableObject {
         if let apiError = decoded.error, decoded.data.isEmpty {
             throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
         }
-        // 순위변동 기준(previousRank) = "전일 종가 순위 대비"로 US/KR 통일.
-        //  · KR(basDt 존재): 직전 basDt 스냅샷 순위와 비교 (클라이언트가 basDt 롤오버로 보관)
-        //  · 비KR(US): 서버가 전일 종가 시총으로 계산해 내려준 previousRank를 그대로 사용
-        var krBaseline: [String: Int] = [:]
-        if let basDt = decoded.basDt, let param = exchangeParam {
-            let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-            updateKRBaseline(param: param, newBasDt: basDt, newRanks: todayRanks)
-            krBaseline = krBaselines[param]?.previousRanks ?? [:]
-        }
-        let isKR = decoded.basDt != nil
         let mapped: [Company] = decoded.data.map { api in
             Company(
                 rank:         api.rank,
-                previousRank: isKR ? krBaseline[api.ticker] : api.previousRank,
+                previousRank: api.previousRank,
                 name:         api.name,
                 ticker:       api.ticker,
                 marketCapUSD: api.marketCapUSD,
@@ -698,7 +648,7 @@ final class MarketCapViewModel: ObservableObject {
 
     func fetch() async {
         do {
-            let result = try await loadCompanies(from: endpoint, exchangeParam: nil)
+            let result = try await loadCompanies(from: endpoint)
             // 주기적 시세 갱신은 애니메이션 없이 즉시 반영한다. (withAnimation은 전역 트랜잭션이라
             // 좌우 스와이프 전환과 겹치면 리스트 리플로우가 드래그와 충돌해 끊김을 유발함)
             companies = result.companies
@@ -721,7 +671,7 @@ final class MarketCapViewModel: ObservableObject {
               let url = URL(string: "\(Self.apiBase)/api/market-cap?exchange=\(param)")
         else { return }
         do {
-            let result = try await loadCompanies(from: url, exchangeParam: param)
+            let result = try await loadCompanies(from: url)
             // 섹션 도착 시 재fetch 결과도 애니메이션 없이 즉시 반영. (스와이프 착지와 겹치는
             // withAnimation 리플로우가 ALL↔NASDAQ 전환 끊김의 원인)
             exchangeFeeds[market] = ExchangeFeed(
@@ -809,14 +759,12 @@ struct ContentView: View {
     @StateObject private var viewModel = MarketCapViewModel()
     @Environment(AuthManager.self) private var auth
 
-    @State private var indices: [MarketIndex] = initialIndices
-    @State private var currentMarketIndex: Int = 0
+    // 상단 하이라이트 티커의 현재 로테이션 인덱스. 거래소 전환 시 0으로 리셋.
+    @State private var highlightIndex: Int = 0
     @State private var currentTime: Date = Date()
-    // 온보딩에서 고른 표시 통화(=USD와 함께 볼 보조 통화). PrefsSync가 로그인 시 이 @AppStorage에 반영한다.
-    // USD면 통화 토글을 숨기고 순수 달러로만 표시한다.
+    // 시가총액을 표시할 단일 통화. 온보딩에서 선택하고 메뉴에서 변경 가능(USD 포함 전 통화가 동등한 선택지).
+    // PrefsSync가 로그인 시 이 @AppStorage에 반영한다. 홈/검색/행 전부 이 값 하나로 표시.
     @AppStorage("displayCurrency") private var displayCurrency: Currency = .usd
-    // 현재 화면에 적용 중인 통화(토글로 $ ↔ displayCurrency 전환). displayCurrency가 USD면 항상 .usd.
-    @State private var selectedCurrency: Currency = .usd
     @State private var selectedMarket: Market = .all
     @State private var sortField: SortField = .rank
     @State private var sortOrder: SortOrder = .ascending
@@ -834,7 +782,7 @@ struct ContentView: View {
     @State private var showMenu = false
 
     /// 현재 표시 통화의 환산 rate(1 USD 당 금액). formatMarketCap에 전달된다.
-    private var displayRate: Double { viewModel.rate(for: selectedCurrency) }
+    private var displayRate: Double { viewModel.rate(for: displayCurrency) }
 
     /// 검색 대상 유니버스 — ALL 피드 + 현재까지 로드된 거래소별 피드를 티커 기준으로 합침.
     /// (별도 API 없이 이미 라이브로 받고 있는 데이터를 그대로 검색에 재사용)
@@ -890,6 +838,54 @@ struct ContentView: View {
         }
     }
 
+    /// 현재 거래소의 "오늘의 순위 사건"을 우선순위대로 만든다.
+    /// 마지막에 현재 1위(폴백)를 항상 넣어 변동이 없어도 비지 않게 한다(👑 서열 프레이밍).
+    private func highlights(for market: Market) -> [Highlight] {
+        let list = companies(for: market)
+        guard !list.isEmpty else { return [] }
+        // 하나라도 previousRank가 있으면 "전일 비교 기준(baseline)"이 존재한다고 본다.
+        // (배포 직후 KR처럼 전부 nil이면 순위변동 사건을 만들지 않고 현재 1위만 보여준다.)
+        let hasBaseline = list.contains { $0.previousRank != nil }
+        var result: [Highlight] = []
+        var used = Set<String>()
+
+        // 1) 정상 탈환 — 현재 1위인데 전일엔 1위가 아니었던 종목(가장 극적).
+        if let top = list.first(where: { $0.rank == 1 }),
+           let prev = top.previousRank, prev > 1 {
+            result.append(Highlight(kind: .overtake, company: top,
+                title: "정상 탈환", detail: "\(top.name), 1위 등극 ▲\(prev - 1)"))
+            used.insert(top.ticker)
+        }
+
+        // 2) 최대 상승 — (previousRank - rank)가 가장 큰 종목.
+        if let riser = list.compactMap({ c -> (Company, Int)? in
+            guard let p = c.previousRank else { return nil }
+            let d = p - c.rank
+            return d > 0 ? (c, d) : nil
+        }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
+            let c = riser.0
+            result.append(Highlight(kind: .topGainer, company: c,
+                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위 ▲\(riser.1)"))
+            used.insert(c.ticker)
+        }
+
+        // 3) 신규 진입 — baseline이 있는데 이 종목만 전일 순위가 없던 경우.
+        if hasBaseline, let newbie = list.first(where: { $0.previousRank == nil }),
+           !used.contains(newbie.ticker) {
+            result.append(Highlight(kind: .newEntry, company: newbie,
+                title: "신규 진입", detail: "\(newbie.name), Top\(list.count) 첫 진입"))
+            used.insert(newbie.ticker)
+        }
+
+        // 4) 폴백/기본 — 현재 1위(서열). 변화가 없어도 항상 채워 절대 비지 않게 한다.
+        if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
+            let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
+            result.append(Highlight(kind: .leader, company: leader,
+                title: "현재 1위", detail: "\(leader.name) · \(cap)"))
+        }
+        return result
+    }
+
     private func isLoading(for market: Market) -> Bool {
         if let f = feed(for: market) { return f.isLoading && f.companies.isEmpty }
         return viewModel.isLoading && viewModel.companies.isEmpty
@@ -933,7 +929,7 @@ struct ContentView: View {
                     ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
                         CompanyRow(
                             company: company,
-                            currency: selectedCurrency,
+                            currency: displayCurrency,
                             exchangeRate: displayRate
                         )
                         if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
@@ -968,17 +964,14 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            // 통화 시세 + 통화 토글 행.
-            // 상단 바(LiveIndicatorBar)와 동일한 좌우 여백(leading 28 / trailing 32)으로 화면 전체 폭을
-            // 사용해, 어떤 기기 폭에서도 통화 토글 우측이 검색·메뉴 버튼 우측과 정확히 정렬되게 한다.
-            // (기존 ProportionalScaledLayout은 고정 402pt 폭으로 배치 후 좌측 정렬해서, 402pt보다 넓은
-            //  기기(예: 17 Pro Max 440pt)에서 통화 토글이 우측 끝에 못 붙고 안쪽으로 어긋났다.
-            //  티커는 내부 lineLimit(1)+minimumScaleFactor로 좁은 기기에서도 줄바꿈 없이 축소된다.)
+            // 상단 하이라이트 행 — 현재 거래소의 "오늘의 순위 사건"을 로테이션으로 보여준다.
+            // (통화 토글은 단일 통화 모델 전환으로 제거 — 통화 변경은 메뉴에서.)
             HStack(alignment: .center, spacing: 12) {
-                SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                // 표시 통화가 USD면 CurrencyToggle이 두 슬롯을 합친 단일 $ 버튼으로 그려 크기를 유지한다.
-                // 그 외엔 $ ↔ 보조통화 2-pill 토글.
-                CurrencyToggle(selected: $selectedCurrency, secondary: displayCurrency)
+                MarketHighlightTicker(
+                    highlights: highlights(for: selectedMarket),
+                    currentIndex: highlightIndex,
+                    vScale: vScale
+                )
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
@@ -1027,18 +1020,15 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedMarket) { _, _ in
+            // 거래소 전환 시 하이라이트 로테이션을 처음(우선순위 최상단)부터 다시 시작.
+            highlightIndex = 0
             // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
             InterstitialAdManager.shared.handleSectionSwitch()
-        }
-        .onChange(of: displayCurrency, initial: true) { _, newValue in
-            // 표시 통화 확정/변경(온보딩·로그인 동기화) 시 현재 선택을 그 통화로 맞춘다.
-            // USD면 토글이 숨겨지므로 selectedCurrency도 .usd로 고정된다.
-            selectedCurrency = newValue
         }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
-                currency: selectedCurrency,
+                currency: displayCurrency,
                 exchangeRate: displayRate,
                 onDismiss: { showSearch = false }
             )
@@ -1065,16 +1055,6 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(20))
             }
         }
-        .task(id: "market-index") {
-            while !Task.isCancelled {
-                if let newIndices = await viewModel.fetchIndices() {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        indices = newIndices
-                    }
-                }
-                try? await Task.sleep(for: .seconds(30))
-            }
-        }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -1082,10 +1062,13 @@ struct ContentView: View {
             }
         }
         .task {
+            // 상단 하이라이트 로테이션 — 현재 거래소 하이라이트 개수만큼 순환. 1개(폴백만)면 정지.
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(3.5))
+                let count = highlights(for: selectedMarket).count
+                guard count > 1 else { continue }
                 withAnimation(.easeInOut(duration: 0.4)) {
-                    currentMarketIndex = (currentMarketIndex + 1) % indices.count
+                    highlightIndex = (highlightIndex + 1) % count
                 }
             }
         }
@@ -1224,71 +1207,6 @@ struct SkeletonCompanyRow: View {
                 shimmer = true
             }
         }
-    }
-}
-
-// MARK: - Currency Toggle
-
-struct CurrencyToggle: View {
-    @Binding var selected: Currency
-    /// USD와 함께 토글할 보조 통화(온보딩에서 고른 표시 통화).
-    /// USD면 토글을 숨기지 않고, 두 슬롯 폭을 합친 "단일 $ 버튼"으로 그려 크기를 그대로 유지한다.
-    let secondary: Currency
-    @Environment(\.appTheme) private var theme
-
-    // 한 슬롯(pill)의 기준 치수. 단일 $ 버튼이 2슬롯과 동일한 크기를 갖도록 아래 계산에 재사용한다.
-    private let pillMinWidth: CGFloat = 32
-    private let pillHPad:     CGFloat = 10
-    private let pillVPad:     CGFloat = 5
-
-    var body: some View {
-        HStack(spacing: 0) {
-            if secondary == .usd {
-                // USD 전용: 보조 슬롯까지 USD로 확장 → 2슬롯 폭(2×(minWidth+2×hPad))의 단일 $ 버튼.
-                usdOnlyPill
-            } else {
-                pill("$", currency: .usd)
-                pill(secondary.toggleSymbol, currency: secondary)
-            }
-        }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 10).stroke(theme.stroke, lineWidth: 1))
-    }
-
-    /// USD 전용 단일 버튼. 2-pill 토글과 동일한 외곽 크기를 유지하도록 폭을 두 슬롯 합으로 고정.
-    /// 항상 선택 상태(채워짐)이고 전환 대상이 없어 탭 액션은 두지 않는다.
-    private var usdOnlyPill: some View {
-        Text("$")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(theme.background)
-            .frame(minWidth: pillMinWidth * 2 + pillHPad * 2)   // 두 슬롯 콘텐츠 폭 합
-            .padding(.horizontal, pillHPad)
-            .padding(.vertical, pillVPad)
-            .background(RoundedRectangle(cornerRadius: 7).fill(theme.label))
-    }
-
-    @ViewBuilder
-    private func pill(_ title: String, currency: Currency) -> some View {
-        let isSelected = selected == currency
-        Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                selected = currency
-            }
-        } label: {
-            Text(title)
-                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? theme.background : theme.secondaryLabel)
-                .frame(minWidth: pillMinWidth)
-                .padding(.horizontal, pillHPad)
-                .padding(.vertical, pillVPad)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(theme.label)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -1806,6 +1724,86 @@ struct SingleMarketTicker: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 6 * vScale)
+    }
+}
+
+// MARK: - Highlight (오늘의 순위 사건)
+
+/// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
+struct Highlight: Identifiable {
+    enum Kind { case overtake, topGainer, newEntry, leader }
+    let id = UUID()
+    let kind: Kind
+    let company: Company
+    let title: String
+    let detail: String
+
+    var emoji: String {
+        switch kind {
+        case .overtake:  return "⚔️"
+        case .topGainer: return "🔥"
+        case .newEntry:  return "🆕"
+        case .leader:    return "👑"
+        }
+    }
+
+    /// 타이틀 칩 색. 상승/추월=빨강, 신규=파랑, 1위=골드(토스식 상승=빨강 관습 유지).
+    var accent: Color {
+        switch kind {
+        case .overtake, .topGainer: return Color(red: 0.95, green: 0.20, blue: 0.20)
+        case .newEntry:             return Color(red: 0.10, green: 0.43, blue: 0.92)
+        case .leader:               return Color(red: 0.86, green: 0.62, blue: 0.10)
+        }
+    }
+}
+
+// MARK: - Market Highlight Ticker (지수 티커 자리 재사용)
+
+/// SingleMarketTicker와 동일한 로테이션/전환을 재사용해 하이라이트를 한 줄로 순환 노출.
+struct MarketHighlightTicker: View {
+    let highlights: [Highlight]
+    let currentIndex: Int
+    var vScale: CGFloat = 1
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
+                if i == currentIndex {
+                    HighlightRow(highlight: h)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal:   .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 50 * vScale)
+        .clipped()
+        .padding(.horizontal, 18)
+        .padding(.vertical, 6 * vScale)
+    }
+}
+
+struct HighlightRow: View {
+    let highlight: Highlight
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(highlight.emoji)
+                .font(.system(size: 16))
+            Text(highlight.title)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(highlight.accent)
+                .fixedSize()
+            Text(highlight.detail)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.label)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Spacer(minLength: 0)
+        }
     }
 }
 

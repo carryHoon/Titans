@@ -392,6 +392,7 @@ async function handleKrxExchange(config: ExchangeConfig, suffix: 'KS' | 'KQ') {
       const meta = KRX_META[row.code]
       return {
         rank:          i + 1,
+        previousRank:  ds.prevRankByCode.get(row.code),  // 직전 basDt 순위(전일 대비 화살표). 신규 종목/콜드스타트면 undefined
         ticker:        `${row.code}.${suffix}`,
         name:          meta?.name ?? row.name,
         color:         meta?.color ?? KRX_DEFAULT_COLOR,
@@ -399,7 +400,7 @@ async function handleKrxExchange(config: ExchangeConfig, suffix: 'KS' | 'KQ') {
         change:          row.change,
         changePercent:   row.changePercent,
         marketCapUSD:    row.marketCapKRW / rate / 1_000_000_000_000,
-        prevCloseCapUSD: row.marketCapKRW / rate / 1_000_000_000_000,  // KR previousRank는 클라이언트가 basDt로 계산
+        prevCloseCapUSD: row.marketCapKRW / rate / 1_000_000_000_000,  // KR은 EOD(D-1) — 장중 변동 없음
         domain:          row.domain,  // DART 해석 도메인 → 앱 로고 폴백
       }
     })

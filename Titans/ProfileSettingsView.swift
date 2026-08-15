@@ -143,7 +143,7 @@ struct DisplayCurrencyEditView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("시가총액을 달러와 함께 이 통화로도 볼 수 있어요.\n‘달러’를 고르면 달러로만 표시돼요.")
+                Text("시가총액을 이 통화로 표시해요.\n언제든 바꿀 수 있어요.")
                     .font(.system(size: 14))
                     .foregroundStyle(theme.secondaryLabel)
                     .fixedSize(horizontal: false, vertical: true)

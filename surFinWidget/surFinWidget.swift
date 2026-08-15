@@ -98,6 +98,32 @@ private struct RowMetrics {
                                   rank: 14, rowSpacing: 12)
 }
 
+// MARK: - 순위 변동 화살표
+
+/// 순위 열 아래 붙는 전일 종가 대비 순위 변동. 앱 CompanyRow와 동일 규약(상승=빨강 ▲ / 하락=파랑 ▼).
+/// previousRank 가 없거나(첫 로드·KR 스냅샷 미확장) 변동이 없으면 아무것도 그리지 않는다.
+private struct WidgetRankDelta: View {
+    let rank: Int
+    let previousRank: Int?
+    var arrowSize:  CGFloat = 6
+    var numberSize: CGFloat = 7
+
+    var body: some View {
+        if let prev = previousRank, prev != rank {
+            let delta = prev - rank  // 양수 = 순위 상승(숫자 감소)
+            HStack(spacing: 1) {
+                Image(systemName: delta > 0 ? "arrow.up" : "arrow.down")
+                    .font(.system(size: arrowSize, weight: .bold))
+                Text("\(abs(delta))")
+                    .font(.system(size: numberSize, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(delta > 0
+                ? Color(red: 0.95, green: 0.20, blue: 0.20)
+                : Color(red: 0.10, green: 0.43, blue: 0.92))
+        }
+    }
+}
+
 // MARK: - Entry View
 
 struct surFinWidgetEntryView: View {
@@ -270,11 +296,14 @@ private struct WidgetSmallRow: View {
     var body: some View {
         HStack(spacing: 8) {
             // 다른 크기 위젯처럼 왼쪽에 순위 숫자 열 — 로고가 오른쪽으로 밀리며 열이 정렬됨
-            Text("\(company.rank)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.tertiaryLabel)
-                .frame(width: 14, alignment: .center)
-                .lineLimit(1)
+            VStack(spacing: 1) {
+                Text("\(company.rank)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.tertiaryLabel)
+                    .lineLimit(1)
+                WidgetRankDelta(rank: company.rank, previousRank: company.previousRank)
+            }
+            .frame(width: 16, alignment: .center)
             WidgetLogo(company: company, size: 26, theme: theme)
             Spacer(minLength: 4)
             Text(formatMarketCap(company.marketCapUSD, currency: currency, exchangeRate: exchangeRate))
@@ -299,11 +328,15 @@ private struct WidgetCompanyRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("\(company.rank)")
-                .font(.system(size: metrics.rank, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.tertiaryLabel)
-                .frame(width: 16, alignment: .center)
-                .lineLimit(1)
+            VStack(spacing: 1) {
+                Text("\(company.rank)")
+                    .font(.system(size: metrics.rank, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.tertiaryLabel)
+                    .lineLimit(1)
+                WidgetRankDelta(rank: company.rank, previousRank: company.previousRank,
+                                arrowSize: 6.5, numberSize: 7.5)
+            }
+            .frame(width: 18, alignment: .center)
 
             WidgetLogo(company: company, size: metrics.logo, theme: theme)
 
