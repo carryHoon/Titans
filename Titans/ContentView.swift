@@ -13,7 +13,7 @@ import GoogleMobileAds // 적응형 배너 크기 계산(currentOrientationAncho
 
 // MARK: - Currency
 
-/// 표시 통화. USD는 항상 기준(anchor)이고, 나머지는 USD와 함께 볼 "보조 표시 통화".
+/// 표시 통화. 시가총액을 이 통화 하나로 표시한다(USD 포함 전 통화가 동등한 선택지).
 /// rawValue = ISO 통화 코드(백엔드 exchangeRates 맵 키·user_prefs.display_currency 저장값과 일치).
 enum Currency: String, CaseIterable, Codable {
     case usd = "USD"
@@ -28,7 +28,7 @@ enum Currency: String, CaseIterable, Codable {
         return c
     }
 
-    /// 헤더 통화 토글 pill에 표시되는 짧은 기호.
+    /// 통화 기호(온보딩·메뉴 카드 등에 표시되는 짧은 기호).
     var toggleSymbol: String {
         switch self {
         case .usd: return "$"
@@ -53,7 +53,7 @@ enum Currency: String, CaseIterable, Codable {
     /// 온보딩 카드 우측 보조 표기(국가/설명).
     var onboardingSubtitle: String {
         switch self {
-        case .usd: return "USD · 달러만 보기"
+        case .usd: return "USD · 미국 달러"
         case .krw: return "KRW · 대한민국"
         case .jpy: return "JPY · 일본"
         case .cny: return "CNY · 중국"
@@ -768,11 +768,9 @@ struct ContentView: View {
     @State private var indices: [MarketIndex] = initialIndices
     @State private var currentMarketIndex: Int = 0
     @State private var currentTime: Date = Date()
-    // 온보딩에서 고른 표시 통화(=USD와 함께 볼 보조 통화). PrefsSync가 로그인 시 이 @AppStorage에 반영한다.
-    // USD면 통화 토글을 숨기고 순수 달러로만 표시한다.
+    // 시가총액을 표시할 단일 통화. 온보딩에서 선택하고 메뉴에서 변경 가능(USD 포함 전 통화가 동등한 선택지).
+    // PrefsSync가 로그인 시 이 @AppStorage에 반영한다. 홈/검색/행 전부 이 값 하나로 표시.
     @AppStorage("displayCurrency") private var displayCurrency: Currency = .usd
-    // 현재 화면에 적용 중인 통화(토글로 $ ↔ displayCurrency 전환). displayCurrency가 USD면 항상 .usd.
-    @State private var selectedCurrency: Currency = .usd
     @State private var selectedMarket: Market = .all
     @State private var sortField: SortField = .rank
     @State private var sortOrder: SortOrder = .ascending
@@ -790,7 +788,7 @@ struct ContentView: View {
     @State private var showMenu = false
 
     /// 현재 표시 통화의 환산 rate(1 USD 당 금액). formatMarketCap에 전달된다.
-    private var displayRate: Double { viewModel.rate(for: selectedCurrency) }
+    private var displayRate: Double { viewModel.rate(for: displayCurrency) }
 
     /// 검색 대상 유니버스 — ALL 피드 + 현재까지 로드된 거래소별 피드를 티커 기준으로 합침.
     /// (별도 API 없이 이미 라이브로 받고 있는 데이터를 그대로 검색에 재사용)
@@ -889,7 +887,7 @@ struct ContentView: View {
                     ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
                         CompanyRow(
                             company: company,
-                            currency: selectedCurrency,
+                            currency: displayCurrency,
                             exchangeRate: displayRate
                         )
                         if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
@@ -924,17 +922,10 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            // 통화 시세 + 통화 토글 행.
-            // 상단 바(LiveIndicatorBar)와 동일한 좌우 여백(leading 28 / trailing 32)으로 화면 전체 폭을
-            // 사용해, 어떤 기기 폭에서도 통화 토글 우측이 검색·메뉴 버튼 우측과 정확히 정렬되게 한다.
-            // (기존 ProportionalScaledLayout은 고정 402pt 폭으로 배치 후 좌측 정렬해서, 402pt보다 넓은
-            //  기기(예: 17 Pro Max 440pt)에서 통화 토글이 우측 끝에 못 붙고 안쪽으로 어긋났다.
-            //  티커는 내부 lineLimit(1)+minimumScaleFactor로 좁은 기기에서도 줄바꿈 없이 축소된다.)
+            // 상단 하이라이트 행. (통화 토글은 단일 통화 모델 전환으로 제거 — 통화 변경은 메뉴에서.)
+            // 現 지수 티커 자리이며, 다음 단계에서 거래소별 "오늘의 하이라이트"로 콘텐츠를 교체한다.
             HStack(alignment: .center, spacing: 12) {
                 SingleMarketTicker(indices: indices, currentIndex: currentMarketIndex, vScale: vScale)
-                // 표시 통화가 USD면 CurrencyToggle이 두 슬롯을 합친 단일 $ 버튼으로 그려 크기를 유지한다.
-                // 그 외엔 $ ↔ 보조통화 2-pill 토글.
-                CurrencyToggle(selected: $selectedCurrency, secondary: displayCurrency)
             }
             .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
@@ -986,15 +977,10 @@ struct ContentView: View {
             // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
             InterstitialAdManager.shared.handleSectionSwitch()
         }
-        .onChange(of: displayCurrency, initial: true) { _, newValue in
-            // 표시 통화 확정/변경(온보딩·로그인 동기화) 시 현재 선택을 그 통화로 맞춘다.
-            // USD면 토글이 숨겨지므로 selectedCurrency도 .usd로 고정된다.
-            selectedCurrency = newValue
-        }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
                 companies: searchableCompanies,
-                currency: selectedCurrency,
+                currency: displayCurrency,
                 exchangeRate: displayRate,
                 onDismiss: { showSearch = false }
             )
@@ -1180,71 +1166,6 @@ struct SkeletonCompanyRow: View {
                 shimmer = true
             }
         }
-    }
-}
-
-// MARK: - Currency Toggle
-
-struct CurrencyToggle: View {
-    @Binding var selected: Currency
-    /// USD와 함께 토글할 보조 통화(온보딩에서 고른 표시 통화).
-    /// USD면 토글을 숨기지 않고, 두 슬롯 폭을 합친 "단일 $ 버튼"으로 그려 크기를 그대로 유지한다.
-    let secondary: Currency
-    @Environment(\.appTheme) private var theme
-
-    // 한 슬롯(pill)의 기준 치수. 단일 $ 버튼이 2슬롯과 동일한 크기를 갖도록 아래 계산에 재사용한다.
-    private let pillMinWidth: CGFloat = 32
-    private let pillHPad:     CGFloat = 10
-    private let pillVPad:     CGFloat = 5
-
-    var body: some View {
-        HStack(spacing: 0) {
-            if secondary == .usd {
-                // USD 전용: 보조 슬롯까지 USD로 확장 → 2슬롯 폭(2×(minWidth+2×hPad))의 단일 $ 버튼.
-                usdOnlyPill
-            } else {
-                pill("$", currency: .usd)
-                pill(secondary.toggleSymbol, currency: secondary)
-            }
-        }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 10).stroke(theme.stroke, lineWidth: 1))
-    }
-
-    /// USD 전용 단일 버튼. 2-pill 토글과 동일한 외곽 크기를 유지하도록 폭을 두 슬롯 합으로 고정.
-    /// 항상 선택 상태(채워짐)이고 전환 대상이 없어 탭 액션은 두지 않는다.
-    private var usdOnlyPill: some View {
-        Text("$")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(theme.background)
-            .frame(minWidth: pillMinWidth * 2 + pillHPad * 2)   // 두 슬롯 콘텐츠 폭 합
-            .padding(.horizontal, pillHPad)
-            .padding(.vertical, pillVPad)
-            .background(RoundedRectangle(cornerRadius: 7).fill(theme.label))
-    }
-
-    @ViewBuilder
-    private func pill(_ title: String, currency: Currency) -> some View {
-        let isSelected = selected == currency
-        Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                selected = currency
-            }
-        } label: {
-            Text(title)
-                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
-                .foregroundStyle(isSelected ? theme.background : theme.secondaryLabel)
-                .frame(minWidth: pillMinWidth)
-                .padding(.horizontal, pillHPad)
-                .padding(.vertical, pillVPad)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(theme.label)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
     }
 }
 

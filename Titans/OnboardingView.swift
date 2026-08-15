@@ -3,10 +3,10 @@
 //  surFin
 //
 //  로그인 직후(닉네임 미설정 계정)에 1회 표시되는 온보딩.
-//  흐름: 1) 닉네임 설정 → 2) 함께 볼 표시 통화 선택 → 홈(ContentView).
+//  흐름: 1) 닉네임 설정 → 2) 시가총액 표시 통화 선택 → 홈(ContentView).
 //
 //  · 닉네임은 유니크 제약 없이 표시용으로만 저장한다(공백 트림 + 길이 제한).
-//  · 표시 통화는 USD와 함께 볼 "보조 통화". USD를 고르면 홈에서 통화 토글 없이 순수 달러로 본다.
+//  · 표시 통화는 시가총액을 표시할 단일 통화(USD 포함 전 통화가 동등한 선택지). 메뉴에서 변경 가능.
 //  · 완료 시 PrefsSync.completeOnboarding 이 로컬(@AppStorage)·원격(user_prefs)에 반영하고,
 //    RootView가 nickname 변화를 관찰해 자동으로 홈으로 전환한다.
 //
@@ -127,10 +127,10 @@ struct OnboardingView: View {
 
     private var currencyStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("함께 볼 통화를 선택하세요")
+            Text("시가총액을 볼 통화를 선택하세요")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(theme.label)
-            Text("시가총액을 달러와 함께 이 통화로도 볼 수 있어요.\n달러만 볼 수도 있어요.")
+            Text("시가총액을 이 통화로 표시해요.\n메뉴에서 언제든 바꿀 수 있어요.")
                 .font(.system(size: 14))
                 .foregroundStyle(theme.secondaryLabel)
                 .fixedSize(horizontal: false, vertical: true)
