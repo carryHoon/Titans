@@ -590,17 +590,6 @@ struct ExchangeFeed {
     var asOf: String? = nil    // EOD 계열(JPX/SSE/SZSE/NSE) 스냅샷 거래일("YYYY-MM-DD") — "종가 기준" 표기용
 }
 
-// MARK: - KR Rank Baseline (basDt 기준)
-
-/// KOSPI/KOSDAQ 전용. 공공데이터포털 EOD 스냅샷의 basDt(기준일)가 바뀔 때마다 롤오버.
-/// previousRanks = 직전 basDt 스냅샷 순위 → 화살표 비교 기준으로 사용.
-/// 언제 앱을 처음 열어도 "이전 종가 vs 현재 종가" 비교가 항상 성립한다.
-private struct KRExchangeBaseline: Codable {
-    var currentBasDt: String         // 가장 최근에 수신한 basDt ("YYYYMMDD")
-    var currentRanks: [String: Int]  // currentBasDt 기준 순위
-    var previousRanks: [String: Int] // 직전 basDt 기준 순위 (rank change 비교 대상)
-}
-
 // MARK: - ViewModel
 
 @MainActor
@@ -615,9 +604,6 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
     @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
-    // KR 종목 basDt 기준 스냅샷 — 영속 저장, 만료 없음(basDt 변경 시 자동 롤오버)
-    private var krBaselines: [String: KRExchangeBaseline] = [:]  // exchangeParam → baseline
-
     // 데이터 API — Vercel 서버리스 상시가동 호스팅
     static let host    = "titans-sooty.vercel.app"
     static let apiBase = "https://\(host)"
@@ -625,31 +611,11 @@ final class MarketCapViewModel: ObservableObject {
     private let endpoint      = URL(string: "\(apiBase)/api/market-cap")!
     private let indexEndpoint = URL(string: "\(apiBase)/api/market-index")!
 
-    init() {
-        if let data = UserDefaults.standard.data(forKey: "krRankBaselines"),
-           let saved = try? JSONDecoder().decode([String: KRExchangeBaseline].self, from: data) {
-            krBaselines = saved
-        }
-    }
-
-    /// KR 전용. basDt가 변경될 때마다 currentRanks → previousRanks 롤오버 후 저장.
-    /// 같은 basDt가 반복 수신되면 아무것도 하지 않는다.
-    private func updateKRBaseline(param: String, newBasDt: String, newRanks: [String: Int]) {
-        var bl = krBaselines[param] ?? KRExchangeBaseline(currentBasDt: "", currentRanks: [:], previousRanks: [:])
-        guard bl.currentBasDt != newBasDt else { return }
-        bl.previousRanks = bl.currentRanks
-        bl.currentRanks  = newRanks
-        bl.currentBasDt  = newBasDt
-        krBaselines[param] = bl
-        if let data = try? JSONEncoder().encode(krBaselines) {
-            UserDefaults.standard.set(data, forKey: "krRankBaselines")
-        }
-    }
-
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
-    /// ALL 피드(exchangeParam == nil)와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
-    /// 순위변동 기준(previousRank)은 "전일 종가 순위 대비"로 통일: KR은 basDt 롤오버 baseline, 비KR은 서버 previousRank.
-    private func loadCompanies(from url: URL, exchangeParam: String?) async throws
+    /// ALL 피드와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
+    /// 순위변동(previousRank)은 전 거래소 서버 제공값을 그대로 사용한다.
+    /// (KR도 백엔드가 직전 basDt 스냅샷 대비로 계산해 내려주므로 클라이언트 baseline이 불필요.)
+    private func loadCompanies(from url: URL) async throws
         -> (companies: [Company], stale: Bool, rate: Double?, rates: [String: Double]?, basDt: String?, asOf: String?) {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -659,20 +625,10 @@ final class MarketCapViewModel: ObservableObject {
         if let apiError = decoded.error, decoded.data.isEmpty {
             throw NSError(domain: "API", code: 0, userInfo: [NSLocalizedDescriptionKey: apiError])
         }
-        // 순위변동 기준(previousRank) = "전일 종가 순위 대비"로 US/KR 통일.
-        //  · KR(basDt 존재): 직전 basDt 스냅샷 순위와 비교 (클라이언트가 basDt 롤오버로 보관)
-        //  · 비KR(US): 서버가 전일 종가 시총으로 계산해 내려준 previousRank를 그대로 사용
-        var krBaseline: [String: Int] = [:]
-        if let basDt = decoded.basDt, let param = exchangeParam {
-            let todayRanks = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.ticker, $0.rank) })
-            updateKRBaseline(param: param, newBasDt: basDt, newRanks: todayRanks)
-            krBaseline = krBaselines[param]?.previousRanks ?? [:]
-        }
-        let isKR = decoded.basDt != nil
         let mapped: [Company] = decoded.data.map { api in
             Company(
                 rank:         api.rank,
-                previousRank: isKR ? krBaseline[api.ticker] : api.previousRank,
+                previousRank: api.previousRank,
                 name:         api.name,
                 ticker:       api.ticker,
                 marketCapUSD: api.marketCapUSD,
@@ -698,7 +654,7 @@ final class MarketCapViewModel: ObservableObject {
 
     func fetch() async {
         do {
-            let result = try await loadCompanies(from: endpoint, exchangeParam: nil)
+            let result = try await loadCompanies(from: endpoint)
             // 주기적 시세 갱신은 애니메이션 없이 즉시 반영한다. (withAnimation은 전역 트랜잭션이라
             // 좌우 스와이프 전환과 겹치면 리스트 리플로우가 드래그와 충돌해 끊김을 유발함)
             companies = result.companies
@@ -721,7 +677,7 @@ final class MarketCapViewModel: ObservableObject {
               let url = URL(string: "\(Self.apiBase)/api/market-cap?exchange=\(param)")
         else { return }
         do {
-            let result = try await loadCompanies(from: url, exchangeParam: param)
+            let result = try await loadCompanies(from: url)
             // 섹션 도착 시 재fetch 결과도 애니메이션 없이 즉시 반영. (스와이프 착지와 겹치는
             // withAnimation 리플로우가 ALL↔NASDAQ 전환 끊김의 원인)
             exchangeFeeds[market] = ExchangeFeed(

@@ -95,11 +95,13 @@ enum WidgetSnapshotWriter {
             throw NSError(domain: "WidgetSnapshot", code: 0,
                           userInfo: [NSLocalizedDescriptionKey: apiError])
         }
+        // 순위변동(previousRank)은 전 거래소 서버 제공값 사용. KR도 백엔드가 직전 basDt 스냅샷 대비로
+        // 계산해 내려주므로(market-cap 라우트) 위젯도 그대로 실어 나른다.
         let top = decoded.data.sorted { $0.rank < $1.rank }.prefix(topCount)
         let companies = top.map { api in
             WidgetCompany(
                 rank: api.rank,
-                previousRank: api.previousRank,   // US는 서버 제공, KR은 nil(화살표 생략)
+                previousRank: api.previousRank,
                 name: api.name,
                 ticker: api.ticker,
                 marketCapUSD: api.marketCapUSD,

@@ -72,6 +72,7 @@ export interface KrxDataset {
   kospi:  KrxRow[]
   kosdaq: KrxRow[]
   byCode: Map<string, KrxRow>
+  prevRankByCode: Map<string, number>  // 직전 basDt 기준 종목별 순위(시장 내 순위) — 전일 대비 화살표용
 }
 
 // 스팩(SPAC)만 제외 — 인수목적회사라 시총 순위 의미가 없다. 우선주는 KRX 공식 순위에 포함되므로 노출.
@@ -230,7 +231,8 @@ async function fetchLatestIndex(preferredBasDt: string): Promise<{ basDt: string
 
 interface PersistedSnapshot {
   fetchedAt: number
-  stock: { basDt: string; kospi: KrxRow[]; kosdaq: KrxRow[] }
+  // prevRankByCode: 직전 basDt 스냅샷의 종목별 순위(시장 내 index+1). 새 basDt로 굳힐 때 구 스냅샷에서 계산해 보관.
+  stock: { basDt: string; kospi: KrxRow[]; kosdaq: KrxRow[]; prevRankByCode?: Record<string, number> }
   index: { basDt: string; rows: PersistedIndexRow[] }
 }
 
@@ -287,9 +289,17 @@ export async function refreshIfNew(): Promise<boolean> {
     console.warn('[kr-snapshot] domain enrichment failed (non-fatal):', err)
   }
 
+  // 직전 스냅샷(구 basDt)의 종목별 순위를 보관 → 라우트가 previousRank(전일 대비 화살표)로 내려준다.
+  // 시장 내 순위(index+1)로 저장. 콜드 스타트(직전 없음)면 비어 있어 첫 basDt엔 화살표가 없다(정상).
+  const prevRankByCode: Record<string, number> = {}
+  if (current) {
+    current.stock.kospi.forEach((r, i)  => { prevRankByCode[r.code] = i + 1 })
+    current.stock.kosdaq.forEach((r, i) => { prevRankByCode[r.code] = i + 1 })
+  }
+
   const snap: PersistedSnapshot = {
     fetchedAt: Date.now(),
-    stock: { basDt: latest, kospi: kospiTop, kosdaq: kosdaqTop },
+    stock: { basDt: latest, kospi: kospiTop, kosdaq: kosdaqTop, prevRankByCode },
     index,
   }
   current = snap
@@ -321,7 +331,8 @@ export async function getKrxDataset(): Promise<KrxDataset> {
   const snap = await ensureSnapshot()
   const byCode = new Map<string, KrxRow>()
   for (const r of [...snap.stock.kospi, ...snap.stock.kosdaq]) byCode.set(r.code, r)
-  return { basDt: snap.stock.basDt, kospi: snap.stock.kospi, kosdaq: snap.stock.kosdaq, byCode }
+  const prevRankByCode = new Map<string, number>(Object.entries(snap.stock.prevRankByCode ?? {}))
+  return { basDt: snap.stock.basDt, kospi: snap.stock.kospi, kosdaq: snap.stock.kosdaq, byCode, prevRankByCode }
 }
 
 // 전 지수 데이터셋. 스냅샷의 지수 배열을 "idxCsf|idxNm" → 값 Map으로 재구성해 반환.
