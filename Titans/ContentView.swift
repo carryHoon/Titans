@@ -172,18 +172,22 @@ enum Market: String, CaseIterable, Identifiable {
     enum DataBasis {
         case realtime    // 발행주식수 × 실시간 주가 (US·EU 라이브 quote 스케일링)
         case eodDated    // 거래일 종가 기준 EOD — 기준일(basDt/asOf)을 함께 표기
+        case reportedCap // 제공사 보고 시가총액(펀더멘털) — 일별 주가 미반영. JPX 전용.
         case comingSoon  // 데이터 미제공(준비 중)
     }
 
     /// 상단 기준 섹션 문구를 가르는 데이터 형태.
     ///  · realtime: 장중 실시간 시총(마감 후 기준값 갱신) — nasdaq/nyse/euronext/fwb.
-    ///  · eodDated: 거래일 종가 기준 시총 — kospi/kosdaq(basDt) · jpx/sse/szse/nse(asOf).
+    ///  · eodDated: 거래일 종가 기준 시총 — kospi/kosdaq(basDt) · sse/szse/nse(asOf, 지연 quote로 일별 변동 반영).
+    ///  · reportedCap: JPX — TD가 가격 피드를 안 줘 /statistics 보고 시가총액만 사용. 일별 주가 변동이
+    ///    반영되지 않으므로 "종가 기준"으로 표기하지 않는다(상업용 앱 정보 정확성).
     /// (ALL은 US 실시간 + KR 종가 혼합이라 MarketStatusView가 별도 문구로 직접 처리한다.)
     var dataBasis: DataBasis {
         if comingSoon { return .comingSoon }
         switch self {
-        case .kospi, .kosdaq, .jpx, .sse, .szse, .nse: return .eodDated
-        default:                                       return .realtime
+        case .jpx:                              return .reportedCap
+        case .kospi, .kosdaq, .sse, .szse, .nse: return .eodDated
+        default:                                 return .realtime
         }
     }
 
@@ -223,8 +227,8 @@ enum Market: String, CaseIterable, Identifiable {
         case .jpx:
             return MarketInfo(
                 fullName: "Japan Exchange Group (도쿄증권거래소)",
-                basis: "도쿄증권거래소 종가 기준 시가총액입니다.",
-                schedule: "도쿄 증시 마감 후 매 거래일(한국시간 오후) 갱신됩니다.",
+                basis: "도쿄증권거래소 상장 기업의 시가총액입니다. 데이터 제공사가 보고하는 발행주식수 기반 시가총액 값을 사용하며, 일간 주가 변동은 실시간으로 반영되지 않습니다. 순위는 최신 기준 시가총액 크기로 정렬됩니다.",
+                schedule: "매 거래일(한국시간 오후) 데이터를 확인해 갱신하지만, 제공사 시가총액 지표 특성상 값이 매일 바뀌지 않을 수 있습니다.",
                 officialName: "jpx.co.jp", officialURLString: "https://www.jpx.co.jp")
         case .sse:
             return MarketInfo(
@@ -1509,7 +1513,8 @@ struct LiveIndicatorBar: View {
 /// 화면 좌측 상단의 데이터 기준 인디케이터. 초록 하이라이트 단어가 **선택된 거래소명**으로 바뀌어,
 /// 옆의 날짜/시각이 어느 거래소 기준인지 한눈에 보이게 한다(섹션 전환 시 함께 동적으로 갱신).
 ///  · realtime(NASDAQ/NYSE/EURONEXT/FWB, 60초 폴링): "NASDAQ HH:mm 기준" / ALL은 "HH:mm 기준 · 일부 종가"
-///  · eodDated(KOSPI/KOSDAQ=basDt, JPX/SSE/SZSE/NSE=asOf): "KOSPI 2026.07.23 종가 기준" (갱신된 실제 거래일)
+///  · eodDated(KOSPI/KOSDAQ=basDt, SSE/SZSE/NSE=asOf): "KOSPI 2026.07.23 종가 기준" (갱신된 실제 거래일)
+///  · reportedCap(JPX=asOf): "JPX 2026.07.23 기준" — 제공사 보고 시가총액(일별 주가 미반영)이라 "종가" 미표기
 ///  · comingSoon(데이터 없음): "HKEX 출시 준비 중" (초록 대신 흐린 색으로 구분)
 /// 우측 ⓘ 버튼으로 거래소별 데이터 기준·갱신 주기·공식 사이트 링크(MarketInfoSheet)를 연다.
 struct MarketStatusView: View {
@@ -1543,8 +1548,12 @@ struct MarketStatusView: View {
         case .comingSoon:
             return "출시 준비 중"
         case .eodDated:
-            // KR·JPX·중국·인도: "YYYY.MM.DD 종가 기준". 날짜는 갱신된 거래일이라 주말/공휴일 오해가 없다.
+            // KR·중국·인도: "YYYY.MM.DD 종가 기준". 날짜는 갱신된 거래일이라 주말/공휴일 오해가 없다.
             return eodDate.map { "\(formatDate($0)) 종가 기준" } ?? "불러오는 중"
+        case .reportedCap:
+            // JPX: 제공사 보고 시가총액(일별 주가 미반영) → "종가 기준"으로 표기하지 않는다.
+            // 날짜는 데이터를 확인·갱신한 기준일(asOf). "기준"만 붙여 종가 산출 오해를 방지.
+            return eodDate.map { "\(formatDate($0)) 기준" } ?? "불러오는 중"
         case .realtime:
             let time = Self.timeFormatter.string(from: currentTime)
             // ALL은 KR(종가) + US(실시간)를 섞어 보여주므로 단서를 덧붙인다.
