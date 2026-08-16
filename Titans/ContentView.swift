@@ -1090,7 +1090,7 @@ struct ContentView: View {
                 }
             }
             .frame(height: 92 * vScale)
-            .padding(.leading, 8.5)    // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
+            .padding(.leading, 2)      // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
             .padding(.trailing, 17)
             .padding(.top, 2 * vScale)
             .padding(.bottom, 4 * vScale)
@@ -2006,7 +2006,9 @@ struct MarketIndexSparkline: View {
     }
 }
 
-/// 종가 배열을 min~max로 정규화해 라인 + 하단 그라데이션 채움으로 렌더.
+/// 종가 배열을 min~max로 정규화해 라인 + 하단 그라데이션 채움 + 점선 기준선으로 렌더.
+/// 토스 오마주: 구간 시작값에 회색 점선 baseline(전일 종가 느낌)을 깔고, 라인 아래를
+/// 라인 색으로 은은하게 그라데이션 채움. 라인은 둥근 조인으로 부드럽게.
 struct SparklineShapeView: View {
     let points: [Double]
     let color: Color
@@ -2017,27 +2019,41 @@ struct SparklineShapeView: View {
             let h = geo.size.height
             if points.count >= 2, let lo = points.min(), let hi = points.max(), hi > lo {
                 let range = hi - lo
-                let stepX = points.count > 1 ? w / CGFloat(points.count - 1) : w
+                // 위/아래 3% 여백을 둬 라인이 프레임 가장자리에 붙지 않게 한다.
+                let padY = h * 0.06
+                let plotH = h - padY * 2
+                let stepX = w / CGFloat(points.count - 1)
                 let pts: [CGPoint] = points.enumerated().map { i, v in
                     CGPoint(x: CGFloat(i) * stepX,
-                            y: h - CGFloat((v - lo) / range) * h)
+                            y: padY + (plotH - CGFloat((v - lo) / range) * plotH))
                 }
-                // 하단 그라데이션 채움
-                Path { p in
-                    p.move(to: CGPoint(x: pts[0].x, y: h))
-                    p.addLine(to: pts[0])
-                    for pt in pts.dropFirst() { p.addLine(to: pt) }
-                    p.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: h))
-                    p.closeSubpath()
+                let baselineY = pts[0].y   // 구간 시작값 = 토스식 점선 기준선
+
+                ZStack {
+                    // 하단 그라데이션 채움 (라인 아래 → 바닥)
+                    Path { p in
+                        p.move(to: CGPoint(x: pts[0].x, y: h))
+                        p.addLine(to: pts[0])
+                        for pt in pts.dropFirst() { p.addLine(to: pt) }
+                        p.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: h))
+                        p.closeSubpath()
+                    }
+                    .fill(LinearGradient(colors: [color.opacity(0.22), color.opacity(0.0)],
+                                         startPoint: .top, endPoint: .bottom))
+                    // 점선 기준선 (구간 시작값)
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: baselineY))
+                        p.addLine(to: CGPoint(x: w, y: baselineY))
+                    }
+                    .stroke(Color.gray.opacity(0.4),
+                            style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    // 라인
+                    Path { p in
+                        p.move(to: pts[0])
+                        for pt in pts.dropFirst() { p.addLine(to: pt) }
+                    }
+                    .stroke(color, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                 }
-                .fill(LinearGradient(colors: [color.opacity(0.16), color.opacity(0.0)],
-                                     startPoint: .top, endPoint: .bottom))
-                // 라인
-                Path { p in
-                    p.move(to: pts[0])
-                    for pt in pts.dropFirst() { p.addLine(to: pt) }
-                }
-                .stroke(color, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
             }
         }
     }
