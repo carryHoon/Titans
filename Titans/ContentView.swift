@@ -884,7 +884,8 @@ struct ContentView: View {
             guard let p = c.previousRank else { return nil }
             let d = p - c.rank
             return d > 0 ? (c, d) : nil
-        }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
+        // 상승 칸수 큰 것 우선, 동점이면 순위 높은(rank 작은) 기업 우선.
+        }).max(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank > $1.0.rank }), !used.contains(riser.0.ticker) {
             let c = riser.0
             result.append(Highlight(kind: .topGainer, company: c,
                 title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
@@ -896,7 +897,8 @@ struct ContentView: View {
             guard let p = c.previousRank else { return nil }
             let d = p - c.rank
             return d < 0 ? (c, d) : nil
-        }).min(by: { $0.1 < $1.1 }), !used.contains(faller.0.ticker) {
+        // 하락 칸수 큰 것(delta 더 음수) 우선, 동점이면 순위 높은(rank 작은) 기업 우선.
+        }).min(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank < $1.0.rank }), !used.contains(faller.0.ticker) {
             let c = faller.0
             result.append(Highlight(kind: .topLoser, company: c,
                 title: "최대 하락", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
@@ -909,7 +911,7 @@ struct ContentView: View {
             let up = mover.change >= 0
             // 기업명 → 순위 → 퍼센테이지 순서: 유저가 순위를 인지하고 리스트에서 바로 찾아 내려갈 수 있게.
             result.append(Highlight(kind: .bigMove, company: mover,
-                title: up ? "가격 급등" : "가격 급락", detail: "\(mover.name) \(mover.rank)위",
+                title: up ? "시총 급등" : "시총 급락", detail: "\(mover.name) \(mover.rank)위",
                 rankDelta: nil, percentMove: mover.change))
             used.insert(mover.ticker)
         }
