@@ -127,7 +127,7 @@ struct OnboardingView: View {
 
     private var currencyStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("시가총액을 볼 통화를 선택하세요")
+            Text("시가총액을 볼 통화를 선택해주세요")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(theme.label)
             Text("시가총액을 이 통화로 표시해요.\n메뉴에서 언제든 바꿀 수 있어요.")
