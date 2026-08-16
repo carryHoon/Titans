@@ -177,6 +177,13 @@ enum Market: String, CaseIterable, Identifiable {
         case .nyse:   return "nyse"
         case .kospi:  return "kospi"
         case .kosdaq: return "kosdaq"
+        // 해외 거래소 지수(대표 ETF 1일봉). 백엔드 MARKET_CHART와 1:1 대응.
+        case .jpx:      return "jpx"        // MSCI 일본(EWJ)
+        case .euronext: return "euronext"   // 유로 스톡스 50(EXW1)
+        case .sse:      return "sse"        // CSI 300(ASHR)
+        case .szse:     return "szse"       // 차이넥스트(CNXT)
+        case .nse:      return "nse"        // 니프티 50(INDY)
+        case .fwb:      return "fwb"        // DAX(EXS1)
         default:      return nil
         }
     }

@@ -155,9 +155,16 @@ export function getExchange(param: string): ExchangeConfig | undefined {
 //  · label   : 그래프에 표기할 대변 지수명(정직 표기 — ETF명이 아니라 지수명).
 //  · td      : symbol = 대표 ETF. QQQ=나스닥100, DIA=다우존스, SPY=S&P500.
 //  · krx     : idxCsf/idxNm 으로 data.go.kr 지수를 특정(kr-snapshot.fetchKrIndexSeries).
-// 후속 확장(구현 X): jpx→EWJ, fwb→EWG, sse/szse→MCHI|FXI, nse→INDA … 한 줄 추가로 열린다.
+//
+// 심볼·라벨은 TD time_series 로 실측 검증한 값이다(2026-08-17):
+//   · US상장(EWJ/ASHR/CNXT/INDY)  = plain symbol, USD. 해당국 네이티브 피드(JP/CN/IN)가 TD Venture
+//     미제공이라 USD ETF가 유일한 신뢰 경로 → %에 USD/현지환율 드리프트가 소폭 섞인다(허용).
+//   · XETRA상장(EXW1/EXS1)         = mic:'XETR' 필요(exchange=XETRA·콜론표기는 400). 네이티브 EUR로
+//     반환되어 EU/DE 시총 섹션(네이티브 EUR)과 통화가 일치한다 → 지수 드리프트 최소.
+//   · 라벨은 반드시 ETF의 실제 기초지수명(정직 표기): EWJ=MSCI일본, EXW1=유로스톡스50, ASHR=CSI300,
+//     CNXT=차이넥스트(ChiNext=선전 창업판), INDY=니프티50(NSE 대표지수), EXS1=DAX.
 export type MarketChartSource =
-  | { kind: 'td';  symbol: string }
+  | { kind: 'td';  symbol: string; mic?: string }
   | { kind: 'krx'; idxCsf: string; idxNm: string }
 
 export interface MarketChartConfig {
@@ -171,6 +178,13 @@ export const MARKET_CHART: Record<string, MarketChartConfig> = {
   nyse:   { label: '다우 존스',  source: { kind: 'td',  symbol: 'DIA' } },
   kospi:  { label: '코스피',     source: { kind: 'krx', idxCsf: 'KOSPI시리즈',  idxNm: '코스피'  } },
   kosdaq: { label: '코스닥',     source: { kind: 'krx', idxCsf: 'KOSDAQ시리즈', idxNm: '코스닥' } },
+  // 해외 거래소 지수(대표 ETF의 1일봉으로 대변). 심볼/통화는 TD 실측 검증(2026-08-17).
+  jpx:      { label: 'MSCI 일본',    source: { kind: 'td', symbol: 'EWJ' } },                 // MSCI Japan, USD
+  euronext: { label: '유로 스톡스 50', source: { kind: 'td', symbol: 'EXW1', mic: 'XETR' } }, // EURO STOXX 50, EUR
+  sse:      { label: 'CSI 300',      source: { kind: 'td', symbol: 'ASHR' } },                // CSI 300(온쇼어 A주 대형), USD
+  szse:     { label: '차이넥스트',    source: { kind: 'td', symbol: 'CNXT' } },                // ChiNext(선전 창업판), USD
+  nse:      { label: '니프티 50',     source: { kind: 'td', symbol: 'INDY' } },                // Nifty 50(NSE 대표), USD
+  fwb:      { label: 'DAX',          source: { kind: 'td', symbol: 'EXS1', mic: 'XETR' } },   // DAX, EUR
 }
 
 // us-stats 갱신 대상 = ALL 피드 td 유니버스 + 모든 거래소 td 유니버스의 합집합.
