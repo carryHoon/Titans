@@ -37,9 +37,11 @@ const lastGood     = new Map<string, ChartPayload>()
 
 // ─── TD ETF 1일봉 time_series ───────────────────────────────────────────────────
 // /time_series?symbol=QQQ&interval=1day&outputsize=30 — values 는 최신→과거 순. close=문자열.
-async function fetchTdSeries(symbol: string): Promise<number[]> {
+// mic 지정 시 &mic_code= 로 거래소를 특정한다(XETRA상장 EUR ETF는 mic:'XETR' 없이는 400).
+async function fetchTdSeries(symbol: string, mic?: string): Promise<number[]> {
   if (!TD_KEY) throw new Error('TWELVE_DATA_API_KEY 미설정')
   const url = `${TD_BASE}/time_series?symbol=${encodeURIComponent(symbol)}` +
+              (mic ? `&mic_code=${encodeURIComponent(mic)}` : '') +
               `&interval=1day&outputsize=${OUTPUT_SIZE}&apikey=${TD_KEY}`
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`TD time_series ${symbol} → HTTP ${res.status}`)
@@ -57,7 +59,7 @@ async function fetchTdSeries(symbol: string): Promise<number[]> {
 async function buildPayload(param: string, cfg: MarketChartConfig): Promise<ChartPayload> {
   let points: number[]
   if (cfg.source.kind === 'td') {
-    points = await fetchTdSeries(cfg.source.symbol)
+    points = await fetchTdSeries(cfg.source.symbol, cfg.source.mic)
   } else {
     const series = await fetchKrIndexSeries(cfg.source.idxCsf, cfg.source.idxNm)
     points = series.map(r => r.clpr)
