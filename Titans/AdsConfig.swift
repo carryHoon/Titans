@@ -23,29 +23,24 @@ enum AdsConfig {
     static let releaseAppID        = "ca-app-pub-1154843579671524~1864394354"
     /// 배너 광고 단위 ID
     static let releaseBanner       = "ca-app-pub-1154843579671524/4714487194"
-    /// 전면(Interstitial) 광고 단위 ID
-    static let releaseInterstitial = "ca-app-pub-1154843579671524/2044091821"
+
+    // 전면(Interstitial) 광고는 아하모먼트 이전 리텐션 보호를 위해 제거됨 — 배너만 운용.
+    // (재도입 시 git 히스토리의 InterstitialAdManager 참고)
 
     // MARK: - Google 공식 테스트 광고 단위 ID (DEBUG 전용, 교체 금지)
 
     private static let testBanner       = "ca-app-pub-3940256099942544/2435281174"
-    private static let testInterstitial = "ca-app-pub-3940256099942544/4411468910"
 
     // MARK: - 빌드별 실사용 ID
 
     #if DEBUG
     static let bannerUnitID       = testBanner
-    static let interstitialUnitID = testInterstitial
     #else
     static let bannerUnitID       = releaseBanner
-    static let interstitialUnitID = releaseInterstitial
     #endif
 
     // MARK: - 노출 정책
 
     /// 리스트에서 배너를 삽입하는 간격 (N개 종목마다 1개).
     static let bannerRowInterval = 20
-
-    /// 전면 광고를 노출하는 섹션 전환 간격 (N번째 전환마다 1회).
-    static let interstitialSectionInterval = 20
 }

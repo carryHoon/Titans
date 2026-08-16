@@ -13,10 +13,9 @@ struct TitansApp: App {
         WindowGroup {
             RootView()
                 .task {
-                    // 광고 동의(UMP) → ATT → Mobile Ads SDK 시작을 순서대로 처리한 뒤
-                    // 전면 광고를 미리 로드해 둔다.
+                    // 광고 동의(UMP) → ATT → Mobile Ads SDK 시작을 순서대로 처리한다.
+                    // (전면 광고는 아하모먼트 이전 리텐션 보호를 위해 미노출 — 배너만 운용.)
                     await AdsConsentManager.shared.start()
-                    InterstitialAdManager.shared.preload()
                 }
         }
     }
