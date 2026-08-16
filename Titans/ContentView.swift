@@ -1026,8 +1026,6 @@ struct ContentView: View {
         .onChange(of: selectedMarket) { _, _ in
             // 거래소 전환 시 하이라이트 로테이션을 처음(우선순위 최상단)부터 다시 시작.
             highlightIndex = 0
-            // 섹션(거래소) 전환 N번째마다 전면 광고 노출.
-            InterstitialAdManager.shared.handleSectionSwitch()
         }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
