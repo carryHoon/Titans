@@ -255,37 +255,43 @@ enum Market: String, CaseIterable, Identifiable {
                 fullName: "Japan Exchange Group (도쿄증권거래소)",
                 basis: "도쿄증권거래소 상장 기업의 시가총액입니다. 데이터 제공사가 보고하는 발행주식수 기반 시가총액 값을 사용하며, 일간 주가 변동은 실시간으로 반영되지 않습니다. 순위는 최신 기준 시가총액 크기로 정렬됩니다.",
                 schedule: "매 거래일(한국시간 오후) 데이터를 확인해 갱신하지만, 제공사 시가총액 지표 특성상 값이 매일 바뀌지 않을 수 있습니다.",
-                officialName: "jpx.co.jp", officialURLString: "https://www.jpx.co.jp")
+                officialName: "jpx.co.jp", officialURLString: "https://www.jpx.co.jp",
+                chartNote: "홈 상단 그래프는 일본 증시를 대표하는 MSCI 일본 지수를 추종하는 대표 ETF(EWJ)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .sse:
             return MarketInfo(
                 fullName: "Shanghai Stock Exchange (상하이증권거래소)",
                 basis: "상하이 A주 종가 기준 시가총액입니다.",
                 schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
-                officialName: "english.sse.com.cn", officialURLString: "http://english.sse.com.cn")
+                officialName: "english.sse.com.cn", officialURLString: "http://english.sse.com.cn",
+                chartNote: "홈 상단 그래프는 중국 본토 A주 대형주를 대표하는 CSI 300 지수를 추종하는 대표 ETF(ASHR)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .szse:
             return MarketInfo(
                 fullName: "Shenzhen Stock Exchange (선전증권거래소)",
                 basis: "선전 A주 종가 기준 시가총액입니다.",
                 schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
-                officialName: "szse.cn", officialURLString: "https://www.szse.cn/English/")
+                officialName: "szse.cn", officialURLString: "https://www.szse.cn/English/",
+                chartNote: "홈 상단 그래프는 선전 증시의 성장기업 시장을 대표하는 차이넥스트(ChiNext) 지수를 추종하는 대표 ETF(CNXT)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .nse:
             return MarketInfo(
                 fullName: "National Stock Exchange of India (인도 NSE)",
                 basis: "인도 NSE 종가 기준 시가총액입니다.",
                 schedule: "인도 증시 마감 후 매 거래일(한국시간 밤) 갱신됩니다.",
-                officialName: "nseindia.com", officialURLString: "https://www.nseindia.com")
+                officialName: "nseindia.com", officialURLString: "https://www.nseindia.com",
+                chartNote: "홈 상단 그래프는 인도 NSE 대표 지수인 니프티 50을 추종하는 대표 ETF(INDY)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .euronext:
             return MarketInfo(
                 fullName: "Euronext (유럽)",
                 basis: "파리·암스테르담 상장 종목은 실시간, 밀라노 상장 종목은 종가 기준 시가총액입니다.",
                 schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
-                officialName: "euronext.com", officialURLString: "https://live.euronext.com")
+                officialName: "euronext.com", officialURLString: "https://live.euronext.com",
+                chartNote: "홈 상단 그래프는 유럽 대형주를 대표하는 유로 스톡스 50 지수를 추종하는 대표 ETF(EXW1)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .fwb:
             return MarketInfo(
                 fullName: "Frankfurt Stock Exchange (Deutsche Börse)",
                 basis: "Xetra 시스템 기준 실시간 시가총액입니다.",
                 schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
-                officialName: "boerse-frankfurt.de", officialURLString: "https://www.boerse-frankfurt.de/en")
+                officialName: "boerse-frankfurt.de", officialURLString: "https://www.boerse-frankfurt.de/en",
+                chartNote: "홈 상단 그래프는 독일 증시 대표 지수인 DAX를 추종하는 대표 ETF(EXS1)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .hkex, .twse, .six, .tsx:
             return nil   // comingSoon — ⓘ 미노출
         }
