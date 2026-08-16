@@ -1107,7 +1107,7 @@ struct ContentView: View {
                 }
             }
             .frame(height: 92 * vScale)
-            .padding(.leading, 28)      // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
+            .padding(.leading, 30)      // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
             .padding(.trailing, 17)
             .padding(.top, 2 * vScale)
             .padding(.bottom, 4 * vScale)
@@ -1203,8 +1203,8 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(3.5))
                 let count = highlights(for: selectedMarket).count
                 guard count > 1 else { continue }
-                // 토스식 부드러운 스프링(오버슈트 없는 smooth) — 세로 슬라이드가 자연스럽게 안착.
-                withAnimation(.smooth(duration: 0.55, extraBounce: 0.1)) {
+                // 토스식 — 바운스 없이 천천히 부드럽게 위로 넘어가며 입체적으로 안착.
+                withAnimation(.smooth(duration: 0.9)) {
                     highlightIndex = (highlightIndex + 1) % count
                 }
             }
@@ -1896,12 +1896,24 @@ struct Highlight: Identifiable {
     var emoji: String {
         switch kind {
         case .overtake:     return "⚔️"
-        case .topGainer:    return "🔥"
-        case .topLoser:     return "🥶"
-        case .bigMove:      return "⚡"
+        case .topGainer:    return "🔺"
+        case .topLoser:     return "🔷"
+        case .bigMove:      return "🔥"
         case .capMilestone: return "🏆"
         case .newEntry:     return "🆕"
         case .leader:       return "👑"
+        }
+    }
+
+    /// 카테고리 인디케이터를 이모지 대신 커스텀 아이콘(Assets.xcassets)으로 대체하는 에셋명.
+    /// nil이면 emoji를 사용한다. (시총 급락은 전용 아이콘이 없어 emoji로 폴백)
+    var categoryAsset: String? {
+        switch kind {
+        case .leader:    return "cat_leader"   // 현재 1위 — 트로피
+        case .topGainer: return "cat_gainer"   // 최대 상승 — 상승 화살표
+        case .topLoser:  return "cat_loser"    // 최대 하락 — 하락 화살표
+        case .bigMove:   return (percentMove ?? 0) >= 0 ? "cat_surge" : nil  // 시총 급등만 아이콘
+        default:         return nil
         }
     }
 
@@ -1932,14 +1944,21 @@ struct MarketHighlightTicker: View {
             ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
                 if i == currentIndex {
                     HighlightRow(highlight: h)
-                        // 토스식 세로 컨베이어: 새 항목이 아래에서 밀려 올라오고 이전 항목은
-                        // 위로 밀려 나간다(동기화). opacity를 더해 가장자리 잘림 없이 부드럽게.
-                        .transition(.push(from: .bottom).combined(with: .opacity))
+                        // 토스식 입체 상승 전환: 새 항목이 아래에서 떠오르며(move+scale) 커지고 나타나고,
+                        // 이전 항목은 위로 떠오르며 작아지고 사라진다. scale+opacity 크로스페이드로 깊이감.
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom)
+                                .combined(with: .scale(scale: 0.93, anchor: .bottom))
+                                .combined(with: .opacity),
+                            removal: .move(edge: .top)
+                                .combined(with: .scale(scale: 0.93, anchor: .top))
+                                .combined(with: .opacity)
+                        ))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 62 * vScale)
+        .frame(height: 66 * vScale)
         .clipped()
     }
 }
@@ -1958,13 +1977,21 @@ struct HighlightRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // 카테고리 칩 (이모지 제거 — 텍스트만)
+    // 카테고리 칩 (아이콘/이모지 + 타이틀) — 조금 크고 굵게.
+    // 지정 아이콘(에셋)이 있으면 이미지로, 없으면 이모지로 렌더한다.
     private var categoryChip: some View {
-        HStack(spacing: 4) {
-            Text(highlight.emoji)
-                .font(.system(size: 12))
+        HStack(spacing: 5) {
+            if let asset = highlight.categoryAsset {
+                Image(asset)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+            } else {
+                Text(highlight.emoji)
+                    .font(.system(size: 14))
+            }
             Text(highlight.title)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(highlight.accent)
         }
         .fixedSize()
