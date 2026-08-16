@@ -862,7 +862,24 @@ struct ContentView: View {
             used.insert(top.ticker)
         }
 
-        // 2) 급상승 — (previousRank - rank)가 가장 큰(가장 많이 오른) 종목.
+        // 2) 조 달러 돌파 — 오늘 정수 "조 달러(USD 1T)" 문턱을 상향 돌파한 종목(희소·상징적).
+        //    prevCap = cap / (1 + change%/100). marketCapUSD 단위가 이미 조(trillion) USD.
+        //    (JPX는 change=0이라 자연히 미발생. 표시통화 무관하게 USD 조 클럽 기준.)
+        if let breakout = list.compactMap({ c -> (Company, Int)? in
+            guard c.change > -100 else { return nil }
+            let cap = c.marketCapUSD
+            let prevCap = cap / (1 + c.change / 100)
+            let k = Int(floor(cap))
+            guard k >= 1, Double(k) > prevCap, cap >= Double(k) else { return nil }  // 정수 조 상향 돌파
+            return (c, k)
+        }).max(by: { $0.1 < $1.1 }), !used.contains(breakout.0.ticker) {
+            let c = breakout.0
+            result.append(Highlight(kind: .capMilestone, company: c,
+                title: "시총 돌파", detail: "\(c.name), \(breakout.1)조 달러 돌파", rankDelta: nil))
+            used.insert(c.ticker)
+        }
+
+        // 3) 급상승 — (previousRank - rank)가 가장 큰(가장 많이 오른) 종목.
         if let riser = list.compactMap({ c -> (Company, Int)? in
             guard let p = c.previousRank else { return nil }
             let d = p - c.rank
@@ -886,7 +903,17 @@ struct ContentView: View {
             used.insert(c.ticker)
         }
 
-        // 4) Top-N 진입 — 오늘 Top10/50/100(현재 목록 크기 내 유효한 것) 문턱을 처음 넘은 종목.
+        // 5) 대형 등락률 — |당일 등락률|이 가장 큰 종목(3% 이상). 순위가 안 변한 날도 살아있게.
+        if let mover = list.filter({ abs($0.change) >= 3.0 && !used.contains($0.ticker) })
+            .max(by: { abs($0.change) < abs($1.change) }) {
+            let up = mover.change >= 0
+            result.append(Highlight(kind: .bigMove, company: mover,
+                title: up ? "가격 급등" : "가격 급락", detail: mover.name,
+                rankDelta: nil, percentMove: mover.change))
+            used.insert(mover.ticker)
+        }
+
+        // 6) Top-N 진입 — 오늘 Top10/50/100(현재 목록 크기 내 유효한 것) 문턱을 처음 넘은 종목.
         //    prevEff = previousRank ?? (n+1)(추적 밖). 가장 권위 있는(작은) 문턱 크로싱을 고른다.
         if hasBaseline {
             let thresholds = [10, 50, 100].filter { $0 <= n }
@@ -1761,25 +1788,29 @@ struct SingleMarketTicker: View {
 
 /// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
 struct Highlight: Identifiable {
-    enum Kind { case overtake, topGainer, topLoser, newEntry, leader }
+    enum Kind { case overtake, topGainer, topLoser, bigMove, capMilestone, newEntry, leader }
     /// 하이라이트 섹션 통일 색 — 상승(화살표·숫자)=빨강, 하락=파랑.
     static let increaseColor = Color(red: 0.95, green: 0.20, blue: 0.20)
     static let decreaseColor = Color(red: 0.10, green: 0.43, blue: 0.92)
     static let entryColor    = Color(red: 0.12, green: 0.66, blue: 0.42)  // 신규 진입=초록(하락 파랑과 혼동 방지)
+    static let milestoneColor = Color(red: 0.80, green: 0.52, blue: 0.05) // 조 달러 돌파=앰버
     let id = UUID()
     let kind: Kind
     let company: Company
     let title: String
     let detail: String
-    let rankDelta: Int?   // 양수=상승 칸수(빨강 ▲), 음수=하락 칸수(파랑 ▼), nil=표시 없음. (prev - rank)
+    let rankDelta: Int?          // 양수=상승 칸수(빨강 ▲), 음수=하락 칸수(파랑 ▼), nil=표시 없음. (prev - rank)
+    var percentMove: Double? = nil  // 대형 등락률(%) — 양수=빨강 ▲%, 음수=파랑 ▼%. bigMove 전용.
 
     var emoji: String {
         switch kind {
-        case .overtake:  return "⚔️"
-        case .topGainer: return "🔥"
-        case .topLoser:  return "📉"
-        case .newEntry:  return "🆕"
-        case .leader:    return "👑"
+        case .overtake:     return "⚔️"
+        case .topGainer:    return "🔥"
+        case .topLoser:     return "📉"
+        case .bigMove:      return "⚡"
+        case .capMilestone: return "🏆"
+        case .newEntry:     return "🆕"
+        case .leader:       return "👑"
         }
     }
 
@@ -1788,6 +1819,8 @@ struct Highlight: Identifiable {
         switch kind {
         case .overtake, .topGainer: return Self.increaseColor
         case .topLoser:             return Self.decreaseColor
+        case .bigMove:              return (percentMove ?? 0) >= 0 ? Self.increaseColor : Self.decreaseColor
+        case .capMilestone:         return Self.milestoneColor
         case .newEntry:             return Self.entryColor
         case .leader:               return Color(red: 0.86, green: 0.62, blue: 0.10)
         }
@@ -1846,6 +1879,17 @@ struct HighlightRow: View {
                     Image(systemName: up ? "arrow.up" : "arrow.down")
                         .font(.system(size: 11, weight: .bold))
                     Text("\(abs(d))")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
+                .fixedSize()
+            } else if let p = highlight.percentMove {
+                // 대형 등락률 — 상승=빨강 ▲%, 하락=파랑 ▼% (가격 등락 화살표는 대각선).
+                let up = p >= 0
+                HStack(spacing: 1) {
+                    Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(String(format: "%.2f%%", abs(p)))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
