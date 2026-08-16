@@ -887,7 +887,7 @@ struct ContentView: View {
         }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
             let c = riser.0
             result.append(Highlight(kind: .topGainer, company: c,
-                title: "급상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
+                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
             used.insert(c.ticker)
         }
 
@@ -899,7 +899,7 @@ struct ContentView: View {
         }).min(by: { $0.1 < $1.1 }), !used.contains(faller.0.ticker) {
             let c = faller.0
             result.append(Highlight(kind: .topLoser, company: c,
-                title: "급하락", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
+                title: "최대 하락", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
             used.insert(c.ticker)
         }
 
@@ -907,8 +907,9 @@ struct ContentView: View {
         if let mover = list.filter({ abs($0.change) >= 3.0 && !used.contains($0.ticker) })
             .max(by: { abs($0.change) < abs($1.change) }) {
             let up = mover.change >= 0
+            // 기업명 → 순위 → 퍼센테이지 순서: 유저가 순위를 인지하고 리스트에서 바로 찾아 내려갈 수 있게.
             result.append(Highlight(kind: .bigMove, company: mover,
-                title: up ? "가격 급등" : "가격 급락", detail: mover.name,
+                title: up ? "가격 급등" : "가격 급락", detail: "\(mover.name) \(mover.rank)위",
                 rankDelta: nil, percentMove: mover.change))
             used.insert(mover.ticker)
         }
