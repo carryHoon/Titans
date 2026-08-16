@@ -1897,7 +1897,7 @@ struct Highlight: Identifiable {
         switch kind {
         case .overtake:     return "⚔️"
         case .topGainer:    return "🔥"
-        case .topLoser:     return "📉"
+        case .topLoser:     return "🥶"
         case .bigMove:      return "⚡"
         case .capMilestone: return "🏆"
         case .newEntry:     return "🆕"
@@ -1960,10 +1960,14 @@ struct HighlightRow: View {
 
     // 카테고리 칩 (이모지 제거 — 텍스트만)
     private var categoryChip: some View {
-        Text(highlight.title)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(highlight.accent)
-            .fixedSize()
+        HStack(spacing: 4) {
+            Text(highlight.emoji)
+                .font(.system(size: 12))
+            Text(highlight.title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(highlight.accent)
+        }
+        .fixedSize()
     }
 
     // 기업명
