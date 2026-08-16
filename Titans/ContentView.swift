@@ -857,7 +857,7 @@ struct ContentView: View {
         if let top = list.first(where: { $0.rank == 1 }),
            let prev = top.previousRank, prev > 1 {
             result.append(Highlight(kind: .overtake, company: top,
-                title: "정상 탈환", detail: "\(top.name), 1위 등극 ▲\(prev - 1)"))
+                title: "정상 탈환", detail: "\(top.name), 1위 등극", deltaUp: prev - 1))
             used.insert(top.ticker)
         }
 
@@ -869,7 +869,7 @@ struct ContentView: View {
         }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
             let c = riser.0
             result.append(Highlight(kind: .topGainer, company: c,
-                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위 ▲\(riser.1)"))
+                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", deltaUp: riser.1))
             used.insert(c.ticker)
         }
 
@@ -877,7 +877,7 @@ struct ContentView: View {
         if hasBaseline, let newbie = list.first(where: { $0.previousRank == nil }),
            !used.contains(newbie.ticker) {
             result.append(Highlight(kind: .newEntry, company: newbie,
-                title: "신규 진입", detail: "\(newbie.name), Top\(list.count) 첫 진입"))
+                title: "신규 진입", detail: "\(newbie.name), Top\(list.count) 첫 진입", deltaUp: nil))
             used.insert(newbie.ticker)
         }
 
@@ -885,7 +885,7 @@ struct ContentView: View {
         if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
             let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
             result.append(Highlight(kind: .leader, company: leader,
-                title: "현재 1위", detail: "\(leader.name) · \(cap)"))
+                title: "현재 1위", detail: "\(leader.name) · \(cap)", deltaUp: nil))
         }
         return result
     }
@@ -977,7 +977,7 @@ struct ContentView: View {
                     vScale: vScale
                 )
             }
-            .padding(.leading, 10)    // + SingleMarketTicker 내부 18 = 콘텐츠 시작 28 (상단 바 국기와 정렬)
+            .padding(.leading, 4)    // 하이라이트 행을 상단 바보다 살짝 왼쪽으로(내부 18 + 4 = 22)
             // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
             // trailing을 검색/메뉴(32)보다 15pt 작게(17) 줘서 오른쪽으로 밀어 두 우측 끝을 시각적으로 맞춘다.
             // (우측 여백은 화면 끝 기준 고정 pt라 모든 아이폰 기기에서 동일하게 적용된다. 검색/메뉴와 함께 8pt씩 오른쪽으로 이동: 25→17.)
@@ -1741,11 +1741,14 @@ struct SingleMarketTicker: View {
 /// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
 struct Highlight: Identifiable {
     enum Kind { case overtake, topGainer, newEntry, leader }
+    /// 하이라이트 섹션의 "증가(상승)" 통일 색 — 상승 화살표·숫자는 모두 이 빨강으로 표시.
+    static let increaseColor = Color(red: 0.95, green: 0.20, blue: 0.20)
     let id = UUID()
     let kind: Kind
     let company: Company
     let title: String
     let detail: String
+    let deltaUp: Int?   // 순위 상승 칸수(양수). 있으면 빨강 ▲N 으로 detail 뒤에 붙인다.
 
     var emoji: String {
         switch kind {
@@ -1756,10 +1759,10 @@ struct Highlight: Identifiable {
         }
     }
 
-    /// 타이틀 칩 색. 상승/추월=빨강, 신규=파랑, 1위=골드(토스식 상승=빨강 관습 유지).
+    /// 타이틀 칩 색. 상승/추월=빨강(증가 통일색), 신규=파랑, 1위=골드.
     var accent: Color {
         switch kind {
-        case .overtake, .topGainer: return Color(red: 0.95, green: 0.20, blue: 0.20)
+        case .overtake, .topGainer: return Self.increaseColor
         case .newEntry:             return Color(red: 0.10, green: 0.43, blue: 0.92)
         case .leader:               return Color(red: 0.86, green: 0.62, blue: 0.10)
         }
@@ -1811,6 +1814,17 @@ struct HighlightRow: View {
                 .foregroundStyle(theme.label)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+            // 상승 델타(▲N) — 하이라이트 섹션 증가 표시는 화살표·숫자 모두 빨강 통일.
+            if let up = highlight.deltaUp {
+                HStack(spacing: 1) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 11, weight: .bold))
+                    Text("\(up)")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(Highlight.increaseColor)
+                .fixedSize()
+            }
             Spacer(minLength: 0)
         }
     }
