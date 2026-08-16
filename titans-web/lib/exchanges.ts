@@ -148,6 +148,31 @@ export function getExchange(param: string): ExchangeConfig | undefined {
   return byParam.get(param)
 }
 
+// ─── 지수 차트(라인그래프) 매핑 ──────────────────────────────────────────────────
+// 홈 상단 스파크라인이 거래소를 "대변"할 지수 소스. TD Venture 플랜은 지수 직접조회를
+// 지원하지 않으므로, US는 US상장 대표 ETF의 1일봉 time_series로 지수를 대변하고,
+// KR은 공공데이터포털 지수시세정보(data.go.kr)의 일별 종가를 그대로 쓴다(라이선스 0).
+//  · label   : 그래프에 표기할 대변 지수명(정직 표기 — ETF명이 아니라 지수명).
+//  · td      : symbol = 대표 ETF. QQQ=나스닥100, DIA=다우존스, SPY=S&P500.
+//  · krx     : idxCsf/idxNm 으로 data.go.kr 지수를 특정(kr-snapshot.fetchKrIndexSeries).
+// 후속 확장(구현 X): jpx→EWJ, fwb→EWG, sse/szse→MCHI|FXI, nse→INDA … 한 줄 추가로 열린다.
+export type MarketChartSource =
+  | { kind: 'td';  symbol: string }
+  | { kind: 'krx'; idxCsf: string; idxNm: string }
+
+export interface MarketChartConfig {
+  label:  string
+  source: MarketChartSource
+}
+
+export const MARKET_CHART: Record<string, MarketChartConfig> = {
+  all:    { label: 'S&P 500',    source: { kind: 'td',  symbol: 'SPY' } },
+  nasdaq: { label: '나스닥 100', source: { kind: 'td',  symbol: 'QQQ' } },
+  nyse:   { label: '다우 존스',  source: { kind: 'td',  symbol: 'DIA' } },
+  kospi:  { label: '코스피',     source: { kind: 'krx', idxCsf: 'KOSPI시리즈',  idxNm: '코스피'  } },
+  kosdaq: { label: '코스닥',     source: { kind: 'krx', idxCsf: 'KOSDAQ시리즈', idxNm: '코스닥' } },
+}
+
 // us-stats 갱신 대상 = ALL 피드 td 유니버스 + 모든 거래소 td 유니버스의 합집합.
 // (기존 us-universe.ALL_US_TICKERS 와 동일 집합 — 단일 소스로 통합.)
 export const ALL_TD_TICKERS: string[] = [

@@ -167,6 +167,20 @@ enum Market: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 홈 상단 지수 스파크라인의 `?exchange=` 값. nil이면 해당 탭에 그래프를 노출하지 않는다.
+    /// v1 범위 = ALL(S&P500) + US(나스닥100/다우) + KR(코스피/코스닥). 백엔드 MARKET_CHART와 대응.
+    /// (후속 거래소는 백엔드 MARKET_CHART에 매핑을 추가하고 여기에 case만 열면 그래프가 확장된다.)
+    var chartParam: String? {
+        switch self {
+        case .all:    return "all"
+        case .nasdaq: return "nasdaq"
+        case .nyse:   return "nyse"
+        case .kospi:  return "kospi"
+        case .kosdaq: return "kosdaq"
+        default:      return nil
+        }
+    }
+
     // MARK: 데이터 기준(as-of) 분류
 
     enum DataBasis {
@@ -345,6 +359,25 @@ struct APIIndexData: Decodable {
 struct MarketIndexResponse: Decodable {
     let data: [APIIndexData]
     let stale: Bool?
+}
+
+// MARK: - Market Chart (거래소 지수 스파크라인)
+
+/// 홈 상단 스파크라인 데이터. 거래소를 대변하는 지수의 최근 ~30 거래일 종가 라인.
+/// (US=대표 ETF의 1일봉, KR=data.go.kr 지수 일별 종가 — 백엔드 /api/market-chart가 소유.)
+struct MarketChart {
+    let name: String          // 대변 지수명(나스닥 100/다우 존스/S&P 500/코스피/코스닥)
+    let points: [Double]      // 오래된→최신 종가
+    let changePercent: Double // 첫→마지막 종가 변화율(%)
+}
+
+struct MarketChartResponse: Decodable {
+    let exchange: String
+    let name: String
+    let points: [Double]
+    let changePercent: Double
+    let stale: Bool?
+    let error: String?
 }
 
 // MARK: - Logo Source
@@ -602,12 +635,16 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소 전용 피드 (NASDAQ/NYSE …) — Market 키로 분리 저장
     @Published var exchangeFeeds: [Market: ExchangeFeed] = [:]
 
+    // 거래소별 지수 스파크라인 (ALL/US/KR) — Market 키로 분리 저장. 하루 단위 데이터라 1회 로드.
+    @Published var charts: [Market: MarketChart] = [:]
+
     // 데이터 API — Vercel 서버리스 상시가동 호스팅
     static let host    = "titans-sooty.vercel.app"
     static let apiBase = "https://\(host)"
 
     private let endpoint      = URL(string: "\(apiBase)/api/market-cap")!
     private let indexEndpoint = URL(string: "\(apiBase)/api/market-index")!
+    private let chartEndpoint = "\(apiBase)/api/market-chart"
 
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
     /// ALL 피드와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
@@ -721,6 +758,20 @@ final class MarketCapViewModel: ObservableObject {
         return decoded.data.map { api in
             MarketIndex(id: api.id, name: api.name, value: api.value, change: api.change, changePercent: api.changePercent)
         }
+    }
+
+    /// 거래소 지수 스파크라인 로드. 그래프는 일별(EOD) 데이터라 값이 하루에 한 번만 바뀌므로
+    /// 이미 로드된 거래소는 다시 받지 않는다(백엔드도 24h 캐시). 실패해도 조용히 건너뛴다(그래프만 빔).
+    func fetchChart(_ market: Market) async {
+        guard let param = market.chartParam, charts[market] == nil,
+              let url = URL(string: "\(chartEndpoint)?exchange=\(param)")
+        else { return }
+        guard let (data, response) = try? await URLSession.shared.data(from: url),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let decoded = try? JSONDecoder().decode(MarketChartResponse.self, from: data),
+              decoded.points.count >= 2
+        else { return }
+        charts[market] = MarketChart(name: decoded.name, points: decoded.points, changePercent: decoded.changePercent)
     }
 }
 
@@ -1022,19 +1073,27 @@ struct ContentView: View {
             )
             .padding(.top, 6 * vScale)
 
-            // 상단 하이라이트 행 — 현재 거래소의 "오늘의 순위 사건"을 로테이션으로 보여준다.
-            // (통화 토글은 단일 통화 모델 전환으로 제거 — 통화 변경은 메뉴에서.)
+            // 상단 하이라이트 블록 — 좌측: "오늘의 순위 사건"(카테고리+기업정보 2줄 로테이션),
+            // 우측: 거래소 지수 스파크라인. 블록을 한 행만큼 키워 아래 목록이 8→7개로 노출된다.
+            // 블록 높이는 vScale(기준 iPhone 17 Pro 874pt) 비례라 모든 기기에서 동일 비율 유지.
+            // ※ 목록 노출 개수 미세조정 knob = 아래 .frame(height:) 값(1행 ≈ 78pt).
             HStack(alignment: .center, spacing: 12) {
                 MarketHighlightTicker(
                     highlights: highlights(for: selectedMarket),
                     currentIndex: highlightIndex,
                     vScale: vScale
                 )
+                // 매핑된 거래소(ALL·US·KR)에서만 그래프 노출 — 미매핑 탭은 티커가 폭을 회수한다.
+                if selectedMarket.chartParam != nil {
+                    MarketIndexSparkline(chart: viewModel.charts[selectedMarket], vScale: vScale)
+                        .frame(width: 130 * vScale)
+                }
             }
+            .frame(height: 92 * vScale)
             .padding(.leading, 8.5)    // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
             .padding(.trailing, 17)
-            .padding(.top, -4 * vScale)
-            .padding(.bottom, 2 * vScale)
+            .padding(.top, 2 * vScale)
+            .padding(.bottom, 4 * vScale)
 
             if isStale(for: selectedMarket) {
                 StaleBanner()
@@ -1043,7 +1102,7 @@ struct ContentView: View {
             }
 
             MarketFilterBar(selected: selectedMarket, onSelect: selectMarket)
-                .padding(.bottom, 8 * vScale)
+                .padding(.bottom, 12 * vScale)
 
             // 섹션별 페이지 — TabView가 손가락 드래그에 비례한 이동과 스냅을 네이티브로 처리.
             // 모든 Market.allCases 섹션이 동일하게 좌우 스와이프로 전환된다.
@@ -1107,6 +1166,10 @@ struct ContentView: View {
                 // 서버 quote 캐시(20초)와 정렬. sleep이 fetch 뒤라 실제 간격은 항상 20초 초과 → 매 호출 신선.
                 try? await Task.sleep(for: .seconds(20))
             }
+        }
+        .task(id: selectedMarket) {
+            // 거래소 지수 스파크라인 — 탭 진입 시 1회 로드(일별 데이터라 캐시되면 재호출 없음).
+            await viewModel.fetchChart(selectedMarket)
         }
         .task {
             while !Task.isCancelled {
@@ -1828,16 +1891,17 @@ struct Highlight: Identifiable {
     }
 }
 
-// MARK: - Market Highlight Ticker (지수 티커 자리 재사용)
+// MARK: - Market Highlight Ticker (카테고리 + 기업정보 2줄 로테이션)
 
-/// SingleMarketTicker와 동일한 로테이션/전환을 재사용해 하이라이트를 한 줄로 순환 노출.
+/// "오늘의 순위 사건"을 카테고리(1줄) + 기업정보(2줄)로 순환 노출. 우측 지수 그래프와
+/// 한 HStack에 나란히 놓이므로, 폭은 부모가 관리하고(여기선 maxWidth 채움) 좌측 정렬만 한다.
 struct MarketHighlightTicker: View {
     let highlights: [Highlight]
     let currentIndex: Int
     var vScale: CGFloat = 1
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
                 if i == currentIndex {
                     HighlightRow(highlight: h)
@@ -1849,10 +1913,8 @@ struct MarketHighlightTicker: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 50 * vScale)
+        .frame(height: 46 * vScale)
         .clipped()
-        .padding(.horizontal, 18)
-        .padding(.vertical, 6 * vScale)
     }
 }
 
@@ -1861,42 +1923,122 @@ struct HighlightRow: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(highlight.emoji)
-                .font(.system(size: 16))
-            Text(highlight.title)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(highlight.accent)
-                .fixedSize()
-            Text(highlight.detail)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(theme.label)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            // 순위 델타 — 상승=빨강 ▲, 하락=파랑 ▼ (화살표·숫자 색 통일).
-            if let d = highlight.rankDelta, d != 0 {
-                let up = d > 0
-                HStack(spacing: 1) {
-                    Image(systemName: up ? "arrow.up" : "arrow.down")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("\(abs(d))")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
-                .fixedSize()
-            } else if let p = highlight.percentMove {
-                // 대형 등락률 — 상승=빨강 ▲%, 하락=파랑 ▼% (가격 등락 화살표는 대각선).
-                let up = p >= 0
-                HStack(spacing: 1) {
-                    Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 11, weight: .bold))
-                    Text(String(format: "%.2f%%", abs(p)))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
-                .fixedSize()
+        VStack(alignment: .leading, spacing: 3) {
+            // 1줄: 카테고리 (이모지 + 타이틀 칩)
+            HStack(spacing: 6) {
+                Text(highlight.emoji)
+                    .font(.system(size: 13))
+                Text(highlight.title)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(highlight.accent)
+                    .fixedSize()
             }
-            Spacer(minLength: 0)
+            // 2줄: 기업정보 (이름·순위 + 델타/등락률)
+            HStack(spacing: 6) {
+                Text(highlight.detail)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.label)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                // 순위 델타 — 상승=빨강 ▲, 하락=파랑 ▼ (화살표·숫자 색 통일).
+                if let d = highlight.rankDelta, d != 0 {
+                    let up = d > 0
+                    HStack(spacing: 1) {
+                        Image(systemName: up ? "arrow.up" : "arrow.down")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("\(abs(d))")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
+                    .fixedSize()
+                } else if let p = highlight.percentMove {
+                    // 대형 등락률 — 상승=빨강 ▲%, 하락=파랑 ▼% (가격 등락 화살표는 대각선).
+                    let up = p >= 0
+                    HStack(spacing: 1) {
+                        Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(String(format: "%.2f%%", abs(p)))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
+                    .fixedSize()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Market Index Sparkline (거래소 지수 라인그래프)
+
+/// 홈 상단 우측의 미니 지수 라인. 축·격자 없이 라인 + 아래 그라데이션 채움만 그리는
+/// 토스 스타일 스파크라인. 상승=빨강 / 하락=파랑(앱 공통 컨벤션 재사용).
+struct MarketIndexSparkline: View {
+    let chart: MarketChart?
+    var vScale: CGFloat = 1
+    @Environment(\.appTheme) private var theme
+
+    private var up: Bool { (chart?.changePercent ?? 0) >= 0 }
+    private var lineColor: Color { up ? Highlight.increaseColor : Highlight.decreaseColor }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            // 상단: 대변 지수명 + 기간 변화율 (사진1의 "↗7.39%")
+            HStack(spacing: 3) {
+                Text(chart?.name ?? " ")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(theme.secondaryLabel)
+                    .lineLimit(1)
+                if let chart {
+                    HStack(spacing: 1) {
+                        Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(String(format: "%.2f%%", abs(chart.changePercent)))
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                    }
+                    .foregroundStyle(lineColor)
+                }
+            }
+            // 라인 — 데이터가 없으면(로딩/실패) 빈 프레임만 유지해 레이아웃 점프 방지.
+            SparklineShapeView(points: chart?.points ?? [], color: lineColor)
+                .frame(height: 40 * vScale)
+        }
+    }
+}
+
+/// 종가 배열을 min~max로 정규화해 라인 + 하단 그라데이션 채움으로 렌더.
+struct SparklineShapeView: View {
+    let points: [Double]
+    let color: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            if points.count >= 2, let lo = points.min(), let hi = points.max(), hi > lo {
+                let range = hi - lo
+                let stepX = points.count > 1 ? w / CGFloat(points.count - 1) : w
+                let pts: [CGPoint] = points.enumerated().map { i, v in
+                    CGPoint(x: CGFloat(i) * stepX,
+                            y: h - CGFloat((v - lo) / range) * h)
+                }
+                // 하단 그라데이션 채움
+                Path { p in
+                    p.move(to: CGPoint(x: pts[0].x, y: h))
+                    p.addLine(to: pts[0])
+                    for pt in pts.dropFirst() { p.addLine(to: pt) }
+                    p.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: h))
+                    p.closeSubpath()
+                }
+                .fill(LinearGradient(colors: [color.opacity(0.16), color.opacity(0.0)],
+                                     startPoint: .top, endPoint: .bottom))
+                // 라인
+                Path { p in
+                    p.move(to: pts[0])
+                    for pt in pts.dropFirst() { p.addLine(to: pt) }
+                }
+                .stroke(color, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+            }
         }
     }
 }

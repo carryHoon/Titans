@@ -211,6 +211,55 @@ async function fetchKrIndexDay(basDt: string): Promise<PersistedIndexRow[]> {
   return rows
 }
 
+// ─── 지수 일별 시계열 (차트용) ─────────────────────────────────────────────────
+// market-chart 라우트가 코스피/코스닥 라인그래프를 그릴 때 쓰는 최근 N영업일 종가 배열.
+// getStockMarketIndex 에 beginBasDt/endBasDt(날짜 범위) + idxNm(정확 일치)로 1콜 조회하고,
+// 이름 충돌 방지를 위해 idxCsf(지수 분류)까지 일치하는 행만 채택한다. basDt 오름차순(오래된→최신).
+// 스냅샷 레이어와 독립 — 차트는 라우트에서 24h 캐시하므로 업스트림 호출은 극소량이다.
+// 공공데이터포털(KOGL) 데이터라 라이선스 리스크 0.
+export async function fetchKrIndexSeries(
+  idxCsf: string,
+  idxNm: string,
+  calendarDays = 45,
+): Promise<{ basDt: string; clpr: number }[]> {
+  if (!DATA_GO_KR_KEY) throw new Error('DATA_GO_KR_KEY 미설정 — 공공데이터포털 인증키 필요')
+  const endBasDt   = kstDateStr(0)
+  const beginBasDt = kstDateStr(-calendarDays * 24 * 60 * 60 * 1000)
+  const params = new URLSearchParams({
+    serviceKey: DATA_GO_KR_KEY,
+    resultType: 'json',
+    numOfRows:  '200',
+    pageNo:     '1',
+    idxNm,
+    beginBasDt,
+    endBasDt,
+  })
+  const res = await fetch(`${DATA_GO_INDEX_URL}?${params.toString()}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`data.go.kr index series ${idxNm} → HTTP ${res.status}`)
+
+  const json: DataGoIndexResponse = await res.json()
+  const code = json.response?.header?.resultCode
+  if (code && code !== '00') {
+    throw new Error(`data.go.kr index series → ${code} ${json.response?.header?.resultMsg ?? ''}`)
+  }
+
+  const items = json.response?.body?.items
+  const list = items && typeof items !== 'string' ? items.item ?? [] : []
+
+  // ※ data.go.kr의 idxNm 파라미터는 부분(LIKE) 매칭이라 'KOSPI시리즈' 안의 여러 지수
+  //   (코스피·코스피 200·코스피 100 …)가 함께 내려온다. 분류(idxCsf)+이름(idxNm) 모두
+  //   정확히 일치하는 행만 채택해야 단일 지수 시계열이 된다(하루당 1행).
+  const rows: { basDt: string; clpr: number }[] = []
+  for (const it of list) {
+    if (it.idxCsf !== idxCsf || it.idxNm !== idxNm) continue
+    const clpr = Number(it.clpr)
+    if (!clpr) continue
+    rows.push({ basDt: it.basDt, clpr })
+  }
+  rows.sort((a, b) => a.basDt.localeCompare(b.basDt))   // 오래된→최신
+  return rows
+}
+
 // 지수 데이터셋을 preferredBasDt부터 최대 8일 뒤로 가며 데이터 있는 첫 날로 확보.
 // (지수 서비스가 종목 서비스와 반영 시점이 다를 수 있어 독립적으로 영업일을 찾는다.)
 async function fetchLatestIndex(preferredBasDt: string): Promise<{ basDt: string; rows: PersistedIndexRow[] }> {
