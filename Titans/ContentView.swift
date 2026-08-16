@@ -213,31 +213,36 @@ enum Market: String, CaseIterable, Identifiable {
                 fullName: "전체 시장",
                 basis: "미국(NASDAQ·NYSE) 실시간 시가총액과 한국(KOSPI·KOSDAQ) 종가 기준 시가총액을 함께 모아 시총 상위 기업을 보여줍니다.",
                 schedule: "미국 종목은 실시간, 한국 종목은 영업일 종가 기준입니다.",
-                officialName: nil, officialURLString: nil)
+                officialName: nil, officialURLString: nil,
+                chartNote: "홈 상단 그래프는 미국 S&P 500 지수를 추종하는 대표 ETF(SPY)의 최근 30 거래일 종가 흐름으로, 전체 시장 분위기를 한눈에 보여줍니다. 점선은 이 구간 시작일 종가 기준선이며, 라인이 점선 위면 구간 상승(빨강)·아래면 하락(파랑)입니다.")
         case .nasdaq:
             return MarketInfo(
                 fullName: "Nasdaq Stock Market",
                 basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
                 schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
-                officialName: "nasdaq.com", officialURLString: "https://www.nasdaq.com")
+                officialName: "nasdaq.com", officialURLString: "https://www.nasdaq.com",
+                chartNote: "홈 상단 그래프는 나스닥 100 지수를 추종하는 대표 ETF(QQQ)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .nyse:
             return MarketInfo(
                 fullName: "New York Stock Exchange",
                 basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
                 schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
-                officialName: "nyse.com", officialURLString: "https://www.nyse.com")
+                officialName: "nyse.com", officialURLString: "https://www.nyse.com",
+                chartNote: "홈 상단 그래프는 다우존스 산업평균지수(DJIA)를 추종하는 대표 ETF(DIA)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .kospi:
             return MarketInfo(
                 fullName: "유가증권시장 (KRX)",
                 basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
                 schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
-                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr")
+                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr",
+                chartNote: "홈 상단 그래프는 코스피 지수의 최근 30 거래일 종가(EOD) 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .kosdaq:
             return MarketInfo(
                 fullName: "코스닥시장 (KRX)",
                 basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
                 schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
-                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr")
+                officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr",
+                chartNote: "홈 상단 그래프는 코스닥 지수의 최근 30 거래일 종가(EOD) 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
         case .jpx:
             return MarketInfo(
                 fullName: "Japan Exchange Group (도쿄증권거래소)",
@@ -289,6 +294,7 @@ struct MarketInfo {
     let schedule: String              // 갱신 주기(한국시간 안내)
     let officialName: String?         // 공식 사이트 표시명 (없으면 링크 미노출)
     let officialURLString: String?    // 공식 홈페이지 URL 문자열
+    var chartNote: String? = nil      // 홈 상단 지수 그래프 설명(어떤 지수·기간). 그래프 있는 거래소만.
 }
 
 // MARK: - Sort State
@@ -909,7 +915,7 @@ struct ContentView: View {
         if let top = list.first(where: { $0.rank == 1 }),
            let prev = top.previousRank, prev > 1 {
             result.append(Highlight(kind: .overtake, company: top,
-                title: "정상 탈환", detail: "\(top.name), 1위 등극", rankDelta: prev - 1))
+                title: "정상 탈환", detail: "1위 등극", rankDelta: prev - 1))
             used.insert(top.ticker)
         }
 
@@ -926,7 +932,7 @@ struct ContentView: View {
         }).max(by: { $0.1 < $1.1 }), !used.contains(breakout.0.ticker) {
             let c = breakout.0
             result.append(Highlight(kind: .capMilestone, company: c,
-                title: "시총 돌파", detail: "\(c.name), \(breakout.1)조 달러 돌파", rankDelta: nil))
+                title: "시총 돌파", detail: "\(breakout.1)조 달러 돌파", rankDelta: nil))
             used.insert(c.ticker)
         }
 
@@ -939,7 +945,7 @@ struct ContentView: View {
         }).max(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank > $1.0.rank }), !used.contains(riser.0.ticker) {
             let c = riser.0
             result.append(Highlight(kind: .topGainer, company: c,
-                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
+                title: "최대 상승", detail: "\(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
             used.insert(c.ticker)
         }
 
@@ -952,7 +958,7 @@ struct ContentView: View {
         }).min(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank < $1.0.rank }), !used.contains(faller.0.ticker) {
             let c = faller.0
             result.append(Highlight(kind: .topLoser, company: c,
-                title: "최대 하락", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
+                title: "최대 하락", detail: "\(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
             used.insert(c.ticker)
         }
 
@@ -962,7 +968,7 @@ struct ContentView: View {
             let up = mover.change >= 0
             // 기업명 → 순위 → 퍼센테이지 순서: 유저가 순위를 인지하고 리스트에서 바로 찾아 내려갈 수 있게.
             result.append(Highlight(kind: .bigMove, company: mover,
-                title: up ? "시총 급등" : "시총 급락", detail: "\(mover.name) \(mover.rank)위",
+                title: up ? "시총 급등" : "시총 급락", detail: "\(mover.rank)위",
                 rankDelta: nil, percentMove: mover.change))
             used.insert(mover.ticker)
         }
@@ -981,7 +987,7 @@ struct ContentView: View {
             }
             if let b = best {
                 result.append(Highlight(kind: .newEntry, company: b.c,
-                    title: "Top\(b.t) 진입", detail: b.c.name, rankDelta: nil))
+                    title: "Top\(b.t) 진입", detail: "\(b.c.rank)위", rankDelta: nil))
                 used.insert(b.c.ticker)
             }
         }
@@ -990,7 +996,7 @@ struct ContentView: View {
         if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
             let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
             result.append(Highlight(kind: .leader, company: leader,
-                title: "현재 1위", detail: "\(leader.name) · \(cap)", rankDelta: nil))
+                title: "현재 1위", detail: "1위 · \(cap)", rankDelta: nil))
         }
         return result
     }
@@ -1053,8 +1059,18 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 32)
+            // 마지막 항목이 하단 페이드 구간을 지나 완전히 읽히도록 여유만 둔다(임의 흰 여백 제거).
+            .padding(.bottom, 44)
         }
+        // 토스식 하단 페이드 — 거래소 필터의 좌우 페이드와 동일한 방식(그라데이션 마스크).
+        // 마지막 행이 배경으로 서서히 사라지며 "아래로 더 있다"를 인지시킨다. 상단은 불투명 유지.
+        .mask(
+            VStack(spacing: 0) {
+                Rectangle().fill(Color.black)
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 40)
+            }
+        )
         .background(theme.background)
     }
 
@@ -1087,10 +1103,11 @@ struct ContentView: View {
                 if selectedMarket.chartParam != nil {
                     MarketIndexSparkline(chart: viewModel.charts[selectedMarket], vScale: vScale)
                         .frame(width: 130 * vScale)
+                        .offset(x: -18 * vScale)   // 그래프를 살짝 왼쪽으로(기기별 비율 유지)
                 }
             }
             .frame(height: 92 * vScale)
-            .padding(.leading, 2)      // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
+            .padding(.leading, 28)      // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
             .padding(.trailing, 17)
             .padding(.top, 2 * vScale)
             .padding(.bottom, 4 * vScale)
@@ -1114,6 +1131,9 @@ struct ContentView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(maxHeight: .infinity)
+            // 리스트를 화면 맨 아래까지 흘려보내 하단 흰 여백(안전영역 갭)을 없애고 표시 공간 확보.
+            // (하단 페이드가 홈 인디케이터 위로 자연스럽게 콘텐츠를 감싼다.)
+            .ignoresSafeArea(.container, edges: .bottom)
         }
         .foregroundStyle(theme.label)
         .environment(\.appTheme, theme)
@@ -1183,7 +1203,8 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(3.5))
                 let count = highlights(for: selectedMarket).count
                 guard count > 1 else { continue }
-                withAnimation(.easeInOut(duration: 0.4)) {
+                // 토스식 부드러운 스프링(오버슈트 없는 smooth) — 세로 슬라이드가 자연스럽게 안착.
+                withAnimation(.smooth(duration: 0.55, extraBounce: 0.1)) {
                     highlightIndex = (highlightIndex + 1) % count
                 }
             }
@@ -1610,7 +1631,7 @@ struct LiveIndicatorBar: View {
                 }
                 .buttonStyle(.plain)
             }
-            .font(.system(size: 20, weight: .medium))
+            .font(.system(size: 22, weight: .medium))
         }
         .padding(.leading, 28)
         .padding(.trailing, 32)   // 검색·메뉴 버튼을 우측 끝에서 조금 안쪽으로. 통화 토글(테두리 pill)은 글리프보다 시각적으로 왼쪽에 보여, trailing을 더 작게(17) 줘 우측을 시각적으로 맞춘다. (통화 토글과 함께 8pt씩 오른쪽으로 이동: 40→32.)
@@ -1685,7 +1706,7 @@ struct MarketStatusView: View {
             Image(market.flagImageName)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 18, height: 18)
+                .frame(width: 20, height: 20)
                 .clipShape(Circle())
                 .scaleEffect(market == .all ? 1.33 : 1.0)
                 .opacity(market.comingSoon ? 0.35 : 1.0)
@@ -1705,7 +1726,7 @@ struct MarketStatusView: View {
             if let info = market.info {
                 Button { showInfo = true } label: {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(theme.secondaryLabel)
                 }
                 .buttonStyle(.plain)
@@ -1761,6 +1782,12 @@ struct MarketInfoSheet: View {
             Divider().overlay(theme.stroke).padding(.vertical, 14)
             infoRow(icon: "clock.arrow.circlepath", title: "갱신 주기", body: info.schedule)
 
+            // 홈 상단 지수 그래프 설명 — 그래프가 있는 거래소만 노출.
+            if let chartNote = info.chartNote {
+                Divider().overlay(theme.stroke).padding(.vertical, 14)
+                infoRow(icon: "chart.xyaxis.line", title: "지수 그래프", body: chartNote)
+            }
+
             // USD 환산 안내 — 공식 사이트 수치와의 소폭 차이 이유를 미리 밝혀 신뢰 확보.
             Text("시가총액은 미국 달러(USD)로 환산해 순위를 매깁니다. 환율 변동 및 발행주식수 반영 시점 차이로 공식 사이트 수치와 소폭 다를 수 있습니다.")
                 .font(.system(size: 11, weight: .regular))
@@ -1795,7 +1822,7 @@ struct MarketInfoSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(theme.background)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -1901,19 +1928,18 @@ struct MarketHighlightTicker: View {
     var vScale: CGFloat = 1
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .leading) {
             ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
                 if i == currentIndex {
                     HighlightRow(highlight: h)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal:   .move(edge: .top).combined(with: .opacity)
-                        ))
+                        // 토스식 세로 컨베이어: 새 항목이 아래에서 밀려 올라오고 이전 항목은
+                        // 위로 밀려 나간다(동기화). opacity를 더해 가장자리 잘림 없이 부드럽게.
+                        .transition(.push(from: .bottom).combined(with: .opacity))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 46 * vScale)
+        .frame(height: 62 * vScale)
         .clipped()
     }
 }
@@ -1923,49 +1949,82 @@ struct HighlightRow: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            // 1줄: 카테고리 (이모지 + 타이틀 칩)
-            HStack(spacing: 6) {
-                Text(highlight.emoji)
-                    .font(.system(size: 13))
-                Text(highlight.title)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(highlight.accent)
-                    .fixedSize()
-            }
-            // 2줄: 기업정보 (이름·순위 + 델타/등락률)
-            HStack(spacing: 6) {
-                Text(highlight.detail)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.label)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                // 순위 델타 — 상승=빨강 ▲, 하락=파랑 ▼ (화살표·숫자 색 통일).
-                if let d = highlight.rankDelta, d != 0 {
-                    let up = d > 0
-                    HStack(spacing: 1) {
-                        Image(systemName: up ? "arrow.up" : "arrow.down")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("\(abs(d))")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
-                    .fixedSize()
-                } else if let p = highlight.percentMove {
-                    // 대형 등락률 — 상승=빨강 ▲%, 하락=파랑 ▼% (가격 등락 화살표는 대각선).
-                    let up = p >= 0
-                    HStack(spacing: 1) {
-                        Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 11, weight: .bold))
-                        Text(String(format: "%.2f%%", abs(p)))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
-                    .fixedSize()
-                }
-            }
+        // 기본은 2줄(카테고리 / 기업명+등락수치). 둘째 줄이 우측 지수그래프와 충돌할 만큼
+        // 길어지면 ViewThatFits가 자동으로 3줄(카테고리 / 기업명 / 등락수치)로 전환한다.
+        ViewThatFits(in: .horizontal) {
+            twoLine
+            threeLine
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // 카테고리 칩 (이모지 제거 — 텍스트만)
+    private var categoryChip: some View {
+        Text(highlight.title)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(highlight.accent)
+            .fixedSize()
+    }
+
+    // 기업명
+    private func companyName(scale: CGFloat) -> some View {
+        Text(highlight.company.name)
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .foregroundStyle(theme.label)
+            .lineLimit(1)
+            .minimumScaleFactor(scale)
+            .fixedSize(horizontal: scale >= 1, vertical: false)
+    }
+
+    // 등락수치 = 순위/부가정보(detail) + 델타·등락률 화살표
+    @ViewBuilder private var changeInfo: some View {
+        Text(highlight.detail)
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(theme.secondaryLabel)
+            .lineLimit(1)
+            .fixedSize()
+        if let d = highlight.rankDelta, d != 0 {
+            let up = d > 0
+            HStack(spacing: 1) {
+                Image(systemName: up ? "arrow.up" : "arrow.down")
+                    .font(.system(size: 11, weight: .bold))
+                Text("\(abs(d))")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
+            .fixedSize()
+        } else if let p = highlight.percentMove {
+            let up = p >= 0
+            HStack(spacing: 1) {
+                Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: 11, weight: .bold))
+                Text(String(format: "%.2f%%", abs(p)))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+            }
+            .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
+            .fixedSize()
+        }
+    }
+
+    // 2줄: 카테고리 / (기업명 + 등락수치). 한 줄이 넓으면 ViewThatFits가 이걸 버리고 threeLine 선택.
+    private var twoLine: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            categoryChip
+            HStack(spacing: 6) {
+                companyName(scale: 1)
+                changeInfo
+            }
+            .fixedSize(horizontal: true, vertical: false)   // 실제 폭을 그대로 보고해 ViewThatFits가 충돌을 판정
+        }
+    }
+
+    // 3줄: 카테고리 / 기업명 / 등락수치
+    private var threeLine: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            categoryChip
+            companyName(scale: 0.7)
+            HStack(spacing: 5) { changeInfo }
+        }
     }
 }
 
@@ -1981,23 +2040,35 @@ struct MarketIndexSparkline: View {
     private var up: Bool { (chart?.changePercent ?? 0) >= 0 }
     private var lineColor: Color { up ? Highlight.increaseColor : Highlight.decreaseColor }
 
+    // 지수 수치(최신 종가) 표기용 — 천 단위 구분 + 소수 2자리.
+    private static let valueFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        return f
+    }()
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 3) {
-            // 상단: 대변 지수명 + 기간 변화율 (사진1의 "↗7.39%")
-            HStack(spacing: 3) {
-                Text(chart?.name ?? " ")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(theme.secondaryLabel)
-                    .lineLimit(1)
-                if let chart {
+            // 상단: 지수 실제 수치(최신 종가) + 기간 변화율 — 상승 빨강 / 하락 파랑.
+            // (지수명은 홈에서 빼고 각 거래소 ⓘ 상세에서 설명한다.)
+            if let chart, let latest = chart.points.last {
+                HStack(spacing: 4) {
+                    Text(Self.valueFormatter.string(from: NSNumber(value: latest)) ?? String(format: "%.2f", latest))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                     HStack(spacing: 1) {
                         Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                         Text(String(format: "%.2f%%", abs(chart.changePercent)))
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(lineColor)
                 }
+                .foregroundStyle(lineColor)
+                .lineLimit(1)
+            } else {
+                // 로딩/실패 시 상단 라벨 높이만 유지(레이아웃 점프 방지).
+                Text(" ").font(.system(size: 13, weight: .bold, design: .rounded))
             }
             // 라인 — 데이터가 없으면(로딩/실패) 빈 프레임만 유지해 레이아웃 점프 방지.
             SparklineShapeView(points: chart?.points ?? [], color: lineColor)
