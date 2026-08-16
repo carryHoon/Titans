@@ -850,6 +850,7 @@ struct ContentView: View {
         // 하나라도 previousRank가 있으면 "전일 비교 기준(baseline)"이 존재한다고 본다.
         // (배포 직후 KR처럼 전부 nil이면 순위변동 사건을 만들지 않고 현재 1위만 보여준다.)
         let hasBaseline = list.contains { $0.previousRank != nil }
+        let n = list.count
         var result: [Highlight] = []
         var used = Set<String>()
 
@@ -857,11 +858,11 @@ struct ContentView: View {
         if let top = list.first(where: { $0.rank == 1 }),
            let prev = top.previousRank, prev > 1 {
             result.append(Highlight(kind: .overtake, company: top,
-                title: "정상 탈환", detail: "\(top.name), 1위 등극", deltaUp: prev - 1))
+                title: "정상 탈환", detail: "\(top.name), 1위 등극", rankDelta: prev - 1))
             used.insert(top.ticker)
         }
 
-        // 2) 최대 상승 — (previousRank - rank)가 가장 큰 종목.
+        // 2) 급상승 — (previousRank - rank)가 가장 큰(가장 많이 오른) 종목.
         if let riser = list.compactMap({ c -> (Company, Int)? in
             guard let p = c.previousRank else { return nil }
             let d = p - c.rank
@@ -869,23 +870,46 @@ struct ContentView: View {
         }).max(by: { $0.1 < $1.1 }), !used.contains(riser.0.ticker) {
             let c = riser.0
             result.append(Highlight(kind: .topGainer, company: c,
-                title: "최대 상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", deltaUp: riser.1))
+                title: "급상승", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
             used.insert(c.ticker)
         }
 
-        // 3) 신규 진입 — baseline이 있는데 이 종목만 전일 순위가 없던 경우.
-        if hasBaseline, let newbie = list.first(where: { $0.previousRank == nil }),
-           !used.contains(newbie.ticker) {
-            result.append(Highlight(kind: .newEntry, company: newbie,
-                title: "신규 진입", detail: "\(newbie.name), Top\(list.count) 첫 진입", deltaUp: nil))
-            used.insert(newbie.ticker)
+        // 3) 급하락 — (previousRank - rank)가 가장 작은(가장 많이 내린) 종목. rankDelta 음수.
+        if let faller = list.compactMap({ c -> (Company, Int)? in
+            guard let p = c.previousRank else { return nil }
+            let d = p - c.rank
+            return d < 0 ? (c, d) : nil
+        }).min(by: { $0.1 < $1.1 }), !used.contains(faller.0.ticker) {
+            let c = faller.0
+            result.append(Highlight(kind: .topLoser, company: c,
+                title: "급하락", detail: "\(c.name) \(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
+            used.insert(c.ticker)
         }
 
-        // 4) 폴백/기본 — 현재 1위(서열). 변화가 없어도 항상 채워 절대 비지 않게 한다.
+        // 4) Top-N 진입 — 오늘 Top10/50/100(현재 목록 크기 내 유효한 것) 문턱을 처음 넘은 종목.
+        //    prevEff = previousRank ?? (n+1)(추적 밖). 가장 권위 있는(작은) 문턱 크로싱을 고른다.
+        if hasBaseline {
+            let thresholds = [10, 50, 100].filter { $0 <= n }
+            var best: (c: Company, t: Int)? = nil
+            for c in list where !used.contains(c.ticker) {
+                let prevEff = c.previousRank ?? (n + 1)
+                guard let t = thresholds.first(where: { prevEff > $0 && c.rank <= $0 }) else { continue }
+                if best == nil || t < best!.t || (t == best!.t && c.rank < best!.c.rank) {
+                    best = (c, t)
+                }
+            }
+            if let b = best {
+                result.append(Highlight(kind: .newEntry, company: b.c,
+                    title: "Top\(b.t) 진입", detail: b.c.name, rankDelta: nil))
+                used.insert(b.c.ticker)
+            }
+        }
+
+        // 5) 폴백/기본 — 현재 1위(서열). 변화가 없어도 항상 채워 절대 비지 않게 한다.
         if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
             let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
             result.append(Highlight(kind: .leader, company: leader,
-                title: "현재 1위", detail: "\(leader.name) · \(cap)", deltaUp: nil))
+                title: "현재 1위", detail: "\(leader.name) · \(cap)", rankDelta: nil))
         }
         return result
     }
@@ -977,10 +1001,7 @@ struct ContentView: View {
                     vScale: vScale
                 )
             }
-            .padding(.leading, 4)    // 하이라이트 행을 상단 바보다 살짝 왼쪽으로(내부 18 + 4 = 22)
-            // 통화 토글은 테두리 pill이라 메뉴 아이콘(글리프)보다 시각적으로 살짝 왼쪽에 보인다.
-            // trailing을 검색/메뉴(32)보다 15pt 작게(17) 줘서 오른쪽으로 밀어 두 우측 끝을 시각적으로 맞춘다.
-            // (우측 여백은 화면 끝 기준 고정 pt라 모든 아이폰 기기에서 동일하게 적용된다. 검색/메뉴와 함께 8pt씩 오른쪽으로 이동: 25→17.)
+            .padding(.leading, 8.5)    // 하이라이트 행을 상단 바보다 살짝 왼쪽으로
             .padding(.trailing, 17)
             .padding(.top, -4 * vScale)
             .padding(.bottom, 2 * vScale)
@@ -1740,30 +1761,34 @@ struct SingleMarketTicker: View {
 
 /// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
 struct Highlight: Identifiable {
-    enum Kind { case overtake, topGainer, newEntry, leader }
-    /// 하이라이트 섹션의 "증가(상승)" 통일 색 — 상승 화살표·숫자는 모두 이 빨강으로 표시.
+    enum Kind { case overtake, topGainer, topLoser, newEntry, leader }
+    /// 하이라이트 섹션 통일 색 — 상승(화살표·숫자)=빨강, 하락=파랑.
     static let increaseColor = Color(red: 0.95, green: 0.20, blue: 0.20)
+    static let decreaseColor = Color(red: 0.10, green: 0.43, blue: 0.92)
+    static let entryColor    = Color(red: 0.12, green: 0.66, blue: 0.42)  // 신규 진입=초록(하락 파랑과 혼동 방지)
     let id = UUID()
     let kind: Kind
     let company: Company
     let title: String
     let detail: String
-    let deltaUp: Int?   // 순위 상승 칸수(양수). 있으면 빨강 ▲N 으로 detail 뒤에 붙인다.
+    let rankDelta: Int?   // 양수=상승 칸수(빨강 ▲), 음수=하락 칸수(파랑 ▼), nil=표시 없음. (prev - rank)
 
     var emoji: String {
         switch kind {
         case .overtake:  return "⚔️"
         case .topGainer: return "🔥"
+        case .topLoser:  return "📉"
         case .newEntry:  return "🆕"
         case .leader:    return "👑"
         }
     }
 
-    /// 타이틀 칩 색. 상승/추월=빨강(증가 통일색), 신규=파랑, 1위=골드.
+    /// 타이틀 칩 색.
     var accent: Color {
         switch kind {
         case .overtake, .topGainer: return Self.increaseColor
-        case .newEntry:             return Color(red: 0.10, green: 0.43, blue: 0.92)
+        case .topLoser:             return Self.decreaseColor
+        case .newEntry:             return Self.entryColor
         case .leader:               return Color(red: 0.86, green: 0.62, blue: 0.10)
         }
     }
@@ -1814,15 +1839,16 @@ struct HighlightRow: View {
                 .foregroundStyle(theme.label)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-            // 상승 델타(▲N) — 하이라이트 섹션 증가 표시는 화살표·숫자 모두 빨강 통일.
-            if let up = highlight.deltaUp {
+            // 순위 델타 — 상승=빨강 ▲, 하락=파랑 ▼ (화살표·숫자 색 통일).
+            if let d = highlight.rankDelta, d != 0 {
+                let up = d > 0
                 HStack(spacing: 1) {
-                    Image(systemName: "arrow.up")
+                    Image(systemName: up ? "arrow.up" : "arrow.down")
                         .font(.system(size: 11, weight: .bold))
-                    Text("\(up)")
+                    Text("\(abs(d))")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
-                .foregroundStyle(Highlight.increaseColor)
+                .foregroundStyle(up ? Highlight.increaseColor : Highlight.decreaseColor)
                 .fixedSize()
             }
             Spacer(minLength: 0)
