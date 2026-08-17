@@ -121,6 +121,13 @@ export async function getUsStats(): Promise<Record<string, number>> {
   return current?.stats ?? {}
 }
 
+// 스냅샷을 마지막으로 굳힌 시각(ms). 순위 히스토리 캐처가 US 계열 피드(ALL/NASDAQ/NYSE)의
+// 거래일(ET 날짜)을 산출하는 데 쓴다. 스냅샷이 없으면 null.
+export async function getUsStatsFetchedAt(): Promise<number | null> {
+  await ensureLoaded()
+  return current?.fetchedAt ?? null
+}
+
 // ─── 로컬/상시 프로세스 부팅 워밍 ───────────────────────────────────────────────
 // 서버리스(Vercel)에선 크론이 /api/internal/refresh-us 를 때리므로 워밍 불필요·무의미.
 // 로컬 개발(next dev/start)·VPS에서만: 부팅 시 스냅샷이 없거나 24h 초과면 1회 새로 받는다.

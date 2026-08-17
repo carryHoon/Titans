@@ -1,0 +1,41 @@
+name: Capture rank history
+
+# 전 피드(ALL + 10거래소)의 EOD 순위를 스냅샷에서 재현해 Upstash의 rank-hist:<feed> 링버퍼에 적재한다.
+# 순위변동 서사("어제 8위→오늘 5위", "재추월")를 위한 과거 순위를 매일 굳힌다(파생값만 저장 — TD 허용 범위).
+on:
+  schedule:
+    # 23:00 UTC 평일 — refresh-us(22:00 UTC, ~23분 소요) 및 타 거래소 갱신이 끝난 뒤.
+    # 이 시각의 ET 날짜 = 방금 마감한 미국 정규장 거래일과 일치한다.
+    - cron: '0 23 * * 1-5'
+  workflow_dispatch: {}  # 수동 실행 허용
+
+# 동시 중복 실행 방지.
+concurrency:
+  group: capture-rank-history
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: titans-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: titans-web/package-lock.json
+
+      - run: npm ci
+
+      - name: Capture rank history snapshot
+        run: npm run capture:history
+        env:
+          TWELVE_DATA_API_KEY:      ${{ secrets.TWELVE_DATA_API_KEY }}
+          DATA_GO_KR_KEY:           ${{ secrets.DATA_GO_KR_KEY }}
+          UPSTASH_REDIS_REST_URL:   ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
