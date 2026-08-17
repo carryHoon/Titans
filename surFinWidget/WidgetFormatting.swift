@@ -8,9 +8,41 @@
 
 import SwiftUI
 
-// MARK: - Currency (앱과 동일)
+// MARK: - Currency (앱과 동일 — rawValue = ISO 코드, exchangeRates 맵 키와 일치)
 
-enum Currency { case usd, krw }
+enum Currency: String {
+    case usd = "USD"
+    case krw = "KRW"
+    case jpy = "JPY"
+    case cny = "CNY"
+    case eur = "EUR"
+
+    /// 동아시아 만진법(1兆=10¹², 1億=10⁸) 표기를 쓰는 통화인지. false면 서구식 T/B/M.
+    var usesEastAsianUnits: Bool {
+        switch self {
+        case .krw, .jpy, .cny: return true
+        case .usd, .eur:       return false
+        }
+    }
+
+    /// 동아시아 통화의 (조 단위 접미사, 억 단위 접미사).
+    var eastAsianUnitWords: (trillion: String, hundredMillion: String) {
+        switch self {
+        case .krw: return ("조원", "억원")
+        case .jpy: return ("조엔", "억엔")
+        case .cny: return ("조위안", "억위안")
+        default:   return ("", "")
+        }
+    }
+
+    /// 서구식 통화의 금액 앞 기호($/€).
+    var westernSymbol: String {
+        switch self {
+        case .eur: return "€"
+        default:   return "$"
+        }
+    }
+}
 
 // MARK: - Color(hex:) (앱과 동일)
 
@@ -67,37 +99,41 @@ private let krwTrillionFormatter: NumberFormatter = {
     return f
 }()
 
-/// 앱 `formatMarketCap`과 동일. 통화별 단위 동적 변환.
+/// 앱 `formatMarketCap`과 동일. 통화별 단위 동적 변환(동아시아 조/억 · 서구식 T/B/M).
 func formatMarketCap(_ marketCapUSD: Double, currency: Currency, exchangeRate: Double) -> String {
-    switch currency {
-    case .usd:
-        let t = marketCapUSD
-        if t >= 1 {
-            return String(format: "$%.2fT", t)
-        } else if t >= 0.001 {
-            return String(format: "$%.2fB", t * 1_000)
-        } else {
-            return String(format: "$%.2fM", t * 1_000_000)
-        }
-    case .krw:
-        let krwTrillion = marketCapUSD * exchangeRate
-        if krwTrillion < 1 {
-            let eok = krwTrillion * 10_000
+    let converted = marketCapUSD * exchangeRate   // 해당 통화의 trillion(兆) 단위 금액
+
+    if currency.usesEastAsianUnits {
+        let words = currency.eastAsianUnitWords
+        if converted < 1 {
+            // 1조 미만: 억 단위 정수로 표시 (1조 = 1만 억)
+            let eok = converted * 10_000
             krwTrillionFormatter.minimumFractionDigits = 0
             krwTrillionFormatter.maximumFractionDigits = 0
             let s = krwTrillionFormatter.string(from: NSNumber(value: eok))
                 ?? "\(Int(eok.rounded()))"
-            return "\(s)억원"
+            return "\(s)\(words.hundredMillion)"
         } else {
             let digits: Int
-            if krwTrillion < 100       { digits = 2 }
-            else if krwTrillion < 1000 { digits = 1 }
-            else                       { digits = 0 }
+            if converted < 100       { digits = 2 }
+            else if converted < 1000 { digits = 1 }
+            else                     { digits = 0 }
             krwTrillionFormatter.minimumFractionDigits = digits
             krwTrillionFormatter.maximumFractionDigits = digits
-            let s = krwTrillionFormatter.string(from: NSNumber(value: krwTrillion))
-                ?? String(format: "%.\(digits)f", krwTrillion)
-            return "\(s)조원"
+            let s = krwTrillionFormatter.string(from: NSNumber(value: converted))
+                ?? String(format: "%.\(digits)f", converted)
+            return "\(s)\(words.trillion)"
+        }
+    } else {
+        // 서구식(USD·EUR): T/B/M
+        let symbol = currency.westernSymbol
+        let t = converted
+        if t >= 1 {
+            return String(format: "\(symbol)%.2fT", t)
+        } else if t >= 0.001 {                     // 1B = 0.001T
+            return String(format: "\(symbol)%.2fB", t * 1_000)
+        } else {
+            return String(format: "\(symbol)%.2fM", t * 1_000_000)
         }
     }
 }
