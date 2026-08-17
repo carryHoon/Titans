@@ -2,7 +2,7 @@
 //  WidgetSnapshotWriter.swift
 //  Titans
 //
-//  앱이 4개 거래소(NASDAQ/NYSE/KOSPI/KOSDAQ)의 Top5 시가총액을 받아 App Group 컨테이너에
+//  앱이 활성 거래소(NASDAQ/NYSE/KOSPI/KOSDAQ/JPX/SSE/SZSE/EURONEXT/FWB/NSE)의 Top 시가총액을 받아 App Group 컨테이너에
 //  스냅샷 JSON으로 쓰고, 각 종목 로고를 앱과 동일한 규칙으로 최종 렌더링해 PNG로 저장한다.
 //  위젯 익스텐션은 네트워크 없이 이 스냅샷/PNG만 읽어 앱과 픽셀 단위로 동일하게 표시한다.
 //
@@ -18,7 +18,10 @@ import WidgetKit
 enum WidgetSnapshotWriter {
 
     /// 위젯에 노출할 거래소와 백엔드 `?exchange=` 파라미터.
-    private static let exchanges: [String] = ["nasdaq", "nyse", "kospi", "kosdaq"]
+    /// 앱 활성 거래소(Market.apiExchangeParam != nil) 10개와 동일하게 유지한다.
+    private static let exchanges: [String] = [
+        "nasdaq", "nyse", "kospi", "kosdaq", "jpx", "sse", "szse", "euronext", "fwb", "nse"
+    ]
 
     /// 크기별 최대 노출 수(Large=Top8)에 맞춰 저장 상한.
     private static let topCount = 8
@@ -42,25 +45,32 @@ enum WidgetSnapshotWriter {
 
         // 환율은 어느 피드든 내려주는 값을 공유. 없으면 마지막 저장값/기본값 사용.
         var resolvedRate = persistedRate()
+        var resolvedRates = persistedRates()   // 다통화 맵(KRW/JPY/CNY/EUR)
 
         var fetched: [String: [WidgetCompany]] = [:]
         var basDts: [String: String?] = [:]
+        var asOfs: [String: String?] = [:]
 
         for param in exchanges {
             guard let result = try? await fetchExchange(param: param) else { continue }
             fetched[param] = result.companies
             basDts[param] = result.basDt
+            asOfs[param] = result.asOf
             if let rate = result.rate { resolvedRate = rate }
+            if let rates = result.rates { resolvedRates = rates }
         }
 
         persistRate(resolvedRate)
+        persistRates(resolvedRates)
 
         // 성공한 거래소만 스냅샷에 반영(실패분은 기존 값 유지).
         for param in exchanges {
             guard let companies = fetched[param] else { continue }
             snapshot.exchanges[param] = WidgetExchangeData(
                 exchangeRate: resolvedRate,
+                exchangeRates: resolvedRates.isEmpty ? nil : resolvedRates,
                 basDt: basDts[param] ?? nil,
+                asOf: asOfs[param] ?? nil,
                 companies: companies
             )
         }
@@ -82,7 +92,7 @@ enum WidgetSnapshotWriter {
     // MARK: - Fetch
 
     private static func fetchExchange(param: String) async throws
-        -> (companies: [WidgetCompany], rate: Double?, basDt: String?) {
+        -> (companies: [WidgetCompany], rate: Double?, rates: [String: Double]?, basDt: String?, asOf: String?) {
         guard let url = URL(string: "\(MarketCapViewModel.apiBase)/api/market-cap?exchange=\(param)")
         else { throw URLError(.badURL) }
 
@@ -110,7 +120,7 @@ enum WidgetSnapshotWriter {
                 domain: api.domain
             )
         }
-        return (companies, decoded.exchangeRate, decoded.basDt)
+        return (companies, decoded.exchangeRate, decoded.exchangeRates, decoded.basDt, decoded.asOf)
     }
 
     // MARK: - Exchange rate persistence (App Group UserDefaults)
@@ -124,6 +134,13 @@ enum WidgetSnapshotWriter {
     }
     private static func persistRate(_ rate: Double) {
         defaults?.set(rate, forKey: "widgetExchangeRate")
+    }
+    private static func persistedRates() -> [String: Double] {
+        (defaults?.dictionary(forKey: "widgetExchangeRates") as? [String: Double]) ?? [:]
+    }
+    private static func persistRates(_ rates: [String: Double]) {
+        guard !rates.isEmpty else { return }
+        defaults?.set(rates, forKey: "widgetExchangeRates")
     }
 
     // MARK: - Logo cache invalidation

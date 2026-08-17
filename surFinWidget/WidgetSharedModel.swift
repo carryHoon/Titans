@@ -36,8 +36,10 @@ struct WidgetCompany: Codable, Identifiable {
 
 /// 한 거래소의 스냅샷. companies는 Top5까지 담고, 위젯이 크기별로 3/5로 슬라이스한다.
 struct WidgetExchangeData: Codable {
-    let exchangeRate: Double    // 원화 환산용 (조원 = marketCapUSD * exchangeRate)
+    let exchangeRate: Double    // 원화 환산용 (조원 = marketCapUSD * exchangeRate). KRW 폴백 겸 하위호환.
+    var exchangeRates: [String: Double]? = nil  // 다통화 rate 맵 {"KRW":..,"JPY":..,"CNY":..,"EUR":..} — 표시 통화 환산용
     let basDt: String?          // KRX 기준일("YYYYMMDD") — 코스피/코스닥만
+    var asOf: String? = nil     // EOD 스냅샷 거래일("YYYY-MM-DD") — JPX/SSE/SZSE/NSE. 헤더 "종가/기준" 라벨용.
     let companies: [WidgetCompany]
 }
 

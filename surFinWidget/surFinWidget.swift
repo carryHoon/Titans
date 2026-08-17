@@ -43,8 +43,10 @@ struct Provider: AppIntentTimelineProvider {
             exchangeTitle: config.exchange.title,
             currency: config.currency.currency,
             exchangeRate: data?.exchangeRate ?? 1450,
+            exchangeRates: data?.exchangeRates ?? [:],
             companies: data?.companies ?? [],
             basDt: data?.basDt,
+            asOf: data?.asOf,
             updatedAt: snapshot?.updatedAt ?? Date()
         )
     }
@@ -57,10 +59,24 @@ struct SimpleEntry: TimelineEntry {
     let exchangeKey: String
     let exchangeTitle: String
     let currency: Currency
-    let exchangeRate: Double
+    let exchangeRate: Double                 // KRW rate (하위호환 폴백)
+    let exchangeRates: [String: Double]       // 다통화 rate 맵
     let companies: [WidgetCompany]
     let basDt: String?
+    let asOf: String?
     let updatedAt: Date
+
+    /// 선택된 표시 통화의 "1 USD 당 금액" rate. 앱 MarketCapViewModel.rate(for:)와 동일 규약.
+    /// USD는 기준 통화라 1.0, 그 외는 rate 맵 → (KRW는 단일 rate) → 상수 폴백 순.
+    var displayRate: Double {
+        switch currency {
+        case .usd: return 1.0
+        case .krw: return exchangeRates["KRW"] ?? exchangeRate
+        default:
+            let fallback: [String: Double] = ["JPY": 155, "CNY": 7.2, "EUR": 0.92]
+            return exchangeRates[currency.rawValue] ?? fallback[currency.rawValue] ?? 1.0
+        }
+    }
 
     /// 프리뷰/플레이스홀더용 더미 데이터.
     static func preview(exchange: WidgetExchangeChoice, currency: Currency) -> SimpleEntry {
@@ -75,8 +91,8 @@ struct SimpleEntry: TimelineEntry {
             WidgetCompany(rank: 8, previousRank: 7, name: "Tesla",    ticker: "TSLA", marketCapUSD: 0.98, changePercent: -1.17, colorHex: "#E82127", domain: nil),
         ]
         return SimpleEntry(date: Date(), exchangeKey: exchange.apiKey, exchangeTitle: exchange.title,
-                           currency: currency, exchangeRate: 1450, companies: sample,
-                           basDt: nil, updatedAt: Date())
+                           currency: currency, exchangeRate: 1450, exchangeRates: [:], companies: sample,
+                           basDt: nil, asOf: nil, updatedAt: Date())
     }
 }
 
@@ -216,8 +232,11 @@ struct surFinWidgetEntryView: View {
         }
     }
 
-    /// US(나스닥/나이스): 시각만 "17:36". KR(코스피/코스닥): "08.04 종가".
-    /// '종가'는 시각·새로고침 버튼과 색상·굵기를 통일한다(secondary + semibold).
+    /// 데이터 형태(dataBasis)에 맞춰 앱 MarketStatusView와 동일한 기준 문구를 만든다.
+    ///  · realtime(NASDAQ/NYSE/EURONEXT/FWB): 시각만 "17:36"
+    ///  · eodDated(KOSPI/KOSDAQ=basDt, SSE/SZSE/NSE=asOf): "08.04 종가"
+    ///  · reportedCap(JPX=asOf): "08.04 기준" — 보고 시가총액(일별 주가 미반영)이라 "종가" 미표기
+    /// 접미사('종가'/'기준')는 시각·새로고침 버튼과 색상·굵기를 통일한다(secondary + semibold).
     private var referenceLabel: some View {
         let (time, suffix) = referenceParts
         return HStack(spacing: 3) {
@@ -234,13 +253,30 @@ struct surFinWidgetEntryView: View {
         .lineLimit(1)
     }
 
-    /// KR은 basDt로 "MM.DD" + "종가", US는 시각만(접미사 없음).
+    /// 거래소별 데이터 형태에 따라 (표시 문자열, 접미사)를 만든다.
+    /// EOD 날짜는 basDt("YYYYMMDD") 또는 asOf("YYYY-MM-DD")에서 "MM.DD"로 정규화한다.
+    /// 날짜가 아직 없으면(첫 로드 등) 실시간처럼 오해하지 않도록 시각으로 폴백한다.
     private var referenceParts: (time: String, suffix: String) {
-        if let bas = entry.basDt, bas.count == 8 {
-            return ("\(bas.dropFirst(4).prefix(2)).\(bas.dropFirst(6).prefix(2))", "종가")
+        switch WidgetDataBasis.of(entry.exchangeKey) {
+        case .eodDated:
+            if let d = Self.mmdd(from: entry.basDt ?? entry.asOf) { return (d, "종가") }
+            return (Self.hhmm.string(from: entry.updatedAt), "")
+        case .reportedCap:
+            if let d = Self.mmdd(from: entry.asOf) { return (d, "기준") }
+            return (Self.hhmm.string(from: entry.updatedAt), "")
+        case .realtime:
+            return (Self.hhmm.string(from: entry.updatedAt), "")
         }
-        return (Self.hhmm.string(from: entry.updatedAt), "")
     }
+
+    /// "YYYYMMDD" 또는 "YYYY-MM-DD" → "MM.DD". 숫자 8자리가 아니면 nil.
+    private static func mmdd(from s: String?) -> String? {
+        guard let s else { return nil }
+        let digits = s.filter { $0.isNumber }
+        guard digits.count == 8 else { return nil }
+        return "\(digits.dropFirst(4).prefix(2)).\(digits.dropFirst(6).prefix(2))"
+    }
+
     private static let hhmm: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
@@ -262,10 +298,10 @@ struct surFinWidgetEntryView: View {
             ForEach(visibleCompanies) { company in
                 if isSmall {
                     WidgetSmallRow(company: company, currency: entry.currency,
-                                   exchangeRate: entry.exchangeRate, theme: theme)
+                                   exchangeRate: entry.displayRate, theme: theme)
                 } else {
                     WidgetCompanyRow(company: company, currency: entry.currency,
-                                     exchangeRate: entry.exchangeRate, metrics: metrics, theme: theme)
+                                     exchangeRate: entry.displayRate, metrics: metrics, theme: theme)
                 }
             }
         }

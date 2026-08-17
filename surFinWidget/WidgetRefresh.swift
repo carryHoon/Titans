@@ -37,7 +37,9 @@ private struct WGCompanyResult: Decodable {
 
 private struct WGMarketCapResponse: Decodable {
     let exchangeRate: Double?
+    let exchangeRates: [String: Double]?   // 다통화 rate 맵 — 표시 통화 환산용
     let basDt: String?
+    let asOf: String?           // EOD 계열(JPX/SSE/SZSE/NSE) 스냅샷 거래일 — 헤더 "종가/기준" 라벨용
     let data: [WGCompanyResult]
 }
 
@@ -61,9 +63,12 @@ enum WidgetDataRefresher {
         }
 
         var snapshot = WidgetStore.load() ?? WidgetSnapshot(exchanges: [:], updatedAt: .distantPast)
-        let rate = decoded.exchangeRate ?? snapshot.exchanges[exchangeKey]?.exchangeRate ?? 1450
+        let existing = snapshot.exchanges[exchangeKey]
+        let rate = decoded.exchangeRate ?? existing?.exchangeRate ?? 1450
+        let rates = decoded.exchangeRates ?? existing?.exchangeRates   // 없으면 직전 맵 보존
         snapshot.exchanges[exchangeKey] = WidgetExchangeData(
-            exchangeRate: rate, basDt: decoded.basDt, companies: Array(companies)
+            exchangeRate: rate, exchangeRates: rates, basDt: decoded.basDt,
+            asOf: decoded.asOf, companies: Array(companies)
         )
         snapshot.updatedAt = Date()
         WidgetStore.save(snapshot)
