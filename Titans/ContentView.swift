@@ -218,8 +218,8 @@ enum Market: String, CaseIterable, Identifiable {
         case .all:
             return MarketInfo(
                 fullName: "전체 시장(Global Market)",
-                basis: "전 세계 시가총액 상위 기업을 확인할 수 있어요. 현재 미국(NASDAQ·NYSE)·한국(KOSPI·KOSDAQ)·사우디아라비아(Tadawul)의 시가총액을 함께 모아 목록을 제공하며, 지속적으로 거래소의 확장·축소를 통해 글로벌 증시 상황을 유동적으로 반영해요.",
-                schedule: "미국 실시간, 한국 영업일 종가, 사우디아라비아 영업일 종가 기준이에요.",
+                basis: "전 세계 시가총액 상위 기업을 한눈에 볼 수 있어요. 현재 미국(NASDAQ·NYSE) 실시간 시가총액과 한국(KOSPI·KOSDAQ) 종가 시가총액을 함께 모으고, 여기에 사우디 아람코처럼 글로벌 시총 최상위권 종목을 더해 순위를 보여줘요. 지원 범위는 앞으로 거래소를 넓혀가며 계속 확장할 거예요.",
+                schedule: "미국 종목은 실시간, 한국 종목은 영업일 종가 기준이에요. 사우디 아람코는 사우디 증시(Tadawul)의 영업일 종가 기준이에요.",
                 officialName: nil, officialURLString: nil,
                 chartNote: "미국 S&P 500 지수를 추종하는 대표 ETF(SPY)예요. 글로벌 증시 동향을 가장 잘 보여주는 지표로, 최근 30 거래일 종가 기준으로 업데이트돼요.")
         case .nasdaq:
