@@ -217,81 +217,81 @@ enum Market: String, CaseIterable, Identifiable {
         switch self {
         case .all:
             return MarketInfo(
-                fullName: "전체 시장",
-                basis: "미국(NASDAQ·NYSE) 실시간 시가총액과 한국(KOSPI·KOSDAQ) 종가 기준 시가총액을 함께 모아 시총 상위 기업을 보여줍니다.",
-                schedule: "미국 종목은 실시간, 한국 종목은 영업일 종가 기준입니다.",
+                fullName: "전체 시장(Global Market)",
+                basis: "전 세계 시가총액 상위 기업을 확인할 수 있어요. 현재 미국(NASDAQ·NYSE)·한국(KOSPI·KOSDAQ)·사우디아라비아(Tadawul)의 시가총액을 함께 모아 목록을 제공하며, 지속적으로 거래소의 확장·축소를 통해 글로벌 증시 상황을 유동적으로 반영해요.",
+                schedule: "미국 실시간, 한국 영업일 종가, 사우디아라비아 영업일 종가 기준이에요.",
                 officialName: nil, officialURLString: nil,
-                chartNote: "홈 상단 그래프는 미국 S&P 500 지수를 추종하는 대표 ETF(SPY)의 최근 30 거래일 종가 흐름으로, 전체 시장 분위기를 한눈에 보여줍니다. 점선은 이 구간 시작일 종가 기준선이며, 라인이 점선 위면 구간 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "미국 S&P 500 지수를 추종하는 대표 ETF(SPY)예요. 글로벌 증시 동향을 가장 잘 보여주는 지표로, 최근 30 거래일 종가 기준으로 업데이트돼요.")
         case .nasdaq:
             return MarketInfo(
-                fullName: "Nasdaq Stock Market",
-                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
-                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
+                fullName: "나스닥(Nasdaq Stock Market)",
+                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액이에요.",
+                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신돼요.",
                 officialName: "nasdaq.com", officialURLString: "https://www.nasdaq.com",
-                chartNote: "홈 상단 그래프는 나스닥 100 지수를 추종하는 대표 ETF(QQQ)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "나스닥 100 지수를 추종하는 대표 ETF(QQQ)예요. 나스닥 동향을 가장 잘 보여주는 지표로, 최근 30 거래일 종가 기준으로 업데이트돼요.")
         case .nyse:
             return MarketInfo(
-                fullName: "New York Stock Exchange",
-                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액입니다.",
-                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신됩니다.",
+                fullName: "뉴욕 증권거래소(New York Stock Exchange)",
+                basis: "각 종목의 발행주식수에 실시간 주가를 곱해 산출한 실시간 시가총액이에요.",
+                schedule: "미국 정규장 시간에는 실시간으로, 장 마감(한국시간 새벽) 후 기준값이 갱신돼요.",
                 officialName: "nyse.com", officialURLString: "https://www.nyse.com",
-                chartNote: "홈 상단 그래프는 다우존스 산업평균지수(DJIA)를 추종하는 대표 ETF(DIA)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "다우존스 산업평균지수(DJIA)를 추종하는 대표 ETF(DIA)예요. NYSE 동향을 가장 잘 보여주는 지표로, 최근 30 거래일 종가 기준으로 업데이트돼요.")
         case .kospi:
             return MarketInfo(
-                fullName: "유가증권시장 (KRX)",
-                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
-                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
+                fullName: "유가증권시장(Korea Composite Stock Price Index)",
+                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액이에요.",
+                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신돼요.",
                 officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr",
-                chartNote: "홈 상단 그래프는 코스피 지수의 최근 30 거래일 종가(EOD) 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "코스피 지수의 최근 30 거래일 종가 흐름이에요.")
         case .kosdaq:
             return MarketInfo(
-                fullName: "코스닥시장 (KRX)",
-                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액입니다.",
-                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신됩니다.",
+                fullName: "코스닥시장(Korea Securities Dealers Automated Quotations)",
+                basis: "한국거래소가 발표하는 공식 종가 기준 시가총액이에요.",
+                schedule: "영업일 오후(한국시간 13시경)에 직전 거래일 종가 데이터가 갱신돼요.",
                 officialName: "data.krx.co.kr", officialURLString: "http://data.krx.co.kr",
-                chartNote: "홈 상단 그래프는 코스닥 지수의 최근 30 거래일 종가(EOD) 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "코스닥 지수의 최근 30 거래일 종가(EOD) 흐름이에요.")
         case .jpx:
             return MarketInfo(
-                fullName: "Japan Exchange Group (도쿄증권거래소)",
-                basis: "도쿄증권거래소 상장 기업의 시가총액입니다. 데이터 제공사가 보고하는 발행주식수 기반 시가총액 값을 사용하며, 일간 주가 변동은 실시간으로 반영되지 않습니다. 순위는 최신 기준 시가총액 크기로 정렬됩니다.",
-                schedule: "매 거래일(한국시간 오후) 데이터를 확인해 갱신하지만, 제공사 시가총액 지표 특성상 값이 매일 바뀌지 않을 수 있습니다.",
+                fullName: "일본 거래소 그룹(Japan Exchange Group)",
+                basis: "도쿄 증권거래소 상장 기업의 시가총액이에요. 데이터 제공사가 보고하는 발행주식수 기반 시가총액 값을 사용하며, 일간 주가 변동은 실시간으로 반영되지 않아요. 순위는 최신 기준 시가총액 크기로 정렬돼요.",
+                schedule: "매 거래일(한국시간 오후) 데이터를 확인해 갱신하지만, 제공사 시가총액 지표 특성상 값이 매일 바뀌지 않을 수 있어요.",
                 officialName: "jpx.co.jp", officialURLString: "https://www.jpx.co.jp",
-                chartNote: "홈 상단 그래프는 일본 증시를 대표하는 MSCI 일본 지수를 추종하는 대표 ETF(EWJ)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "일본 증시를 대표하는 MSCI 일본 지수를 추종하는 대표 ETF(EWJ)의 최근 30 거래일 종가 흐름이에요.")
         case .sse:
             return MarketInfo(
-                fullName: "Shanghai Stock Exchange (상하이증권거래소)",
-                basis: "상하이 A주 종가 기준 시가총액입니다.",
-                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
+                fullName: "상하이 증권거래소(Shanghai Stock Exchange)",
+                basis: "상하이 A주 종가 기준 시가총액이에요.",
+                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신돼요.",
                 officialName: "english.sse.com.cn", officialURLString: "http://english.sse.com.cn",
-                chartNote: "홈 상단 그래프는 중국 본토 A주 대형주를 대표하는 CSI 300 지수를 추종하는 대표 ETF(ASHR)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "중국 본토 A주 대형주를 대표하는 CSI 300 지수를 추종하는 대표 ETF(ASHR)의 최근 30 거래일 종가 흐름이에요.")
         case .szse:
             return MarketInfo(
-                fullName: "Shenzhen Stock Exchange (선전증권거래소)",
-                basis: "선전 A주 종가 기준 시가총액입니다.",
-                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신됩니다.",
+                fullName: "선전 증권거래소(Shenzhen Stock Exchange)",
+                basis: "선전 A주 종가 기준 시가총액이에요.",
+                schedule: "중국 A주 마감 후 매 거래일(한국시간 저녁) 갱신돼요.",
                 officialName: "szse.cn", officialURLString: "https://www.szse.cn/English/",
-                chartNote: "홈 상단 그래프는 선전 증시의 성장기업 시장을 대표하는 차이넥스트(ChiNext) 지수를 추종하는 대표 ETF(CNXT)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "선전 증시의 성장기업 시장을 대표하는 차이넥스트(ChiNext) 지수를 추종하는 대표 ETF(CNXT)의 최근 30 거래일 종가 흐름이에요.")
         case .nse:
             return MarketInfo(
-                fullName: "National Stock Exchange of India (인도 NSE)",
-                basis: "인도 NSE 종가 기준 시가총액입니다.",
-                schedule: "인도 증시 마감 후 매 거래일(한국시간 밤) 갱신됩니다.",
+                fullName: "인도 국립증권거래소(National Stock Exchange of India)",
+                basis: "인도 NSE 종가 기준 시가총액이에요.",
+                schedule: "인도 증시 마감 후 매 거래일(한국시간 밤) 갱신돼요.",
                 officialName: "nseindia.com", officialURLString: "https://www.nseindia.com",
-                chartNote: "홈 상단 그래프는 인도 NSE 대표 지수인 니프티 50을 추종하는 대표 ETF(INDY)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "인도 NSE 대표 지수인 니프티 50을 추종하는 대표 ETF(INDY)의 최근 30 거래일 종가 흐름이에요.")
         case .euronext:
             return MarketInfo(
-                fullName: "Euronext (유럽)",
-                basis: "파리·암스테르담 상장 종목은 실시간, 밀라노 상장 종목은 종가 기준 시가총액입니다.",
-                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
+                fullName: "유로넥스트(Euronext)",
+                basis: "파리·암스테르담 상장 종목은 실시간, 밀라노 상장 종목은 종가 기준 시가총액이에요.",
+                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신돼요.",
                 officialName: "euronext.com", officialURLString: "https://live.euronext.com",
-                chartNote: "홈 상단 그래프는 유럽 대형주를 대표하는 유로 스톡스 50 지수를 추종하는 대표 ETF(EXW1)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "유럽 대형주를 대표하는 유로 스톡스 50 지수를 추종하는 대표 ETF(EXW1)의 최근 30 거래일 종가 흐름이에요.")
         case .fwb:
             return MarketInfo(
-                fullName: "Frankfurt Stock Exchange (Deutsche Börse)",
-                basis: "Xetra 시스템 기준 실시간 시가총액입니다.",
-                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신됩니다.",
+                fullName: "프랑크푸르트 증권거래소(Frankfurt Stock Exchange)",
+                basis: "Xetra 시스템 기준 실시간 시가총액이에요.",
+                schedule: "유럽 정규장 시간에는 실시간으로, 장 마감 후 기준값이 갱신돼요.",
                 officialName: "boerse-frankfurt.de", officialURLString: "https://www.boerse-frankfurt.de/en",
-                chartNote: "홈 상단 그래프는 독일 증시 대표 지수인 DAX를 추종하는 대표 ETF(EXS1)의 최근 30 거래일 종가 흐름입니다. 점선은 구간 시작일 종가 기준선이며, 위면 상승(빨강)·아래면 하락(파랑)입니다.")
+                chartNote: "독일 증시 대표 지수인 DAX를 추종하는 대표 ETF(EXS1)의 최근 30 거래일 종가 흐름이에요.")
         case .hkex, .twse, .six, .tsx:
             return nil   // comingSoon — ⓘ 미노출
         }
@@ -1739,7 +1739,7 @@ struct MarketStatusView: View {
             if let info = market.info {
                 Button { showInfo = true } label: {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .regular))
                         .foregroundStyle(theme.secondaryLabel)
                 }
                 .buttonStyle(.plain)
@@ -1956,7 +1956,7 @@ struct MarketHighlightTicker: View {
         ZStack(alignment: .leading) {
             ForEach(Array(highlights.enumerated()), id: \.offset) { i, h in
                 if i == currentIndex {
-                    HighlightRow(highlight: h)
+                    HighlightRow(highlight: h, vScale: vScale)
                         // 토스식 입체 상승 전환: 새 항목이 아래에서 떠오르며(move+scale) 커지고 나타나고,
                         // 이전 항목은 위로 떠오르며 작아지고 사라진다. scale+opacity 크로스페이드로 깊이감.
                         .transition(.asymmetric(
@@ -1978,6 +1978,7 @@ struct MarketHighlightTicker: View {
 
 struct HighlightRow: View {
     let highlight: Highlight
+    var vScale: CGFloat = 1
     @Environment(\.appTheme) private var theme
 
     var body: some View {
@@ -2060,6 +2061,9 @@ struct HighlightRow: View {
             }
             .fixedSize(horizontal: true, vertical: false)   // 실제 폭을 그대로 보고해 ViewThatFits가 충돌을 판정
         }
+        // 2줄일 때만 텍스트를 살짝 위로. 3줄은 그대로 유지. 오프셋을 vScale로 스케일해
+        // 모든 기기에서 동일 비율로 적용한다.
+        .offset(y: -10.5 * vScale)
     }
 
     // 3줄: 카테고리 / 기업명 / 등락수치
@@ -2069,6 +2073,8 @@ struct HighlightRow: View {
             companyName(scale: 0.7)
             HStack(spacing: 5) { changeInfo }
         }
+        // 3줄일 때도 텍스트를 아주 살짝 위로. vScale로 스케일해 모든 기기 동일 비율.
+        .offset(y: -2 * vScale)
     }
 }
 

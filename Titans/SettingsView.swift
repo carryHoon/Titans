@@ -83,7 +83,7 @@ struct SourcesDetailView: View {
                    title: "Twelve Data", detail: "해외 주식·지수 시세 (Data by Twelve Data)",
                    urlString: "https://twelvedata.com"),
         DataSource(icon: "flag.fill", iconColor: .orange,
-                   title: "Flaticon", detail: "국기 아이콘 (www.flaticon.com)",
+                   title: "Flaticon", detail: "국기·순위 동향 아이콘 (www.flaticon.com)",
                    urlString: "https://www.flaticon.com"),
         DataSource(icon: "doc.text.magnifyingglass", iconColor: .teal,
                    title: "DART", detail: "기업 홈페이지 도메인 해석",
