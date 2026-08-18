@@ -149,6 +149,22 @@ final class MarketCapViewModel: ObservableObject {
         }
     }
 
+    /// 현재 로드된 전 거래소 유니버스(ALL + 거래소별 피드)의 종목별 시가총액을
+    /// 오늘 기준일(KST) 스냅샷으로 적재한다. "나만의 거래소"의 주간/월간 하이라이트 기준선용.
+    /// 순수 추가 로직 — 하루 1개 엔트리로 upsert되며, 실패해도 앱 동작에 영향 없다.
+    func captureUniverseSnapshot() {
+        var caps: [String: Double] = [:]
+        for c in companies where caps[c.ticker] == nil {
+            caps[c.ticker] = c.marketCapUSD
+        }
+        for feed in exchangeFeeds.values {
+            for c in feed.companies where caps[c.ticker] == nil {
+                caps[c.ticker] = c.marketCapUSD
+            }
+        }
+        RankSnapshotStore.record(caps: caps)
+    }
+
     func fetchIndices() async -> [MarketIndex]? {
         guard let (data, response) = try? await URLSession.shared.data(from: indexEndpoint),
               let http = response as? HTTPURLResponse,

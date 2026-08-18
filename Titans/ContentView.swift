@@ -315,105 +315,11 @@ struct ContentView: View {
     }
 
     /// 현재 거래소의 "오늘의 순위 사건"을 우선순위대로 만든다.
-    /// 마지막에 현재 1위(폴백)를 항상 넣어 변동이 없어도 비지 않게 한다(👑 서열 프레이밍).
+    /// 규칙 로직은 CustomExchangeHighlights.buildHighlights(공유 순수 함수)에 위임한다.
+    /// (커스텀 거래소도 동일 함수에 서브셋 재랭킹 리스트를 넣어 같은 규칙을 재사용한다.)
     private func highlights(for market: Market) -> [Highlight] {
-        let list = companies(for: market)
-        guard !list.isEmpty else { return [] }
-        // 하나라도 previousRank가 있으면 "전일 비교 기준(baseline)"이 존재한다고 본다.
-        // (배포 직후 KR처럼 전부 nil이면 순위변동 사건을 만들지 않고 현재 1위만 보여준다.)
-        let hasBaseline = list.contains { $0.previousRank != nil }
-        let n = list.count
-        var result: [Highlight] = []
-        var used = Set<String>()
-
-        // 1) 정상 탈환 — 현재 1위인데 전일엔 1위가 아니었던 종목(가장 극적).
-        if let top = list.first(where: { $0.rank == 1 }),
-           let prev = top.previousRank, prev > 1 {
-            result.append(Highlight(kind: .overtake, company: top,
-                title: "정상 탈환", detail: "1위 등극", rankDelta: prev - 1))
-            used.insert(top.ticker)
-        }
-
-        // 2) 조 달러 돌파 — 오늘 정수 "조 달러(USD 1T)" 문턱을 상향 돌파한 종목(희소·상징적).
-        //    prevCap = cap / (1 + change%/100). marketCapUSD 단위가 이미 조(trillion) USD.
-        //    (JPX는 change=0이라 자연히 미발생. 표시통화 무관하게 USD 조 클럽 기준.)
-        if let breakout = list.compactMap({ c -> (Company, Int)? in
-            guard c.change > -100 else { return nil }
-            let cap = c.marketCapUSD
-            let prevCap = cap / (1 + c.change / 100)
-            let k = Int(floor(cap))
-            guard k >= 1, Double(k) > prevCap, cap >= Double(k) else { return nil }  // 정수 조 상향 돌파
-            return (c, k)
-        }).max(by: { $0.1 < $1.1 }), !used.contains(breakout.0.ticker) {
-            let c = breakout.0
-            result.append(Highlight(kind: .capMilestone, company: c,
-                title: "시총 돌파", detail: "\(breakout.1)조 달러 돌파", rankDelta: nil))
-            used.insert(c.ticker)
-        }
-
-        // 3) 급상승 — (previousRank - rank)가 가장 큰(가장 많이 오른) 종목.
-        if let riser = list.compactMap({ c -> (Company, Int)? in
-            guard let p = c.previousRank else { return nil }
-            let d = p - c.rank
-            return d > 0 ? (c, d) : nil
-        // 상승 칸수 큰 것 우선, 동점이면 순위 높은(rank 작은) 기업 우선.
-        }).max(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank > $1.0.rank }), !used.contains(riser.0.ticker) {
-            let c = riser.0
-            result.append(Highlight(kind: .topGainer, company: c,
-                title: "최대 상승", detail: "\(c.previousRank!)위 → \(c.rank)위", rankDelta: riser.1))
-            used.insert(c.ticker)
-        }
-
-        // 3) 급하락 — (previousRank - rank)가 가장 작은(가장 많이 내린) 종목. rankDelta 음수.
-        if let faller = list.compactMap({ c -> (Company, Int)? in
-            guard let p = c.previousRank else { return nil }
-            let d = p - c.rank
-            return d < 0 ? (c, d) : nil
-        // 하락 칸수 큰 것(delta 더 음수) 우선, 동점이면 순위 높은(rank 작은) 기업 우선.
-        }).min(by: { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.rank < $1.0.rank }), !used.contains(faller.0.ticker) {
-            let c = faller.0
-            result.append(Highlight(kind: .topLoser, company: c,
-                title: "최대 하락", detail: "\(c.previousRank!)위 → \(c.rank)위", rankDelta: faller.1))
-            used.insert(c.ticker)
-        }
-
-        // 5) 대형 등락률 — |당일 등락률|이 가장 큰 종목(3% 이상). 순위가 안 변한 날도 살아있게.
-        if let mover = list.filter({ abs($0.change) >= 3.0 && !used.contains($0.ticker) })
-            .max(by: { abs($0.change) < abs($1.change) }) {
-            let up = mover.change >= 0
-            // 기업명 → 순위 → 퍼센테이지 순서: 유저가 순위를 인지하고 리스트에서 바로 찾아 내려갈 수 있게.
-            result.append(Highlight(kind: .bigMove, company: mover,
-                title: up ? "시총 급등" : "시총 급락", detail: "\(mover.rank)위",
-                rankDelta: nil, percentMove: mover.change))
-            used.insert(mover.ticker)
-        }
-
-        // 6) Top-N 진입 — 오늘 Top10/50/100(현재 목록 크기 내 유효한 것) 문턱을 처음 넘은 종목.
-        //    prevEff = previousRank ?? (n+1)(추적 밖). 가장 권위 있는(작은) 문턱 크로싱을 고른다.
-        if hasBaseline {
-            let thresholds = [10, 50, 100].filter { $0 <= n }
-            var best: (c: Company, t: Int)? = nil
-            for c in list where !used.contains(c.ticker) {
-                let prevEff = c.previousRank ?? (n + 1)
-                guard let t = thresholds.first(where: { prevEff > $0 && c.rank <= $0 }) else { continue }
-                if best == nil || t < best!.t || (t == best!.t && c.rank < best!.c.rank) {
-                    best = (c, t)
-                }
-            }
-            if let b = best {
-                result.append(Highlight(kind: .newEntry, company: b.c,
-                    title: "Top\(b.t) 진입", detail: "\(b.c.rank)위", rankDelta: nil))
-                used.insert(b.c.ticker)
-            }
-        }
-
-        // 5) 폴백/기본 — 현재 1위(서열). 변화가 없어도 항상 채워 절대 비지 않게 한다.
-        if let leader = list.first(where: { $0.rank == 1 }) ?? list.first {
-            let cap = formatMarketCap(leader.marketCapUSD, currency: displayCurrency, exchangeRate: displayRate)
-            result.append(Highlight(kind: .leader, company: leader,
-                title: "현재 1위", detail: "1위 · \(cap)", rankDelta: nil))
-        }
-        return result
+        buildHighlights(from: companies(for: market),
+                        currency: displayCurrency, exchangeRate: displayRate)
     }
 
     private func isLoading(for market: Market) -> Bool {
@@ -593,6 +499,8 @@ struct ContentView: View {
             // 백엔드 피드를 가진 모든 거래소를 1회 프리페치한다. 이후 거래소 탭 방문 없이도 검색이 전 종목을 커버한다.
             try? await Task.sleep(for: .seconds(1))
             await viewModel.prefetchExchangesForSearch()
+            // 유니버스가 다 로드된 시점에 오늘 기준일 시총 스냅샷을 적재한다("나만의 거래소" 주간/월간 기준선).
+            viewModel.captureUniverseSnapshot()
         }
         .task(id: selectedMarket) {
             guard selectedMarket.apiExchangeParam != nil else { return }
