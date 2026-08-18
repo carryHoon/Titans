@@ -38,6 +38,9 @@ final class MarketCapViewModel: ObservableObject {
     // 거래소별 지수 스파크라인 (ALL/US/KR) — Market 키로 분리 저장. 하루 단위 데이터라 1회 로드.
     @Published var charts: [Market: MarketChart] = [:]
 
+    // 이번 세션에서 이미 네트워크로 갱신한 차트(중복 요청 방지). 캐시된 값이 있어도 세션당 1회는 새로 받는다.
+    private var chartsFetched: Set<Market> = []
+
     // 데이터 API — Vercel 서버리스 상시가동 호스팅
     static let host    = "titans-sooty.vercel.app"
     static let apiBase = "https://\(host)"
@@ -45,6 +48,12 @@ final class MarketCapViewModel: ObservableObject {
     private let endpoint      = URL(string: "\(apiBase)/api/market-cap")!
     private let indexEndpoint = URL(string: "\(apiBase)/api/market-index")!
     private let chartEndpoint = "\(apiBase)/api/market-chart"
+
+    init() {
+        // 지수 그래프는 EOD(하루 1회 변동)라, 지난 세션 그래프를 즉시 표시해 콜드 로드 지연을 없앤다.
+        // (24h 캐시 백엔드의 첫 히트가 느려도 사용자는 캐시 그래프를 바로 보고, 곧 최신값으로 갱신된다.)
+        charts = ChartCache.load()
+    }
 
     /// market-cap 엔드포인트에서 데이터를 받아 Company 배열로 매핑하는 공통 로직.
     /// ALL 피드와 거래소 전용 피드가 동일한 디코딩·기준순위 매핑을 공유한다.
@@ -179,7 +188,8 @@ final class MarketCapViewModel: ObservableObject {
     /// 거래소 지수 스파크라인 로드. 그래프는 일별(EOD) 데이터라 값이 하루에 한 번만 바뀌므로
     /// 이미 로드된 거래소는 다시 받지 않는다(백엔드도 24h 캐시). 실패해도 조용히 건너뛴다(그래프만 빔).
     func fetchChart(_ market: Market) async {
-        guard let param = market.chartParam, charts[market] == nil,
+        // 세션당 1회만 갱신(캐시된 값이 있어도 최신화). 실패 시 fetched에 넣지 않아 재시도가 가능하다.
+        guard let param = market.chartParam, !chartsFetched.contains(market),
               let url = URL(string: "\(chartEndpoint)?exchange=\(param)")
         else { return }
         guard let (data, response) = try? await URLSession.shared.data(from: url),
@@ -188,6 +198,33 @@ final class MarketCapViewModel: ObservableObject {
               decoded.points.count >= 2
         else { return }
         charts[market] = MarketChart(name: decoded.name, points: decoded.points, changePercent: decoded.changePercent)
+        chartsFetched.insert(market)
+        ChartCache.save(charts)   // 다음 세션 즉시 표시용 로컬 캐시 갱신
+    }
+}
+
+// MARK: - Chart 로컬 캐시
+
+/// 지수 스파크라인의 마지막 성공 데이터를 로컬(UserDefaults)에 보관한다.
+/// EOD(하루 1회 변동) 데이터라, 다음 실행 시 캐시를 즉시 표시해 서버 콜드 로드 지연을 감춘다.
+/// Market 키는 rawValue(String)로 직렬화. (위젯은 스파크라인을 쓰지 않아 App Group 불필요.)
+private enum ChartCache {
+    private static let key = "marketChartCache"
+
+    static func load() -> [Market: MarketChart] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let raw = try? JSONDecoder().decode([String: MarketChart].self, from: data)
+        else { return [:] }
+        var result: [Market: MarketChart] = [:]
+        for (k, v) in raw where Market(rawValue: k) != nil { result[Market(rawValue: k)!] = v }
+        return result
+    }
+
+    static func save(_ charts: [Market: MarketChart]) {
+        let raw = Dictionary(uniqueKeysWithValues: charts.map { ($0.key.rawValue, $0.value) })
+        if let data = try? JSONEncoder().encode(raw) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 }
 

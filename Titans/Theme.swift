@@ -50,3 +50,11 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - 브랜드 강조색 (MarCap 초록)
+
+extension Color {
+    /// MarCap 브랜드 강조색(초록). 로그인/프로필에서 쓰던 값과 동일 —
+    /// "나만의 거래소" CTA·선택 요소 등 앱 전역 강조에 공용으로 쓴다.
+    static let marcapAccent = Color(red: 0.2, green: 0.8, blue: 0.4)
+}
+
