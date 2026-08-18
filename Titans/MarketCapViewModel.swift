@@ -212,11 +212,22 @@ private enum ChartCache {
     private static let key = "marketChartCache"
 
     static func load() -> [Market: MarketChart] {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let raw = try? JSONDecoder().decode([String: MarketChart].self, from: data)
-        else { return [:] }
+        // 1) 지난 세션 로컬 캐시(최신 실데이터) 우선.
+        if let data = UserDefaults.standard.data(forKey: key),
+           let raw = try? JSONDecoder().decode([String: MarketChart].self, from: data), !raw.isEmpty {
+            return mapped(raw)
+        }
+        // 2) 없으면(앱 삭제 후 첫 실행) Swift 임베드 시드로 첫 프레임에 즉시 그래프를 깐다.
+        //    곧바로 fetchChart가 라이브 값으로 덮어쓰므로 시드는 최초 1회 플레이스홀더로만 쓰인다.
+        let seed = SeedCharts.load()
+        if !seed.isEmpty { return mapped(seed) }
+        return [:]
+    }
+
+    /// exchange 문자열 키(= Market.rawValue) → Market 매핑.
+    private static func mapped(_ raw: [String: MarketChart]) -> [Market: MarketChart] {
         var result: [Market: MarketChart] = [:]
-        for (k, v) in raw where Market(rawValue: k) != nil { result[Market(rawValue: k)!] = v }
+        for (k, v) in raw { if let m = Market(rawValue: k) { result[m] = v } }
         return result
     }
 
