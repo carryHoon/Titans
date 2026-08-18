@@ -241,9 +241,21 @@ struct ContentView: View {
     // 시가총액을 표시할 단일 통화. 온보딩에서 선택하고 메뉴에서 변경 가능(USD 포함 전 통화가 동등한 선택지).
     // PrefsSync가 로그인 시 이 @AppStorage에 반영한다. 홈/검색/행 전부 이 값 하나로 표시.
     @AppStorage("displayCurrency") private var displayCurrency: Currency = .usd
-    @State private var selectedMarket: Market = .all
+    // 홈 페이징의 단일 소스. 기존 거래소(builtin) + 커스텀 거래소 + 만들기 페이지를 아우른다.
+    @State private var selectedTab: MarketTab = .builtin(.all)
+    // 커스텀 거래소("나만의 거래소") 목록. @Observable이라 추가/삭제 시 페이징·필터바가 갱신된다.
+    @State private var customStore = CustomExchangeStore()
+    @State private var showCreateSheet = false
+    @State private var editingExchange: CustomExchange?   // 편집 시트 대상(nil이면 닫힘)
     @State private var sortField: SortField = .rank
     @State private var sortOrder: SortOrder = .ascending
+
+    /// 기존 코드(헤더/상태/데이터 헬퍼)가 그대로 쓰는 현재 Market. 커스텀/만들기 탭에서는 .all로 유도.
+    /// (builtin 탭에서만 실제 거래소를 반환 → 기존 24개 읽기 사이트를 손대지 않기 위한 computed.)
+    private var selectedMarket: Market {
+        if case .builtin(let m) = selectedTab { return m }
+        return .all
+    }
 
     // 화면(윈도우) 전체 높이 — 헤더 세로 간격을 기기별 "동일 비율"로 스케일링하기 위한 기준값.
     // 기준: iPhone 17 Pro(874pt). 모든 기기에서 헤더가 화면의 동일한 세로 비율을 차지하도록 함.
@@ -278,9 +290,23 @@ struct ContentView: View {
     /// 화면이 낮은 기기일수록 여백이 함께 줄어들어, 헤더가 어떤 기기에서도 화면의 동일한 세로 비율을 차지한다.
     private var vScale: CGFloat { min(max(viewportHeight / 874, 0.85), 1.12) }
 
-    private func selectMarket(_ market: Market) {
-        guard market != selectedMarket else { return }
-        selectedMarket = market
+    private func selectTab(_ tab: MarketTab) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+    }
+
+    /// 현재 탭의 하이라이트. builtin은 기존 경로, custom은 서브셋 재랭킹 후 공유 엔진에 위임.
+    private var currentHighlights: [Highlight] {
+        switch selectedTab {
+        case .builtin(let m):
+            return highlights(for: m)
+        case .custom(let id):
+            guard let ex = customStore.exchange(id: id) else { return [] }
+            let list = rerankSubset(universe: searchableCompanies, tickers: ex.tickers, baseline: .dayOverDay)
+            return buildHighlights(from: list, currency: displayCurrency, exchangeRate: displayRate)
+        case .addNew:
+            return []
+        }
     }
 
     // MARK: 섹션별 데이터 헬퍼 — TabView 각 페이지가 자체 상태를 독립적으로 읽는다
@@ -297,7 +323,11 @@ struct ContentView: View {
     }
 
     private func sortedCompanies(for market: Market) -> [Company] {
-        let list = companies(for: market)
+        sortedList(companies(for: market))
+    }
+
+    /// 정렬 상태(sortField/sortOrder)를 임의 리스트에 적용. 기존 거래소·커스텀 거래소 공용.
+    private func sortedList(_ list: [Company]) -> [Company] {
         switch sortField {
         case .rank:
             return sortOrder == .ascending
@@ -380,8 +410,8 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 16)
-            // 마지막 항목이 하단 페이드 구간을 지나 완전히 읽히도록 여유만 둔다(임의 흰 여백 제거).
-            .padding(.bottom, 44)
+            // 마지막 항목이 하단 페이드 구간을 지나 읽히도록 여유만 둔다(과한 흰 여백 제거·공간 효율).
+            .padding(.bottom, 16)
         }
         // 토스식 하단 페이드 — 거래소 필터의 좌우 페이드와 동일한 방식(그라데이션 마스크).
         // 마지막 행이 배경으로 서서히 사라지며 "아래로 더 있다"를 인지시킨다. 상단은 불투명 유지.
@@ -389,9 +419,97 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 Rectangle().fill(Color.black)
                 LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 40)
+                    .frame(height: 28)
             }
         )
+        .background(theme.background)
+    }
+
+    /// 커스텀 거래소("나만의 거래소") 페이지 — 서브셋 재랭킹 리스트를 기존 CompanyRow로 렌더.
+    private func customMarketPage(_ exchange: CustomExchange) -> some View {
+        let list = sortedList(rerankSubset(universe: searchableCompanies,
+                                           tickers: exchange.tickers, baseline: .dayOverDay))
+        return ScrollView {
+            LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    if list.isEmpty {
+                        EmptyMarketView(market: .all)
+                    } else {
+                        ColumnHeader(sortField: $sortField, sortOrder: $sortOrder)
+                        ForEach(Array(list.enumerated()), id: \.element.id) { _, company in
+                            CompanyRow(company: company, currency: displayCurrency, exchangeRate: displayRate)
+                        }
+                    }
+                } header: {
+                    // 편집 행: 페이지 내부에 두어 좌우 스와이프는 기존 거래소처럼 부드럽고(페이지 소유),
+                    // 세로 스크롤 시엔 상단에 고정(pinned)된다. 배경을 깔아 스크롤되는 행이 비치지 않게 한다.
+                    customEditBar(exchange)
+                        .frame(maxWidth: .infinity)
+                        .background(theme.background)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+        }
+        .mask(
+            VStack(spacing: 0) {
+                Rectangle().fill(Color.black)
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+        )
+        .background(theme.background)
+    }
+
+    /// 커스텀 거래소 편집 행(토스 오마주) — 좌: 종목 수, 우: "편집" 버튼(accent).
+    /// 커스텀 페이지 LazyVStack 최상단에 위치(이미 좌우 16 패딩 적용됨 → 자체 좌우 패딩 없음).
+    private func customEditBar(_ exchange: CustomExchange) -> some View {
+        HStack {
+            Text("\(exchange.tickers.count)개 종목")
+                .font(.system(size: 13))
+                .foregroundStyle(theme.secondaryLabel)
+            Spacer()
+            Button {
+                editingExchange = exchange
+            } label: {
+                Text("편집")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.marcapAccent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 6)   // "N개 종목"은 오른쪽으로, "편집"은 왼쪽으로 살짝 안쪽 이동
+        .padding(.bottom, 4)
+    }
+
+    /// "만들기" 페이지 — 오른쪽 끝으로 스와이프하면 나오는 CTA. 생성 시트를 띄운다.
+    private var addNewPage: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 52))
+                .foregroundStyle(Color.marcapAccent)
+            Text("나만의 거래소 만들기")
+                .font(.headline)
+            Text("관심 종목을 모아 나만의 순위와\n순위 변동을 확인해보세요.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                showCreateSheet = true
+            } label: {
+                Text("+ 거래소 만들기")
+                    .font(.headline)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color.marcapAccent, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.background)
     }
 
@@ -416,12 +534,12 @@ struct ContentView: View {
             // ※ 목록 노출 개수 미세조정 knob = 아래 .frame(height:) 값(1행 ≈ 78pt).
             HStack(alignment: .center, spacing: 12) {
                 MarketHighlightTicker(
-                    highlights: highlights(for: selectedMarket),
+                    highlights: currentHighlights,
                     currentIndex: highlightIndex,
                     vScale: vScale
                 )
-                // 매핑된 거래소(ALL·US·KR)에서만 그래프 노출 — 미매핑 탭은 티커가 폭을 회수한다.
-                if selectedMarket.chartParam != nil {
+                // 매핑된 거래소(ALL·US·KR)에서만 그래프 노출 — 커스텀/미매핑 탭은 티커가 폭을 회수한다.
+                if case .builtin = selectedTab, selectedMarket.chartParam != nil {
                     MarketIndexSparkline(chart: viewModel.charts[selectedMarket], vScale: vScale)
                         .frame(width: 130 * vScale)
                         .offset(x: -18 * vScale)   // 그래프를 살짝 왼쪽으로(기기별 비율 유지)
@@ -439,16 +557,25 @@ struct ContentView: View {
                     .padding(.bottom, 8)
             }
 
-            MarketFilterBar(selected: selectedMarket, onSelect: selectMarket)
+            MarketFilterBar(selected: selectedTab,
+                            customExchanges: customStore.exchanges,
+                            onSelect: selectTab,
+                            onAdd: { showCreateSheet = true })
                 .padding(.bottom, 12 * vScale)
 
             // 섹션별 페이지 — TabView가 손가락 드래그에 비례한 이동과 스냅을 네이티브로 처리.
-            // 모든 Market.allCases 섹션이 동일하게 좌우 스와이프로 전환된다.
-            TabView(selection: $selectedMarket) {
+            // 기존 거래소(builtin) → 커스텀 거래소 → 맨 끝 "만들기" 페이지 순으로 좌우 스와이프 전환.
+            TabView(selection: $selectedTab) {
                 ForEach(Market.allCases) { market in
                     marketPage(for: market)
-                        .tag(market)
+                        .tag(MarketTab.builtin(market))
                 }
+                ForEach(customStore.exchanges) { exchange in
+                    customMarketPage(exchange)
+                        .tag(MarketTab.custom(exchange.id))
+                }
+                addNewPage
+                    .tag(MarketTab.addNew)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(maxHeight: .infinity)
@@ -471,12 +598,27 @@ struct ContentView: View {
             // 로그인 완료 시 어느 섹션에 있었든 홈의 ALL 섹션으로 되돌린다.
             if signedIn {
                 showMenu = false
-                selectedMarket = .all
+                selectedTab = .builtin(.all)
             }
         }
-        .onChange(of: selectedMarket) { _, _ in
+        .onChange(of: selectedTab) { _, _ in
             // 거래소 전환 시 하이라이트 로테이션을 처음(우선순위 최상단)부터 다시 시작.
             highlightIndex = 0
+        }
+        .onChange(of: customStore.exchanges) { _, list in
+            // 편집에서 현재 커스텀 거래소를 삭제하면 선택 탭이 사라진 페이지를 가리키므로 ALL로 복귀.
+            if case .custom(let id) = selectedTab, !list.contains(where: { $0.id == id }) {
+                selectedTab = .builtin(.all)
+            }
+        }
+        .sheet(isPresented: $showCreateSheet) {
+            CustomExchangeCreationView(universe: searchableCompanies, store: customStore) { created in
+                // 생성 직후 해당 커스텀 거래소 탭으로 이동.
+                selectedTab = .custom(created.id)
+            }
+        }
+        .sheet(item: $editingExchange) { exchange in
+            CustomExchangeEditView(exchange: exchange, store: customStore, universe: searchableCompanies)
         }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(
@@ -511,8 +653,14 @@ struct ContentView: View {
             }
         }
         .task(id: selectedMarket) {
-            // 거래소 지수 스파크라인 — 탭 진입 시 1회 로드(일별 데이터라 캐시되면 재호출 없음).
-            await viewModel.fetchChart(selectedMarket)
+            // 거래소 지수 스파크라인 — 진입 시 로드. 캐시가 있으면 즉시 표시되고 여기서 최신값으로 갱신한다.
+            // 최초 실행(캐시 없음)에 서버 24h 캐시 콜드 히트로 지연/실패할 수 있어 짧게 재시도한다.
+            guard selectedMarket.chartParam != nil else { return }   // 그래프 없는 거래소는 재시도 불필요
+            for attempt in 0..<4 {
+                await viewModel.fetchChart(selectedMarket)
+                if viewModel.charts[selectedMarket] != nil { break }
+                if attempt < 3 { try? await Task.sleep(for: .seconds(2)) }
+            }
         }
         .task {
             while !Task.isCancelled {
@@ -673,8 +821,10 @@ struct SkeletonCompanyRow: View {
 // MARK: - Market Filter Bar (가로 스크롤 칩)
 
 struct MarketFilterBar: View {
-    let selected: Market
-    let onSelect: (Market) -> Void
+    let selected: MarketTab
+    let customExchanges: [CustomExchange]
+    let onSelect: (MarketTab) -> Void
+    let onAdd: () -> Void
     @Environment(\.appTheme) private var theme
     @Namespace private var chipNamespace
 
@@ -683,9 +833,15 @@ struct MarketFilterBar: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Market.allCases) { market in
-                        chip(market)
-                            .id(market)
+                        chip(tab: .builtin(market), title: market.title)
+                            .id(MarketTab.builtin(market))
                     }
+                    ForEach(customExchanges) { ex in
+                        chip(tab: .custom(ex.id), title: ex.name)
+                            .id(MarketTab.custom(ex.id))
+                    }
+                    addChip
+                        .id(MarketTab.addNew)
                 }
                 // 선택 캡슐이 칩 사이를 미끄러지듯 이동하도록 선택값 변화를 스프링으로 애니메이션.
                 // (ALL은 맨 왼쪽 끝이라 스크롤 재정렬 모션이 없어, 애니메이션이 없으면 캡슐이
@@ -719,13 +875,13 @@ struct MarketFilterBar: View {
     }
 
     @ViewBuilder
-    private func chip(_ market: Market) -> some View {
-        let isSelected = selected == market
+    private func chip(tab: MarketTab, title: String) -> some View {
+        let isSelected = selected == tab
         Button {
-            onSelect(market)
+            onSelect(tab)
         } label: {
-            Text(market.title)
-                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
+            Text(title)
+                .font(.system(size: 15, weight: isSelected ? .bold : .semibold))
                 .foregroundStyle(isSelected ? theme.background : theme.label)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -737,6 +893,23 @@ struct MarketFilterBar: View {
                             .matchedGeometryEffect(id: "selectedChip", in: chipNamespace)
                     }
                 }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// "거래소추가" 칩 — 토스의 파랑 CTA를 MarCap 초록으로. 탭 전환 대신 생성 시트를 연다.
+    private var addChip: some View {
+        Button {
+            onAdd()
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "plus")
+                Text("거래소")
+            }
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(Color.marcapAccent)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
     }
@@ -1431,8 +1604,10 @@ struct MarketIndexSparkline: View {
                 Text(" ").font(.system(size: 13, weight: .bold, design: .rounded))
             }
             // 라인 — 데이터가 없으면(로딩/실패) 빈 프레임만 유지해 레이아웃 점프 방지.
+            // 높이는 고정(vScale 미적용): 채우는 면적이 전 기기 동일해야 그라데이션 정규화(0.38→0)도
+            // 동일하게 보인다. (헤더 여백의 vScale 비율 시스템과는 분리 — 그래프만 픽셀 일관.)
             SparklineShapeView(points: chart?.points ?? [], color: lineColor)
-                .frame(height: 40 * vScale)
+                .frame(height: 40)
         }
     }
 }
@@ -1443,6 +1618,11 @@ struct MarketIndexSparkline: View {
 struct SparklineShapeView: View {
     let points: [Double]
     let color: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// 라인 아래 채움의 상단 불투명도. 다크 모드에선 검은 배경에 은은한 채움이 묻혀
+    /// 토스보다 옅어 보이므로 조금 진하게 올린다(라이트는 지금이 적절해 그대로 둔다).
+    private var fillTopOpacity: Double { colorScheme == .dark ? 0.35 : 0.35 }
 
     var body: some View {
         GeometryReader { geo in
@@ -1469,7 +1649,7 @@ struct SparklineShapeView: View {
                         p.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: h))
                         p.closeSubpath()
                     }
-                    .fill(LinearGradient(colors: [color.opacity(0.22), color.opacity(0.0)],
+                    .fill(LinearGradient(colors: [color.opacity(fillTopOpacity), color.opacity(0.0)],
                                          startPoint: .top, endPoint: .bottom))
                     // 점선 기준선 (구간 시작값)
                     Path { p in

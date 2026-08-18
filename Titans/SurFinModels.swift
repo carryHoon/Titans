@@ -380,7 +380,7 @@ struct MarketIndexResponse: Decodable {
 
 /// 홈 상단 스파크라인 데이터. 거래소를 대변하는 지수의 최근 ~30 거래일 종가 라인.
 /// (US=대표 ETF의 1일봉, KR=data.go.kr 지수 일별 종가 — 백엔드 /api/market-chart가 소유.)
-struct MarketChart {
+struct MarketChart: Codable {
     let name: String          // 대변 지수명(나스닥 100/다우 존스/S&P 500/코스피/코스닥)
     let points: [Double]      // 오래된→최신 종가
     let changePercent: Double // 첫→마지막 종가 변화율(%)
