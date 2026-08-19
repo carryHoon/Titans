@@ -1,21 +1,14 @@
-//
 //  LoginView.swift
-//  surFin
-//
 //  스플래시 이후 (비로그인·최초 진입 시) 보여지는 로그인 화면.
 //  브랜드 무드: "surFin — Ride the Market".
-//
 //  구성(위 → 아래):
 //    1) 브랜드 텍스트("RIDE THE MARKET" / "surFin") — 상단에 크게 배치, 진입 시 페이드인.
 //    2) 소셜 로그인(메인) — Apple · Google · Kakao 원형 버튼.
 //    3) 하단(서브)         — 로그인 없이 둘러보기.
-//
 //  이메일/비밀번호 가입은 안전한 메일 전달성(커스텀 SMTP)·딥링크 인증이 갖춰지기 전까지
 //  제공하지 않는다(소셜 로그인만 노출). 관련 진입점(회원가입 버튼·EmailAuthSheet)은 제거됨.
-//
 //  로그인은 선택이다. 실제 세션 전환은 AuthManager가 authStateChanges로 감지해
 //  RootView가 자동으로 ContentView로 넘어간다. 이 화면은 "요청"만 하고 상태는 소유하지 않는다.
-//
 
 import SwiftUI
 import AuthenticationServices

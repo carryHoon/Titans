@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		87099F40301DE43D00E72FD7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 87099F3F301DE43D00E72FD7 /* Supabase */; };
+		87FBE69F30354E9900088FC1 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 87FBE69E30354E9900088FC1 /* FirebaseAnalytics */; };
 		87FF2BA23020E1270094AE7B /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 87FF2BA13020E1270094AE7B /* GoogleMobileAds */; };
 		87FF2BA53020E1A40094AE7B /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 87FF2BA43020E1A40094AE7B /* GoogleUserMessagingPlatform */; };
 		87FF2BAF3021177C0094AE7B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87FF2BAE3021177C0094AE7B /* WidgetKit.framework */; };
@@ -90,6 +91,7 @@
 			files = (
 				87FF2BA23020E1270094AE7B /* GoogleMobileAds in Frameworks */,
 				87FF2BA53020E1A40094AE7B /* GoogleUserMessagingPlatform in Frameworks */,
+				87FBE69F30354E9900088FC1 /* FirebaseAnalytics in Frameworks */,
 				87099F40301DE43D00E72FD7 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -160,6 +162,7 @@
 				87099F3F301DE43D00E72FD7 /* Supabase */,
 				87FF2BA13020E1270094AE7B /* GoogleMobileAds */,
 				87FF2BA43020E1A40094AE7B /* GoogleUserMessagingPlatform */,
+				87FBE69E30354E9900088FC1 /* FirebaseAnalytics */,
 			);
 			productName = Titans;
 			productReference = 87F13631300EEBCF0006366E /* Titans.app */;
@@ -218,6 +221,7 @@
 				87099F3E301DE43D00E72FD7 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				87FF2BA03020E1270094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
 				87FF2BA33020E1A40094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
+				87FBE69D30354E9900088FC1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 87F13632300EEBCF0006366E /* Products */;
@@ -579,6 +583,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		87FBE69D30354E9900088FC1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.17.0;
+			};
+		};
 		87FF2BA03020E1270094AE7B /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
@@ -602,6 +614,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 87099F3E301DE43D00E72FD7 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		87FBE69E30354E9900088FC1 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 87FBE69D30354E9900088FC1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 		87FF2BA13020E1270094AE7B /* GoogleMobileAds */ = {
 			isa = XCSwiftPackageProductDependency;

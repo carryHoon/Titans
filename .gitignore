@@ -19,3 +19,6 @@ titans-web/.data/
 .env
 .env.local
 .env*.local
+
+# Firebase — contains API keys, must not be committed
+GoogleService-Info.plist

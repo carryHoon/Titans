@@ -1,14 +1,9 @@
-//
 //  AuthManager.swift
-//  Titans
-//
 //  앱 전역 인증 상태의 단일 소스(source of truth).
 //  Supabase 세션을 복원·구독해 로그인/로그아웃을 SwiftUI에 반영하고, provider별 로그인과
 //  로그아웃·계정삭제 진입점을 제공한다. 토큰은 supabase-swift가 Keychain에 자동 보관한다.
-//
 //  보안 메모(Apple): 재생공격(replay) 방지를 위해 매 로그인마다 랜덤 nonce를 만들어
 //  SHA256 해시를 Apple 요청에 넣고, 원본 nonce를 Supabase 검증에 전달한다.
-//
 
 import Foundation
 import Supabase

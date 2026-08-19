@@ -12,7 +12,7 @@
 // 재현한다(거래소 내 정렬은 통화 스케일에 불변이라 FX 불필요 — ALL/NASDAQ의 KRW 주입분만 예외).
 // 라이브 quote는 쓰지 않으므로 추가 TD 크레딧 소모가 없고, 실행 시각과 무관하게 결정적이다.
 //
-// 저장 구조: 피드별 키 `rank-hist:<feed>` 에 90일 링버퍼(오래된→최신). 각 항목은
+// 저장 구조: 피드별 키 `rank-hist:<feed>` 에 400일 링버퍼(오래된→최신). 각 항목은
 //   { date: 'YYYY-MM-DD', rank: { [ticker]: 순위(1-base) } }.
 // 날짜로 멱등: 최신 항목의 date가 이번 거래일과 같으면 append하지 않는다(주말·휴장·중복 실행 무해).
 //
@@ -41,8 +41,9 @@ export interface RankHistoryEntry {
   rank: Record<string, number>      // ticker → 순위(1-base)
 }
 
-// 보관 일수(링버퍼 상한). 90거래일 ≈ 4개월치 → 주간·월간·분기 서사를 모두 커버한다.
-const HISTORY_DAYS = 90
+// 보관 일수(링버퍼 상한). 400거래일 ≈ 13개월치 → 주간·월간·분기·전년동기(YoY) 서사까지 커버한다.
+// 순위는 소급 취득이 불가능하므로 넉넉히 보관한다. 400일 × 전 피드 합쳐도 Redis 값은 ~5~6MB 수준.
+const HISTORY_DAYS = 400
 
 const key = (feed: string) => `rank-hist:${feed}`
 

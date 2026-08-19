@@ -1,15 +1,9 @@
-//
 //  DividendCalendarView.swift
-//  Titans
-//
-//  배당락일(ex-dividend date) 캘린더. 사용자가 원하는 기업의 배당락일을 월간 달력에서
-//  한눈에 확인하는 화면이다.
-//
+//  배당락일(ex-dividend date) 캘린더. 사용자가 원하는 기업의 배당락일을 월간 달력에서 한눈에 확인하는 화면이다.
 //  ⚠️ 데이터 소스: 배당락일/배당금은 실시간 시세와 달리 '기업 액션(corporate action)' 데이터다.
 //     출시 시 US는 Twelve Data, KR은 DART(전자공시)를 연동해 ex-date·pay date·배당금·통화를 채운다.
 //     이 화면은 그 연동을 그대로 끼우면 되도록 UI/모델을 미리 완성해 둔 '껍데기'이며,
 //     지금은 가짜 배당일을 노출하지 않고 '연동 예정' 상태를 정직하게 보여준다.
-//
 
 import SwiftUI
 
