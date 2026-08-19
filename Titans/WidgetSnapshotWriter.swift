@@ -1,7 +1,4 @@
-//
 //  WidgetSnapshotWriter.swift
-//  Titans
-//
 //  앱이 활성 거래소(NASDAQ/NYSE/KOSPI/KOSDAQ/JPX/SSE/SZSE/EURONEXT/FWB/NSE)의 Top 시가총액을 받아 App Group 컨테이너에
 //  스냅샷 JSON으로 쓰고, 각 종목 로고를 앱과 동일한 규칙으로 최종 렌더링해 PNG로 저장한다.
 //  위젯 익스텐션은 네트워크 없이 이 스냅샷/PNG만 읽어 앱과 픽셀 단위로 동일하게 표시한다.
@@ -9,7 +6,6 @@
 //  재사용: MarketCapResponse/APICompanyResult(DTO), MarketCapViewModel.host, LogoStore,
 //         TickerData.swift 테이블(tickerLocalLogo/tickerCircleBackground/…), logoTileSize.
 //  로고 배경제거 픽셀 함수는 ContentView.swift에서 private이라 아래에 동일 로직을 복제한다.
-//
 
 import SwiftUI
 import UIKit

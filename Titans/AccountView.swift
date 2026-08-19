@@ -1,10 +1,6 @@
-//
 //  AccountView.swift
-//  Titans
-//
 //  로그인된 사용자의 계정 화면. 현재 로그인 정보 표시 + 로그아웃.
 //  (회원 탈퇴는 Phase 5에서 Edit Function 연동과 함께 추가된다.)
-//
 
 import SwiftUI
 

@@ -1,9 +1,4 @@
-//
 //  ContentView.swift
-//  Titans
-//
-//  Created by MacH on 7/21/26.
-//
 
 import SwiftUI
 import Combine   // ObservableObject / @Published
@@ -148,7 +143,6 @@ private enum LogoProcessingCache {
 }
 
 /// 원격 로고(logo.dev) 영구 캐시 — 메모리(NSCache) + 디스크(Caches/LogoCache).
-///
 /// logo.dev 응답은 `max-age=86400`(24h)이라 기본 URLCache로는 유저가 매일 재호출한다.
 /// 로고는 거의 안 바뀌므로 이 캐시가 24h 만료를 무시하고 폰에 오래(기본 60일) 보관해
 /// logo.dev 무료 플랜(월 50만) 호출을 최소화한다. device-side 캐싱이라 약관을 준수한다
@@ -461,24 +455,23 @@ struct ContentView: View {
         .background(theme.background)
     }
 
-    /// 커스텀 거래소 편집 행(토스 오마주) — 좌: 종목 수, 우: "편집" 버튼(accent).
+    /// 커스텀 거래소 편집 행(토스 오마주) — 우측 "편집" 버튼(accent)만 노출.
     /// 커스텀 페이지 LazyVStack 최상단에 위치(이미 좌우 16 패딩 적용됨 → 자체 좌우 패딩 없음).
     private func customEditBar(_ exchange: CustomExchange) -> some View {
         HStack {
-            Text("\(exchange.tickers.count)개 종목")
-                .font(.system(size: 13))
-                .foregroundStyle(theme.secondaryLabel)
             Spacer()
             Button {
                 editingExchange = exchange
             } label: {
                 Text("편집")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.marcapAccent)
+                    // 순위/기업/시가총액 열 헤더와 동일한 텍스트 스타일(고정 pt → 모든 기기 동일)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.secondaryLabel)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 6)   // "N개 종목"은 오른쪽으로, "편집"은 왼쪽으로 살짝 안쪽 이동
+        .padding(.horizontal, 6)
+        .padding(.trailing, 9.5)   // "편집"을 오른쪽 끝에서 살짝 왼쪽으로 당김
         .padding(.bottom, 4)
     }
 
@@ -1402,13 +1395,14 @@ struct Highlight: Identifiable {
     }
 
     /// 카테고리 인디케이터를 이모지 대신 커스텀 아이콘(Assets.xcassets)으로 대체하는 에셋명.
-    /// nil이면 emoji를 사용한다. (시총 급락은 전용 아이콘이 없어 emoji로 폴백)
+    /// nil이면 emoji를 사용한다.
     var categoryAsset: String? {
         switch kind {
         case .leader:    return "cat_leader"   // 현재 1위 — 트로피
         case .topGainer: return "cat_gainer"   // 최대 상승 — 상승 화살표
         case .topLoser:  return "cat_loser"    // 최대 하락 — 하락 화살표
-        case .bigMove:   return (percentMove ?? 0) >= 0 ? "cat_surge" : nil  // 시총 급등만 아이콘
+        case .bigMove:   return (percentMove ?? 0) >= 0 ? "cat_surge" : "cat_plunge"  // 시총 급등/급락
+        case .newEntry:  return "cat_entry"    // Top-N 진입 — 파티 크래커
         default:         return nil
         }
     }

@@ -79,6 +79,25 @@ final class CustomExchangeStore {
         persist()
     }
 
+    /// 거래소 칩 순서 변경(토스식 드래그 재정렬). fromID를 toID 자리로 옮긴다.
+    func moveExchange(fromID: UUID, toID: UUID) {
+        guard fromID != toID,
+              let from = exchanges.firstIndex(where: { $0.id == fromID }),
+              let to = exchanges.firstIndex(where: { $0.id == toID }) else { return }
+        let item = exchanges.remove(at: from)
+        exchanges.insert(item, at: to)
+        persist()
+    }
+
+    /// 이름만 변경(연필 → 이름 편집). 종목 구성은 건드리지 않는다.
+    func rename(id: UUID, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              let idx = exchanges.firstIndex(where: { $0.id == id }) else { return }
+        exchanges[idx].name = trimmed
+        persist()
+    }
+
     func exchange(id: UUID) -> CustomExchange? {
         exchanges.first { $0.id == id }
     }

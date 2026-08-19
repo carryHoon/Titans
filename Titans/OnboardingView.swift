@@ -898,7 +898,7 @@ private struct OnboardingPreviewStep: View {
     private func beat(for h: Highlight) -> PreviewBeat {
         let name = h.company.name
         let id = h.company.ticker
-        // 시총 급락은 전용 asset이 없어 하락 아이콘(cat_loser)으로 폴백.
+        // categoryAsset이 nil인 종류만 하락 아이콘(cat_loser)으로 폴백(현재 preview 대상엔 없음).
         let asset = h.categoryAsset ?? "cat_loser"
         switch h.kind {
         case .leader:

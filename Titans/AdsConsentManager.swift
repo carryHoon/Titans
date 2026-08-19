@@ -1,16 +1,11 @@
-//
 //  AdsConsentManager.swift
-//  surFin
-//
 //  광고 동의(UMP) → 추적 투명성(ATT) → Mobile Ads SDK 시작을 순서대로 처리한다.
-//
 //  순서가 중요하다:
 //   1) Google UMP 동의 정보 갱신 + (필요 시) 동의 양식 표시
 //      — GDPR/EEA · 미국 주(州) 개인정보 보호법 대응.
 //   2) ATT(App Tracking Transparency) 프롬프트
 //      — IDFA 접근 허용 여부. 맞춤형 광고 eCPM에 영향. UMP 동의 확보 뒤 노출.
 //   3) canRequestAds 이면 MobileAds.shared.start() 로 SDK 초기화.
-//
 
 import Foundation
 import UIKit
