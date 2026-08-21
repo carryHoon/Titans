@@ -26,6 +26,7 @@ struct CompanyDetailView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     /// 다크/라이트를 시스템 colorScheme에서 직접 도출한다.
     /// (fullScreenCover는 상위의 appTheme 주입이 끊길 수 있어, 자체 계산 후 하위에 재주입한다.)
@@ -75,6 +76,9 @@ struct CompanyDetailView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)
+            }
+            if tossStockCode != nil {
+                brokerLinkBar
             }
         }
         .background(theme.background.ignoresSafeArea())
@@ -400,6 +404,72 @@ struct CompanyDetailView: View {
             return "한국 종목은 2020년부터의 공식 시가총액이에요."
         default:
             return "해외 종목 시가총액은 종가 × 현재 발행주식수 기준 추정치예요."
+        }
+    }
+
+    // MARK: - 증권앱 바로가기(토스증권)
+
+    /// 토스증권 딥링크에 쓰는 6자리 종목 코드. 한국(KOSPI·KOSDAQ) 종목에서만 값을 낸다.
+    /// 판별은 티커 접미사(".KS"/".KQ") 우선 — ALL·검색 등 일부 진입 경로에선 company.market이
+    /// nil로 들어와(거래소 "—"·통화 USD로 표시) market만 보면 버튼이 누락되기 때문.
+    /// 티커는 "005930.KS" / "035720.KQ" 형태라 접미사를 떼고 숫자 6자리만 취한다.
+    private var tossStockCode: String? {
+        let upper = company.ticker.uppercased()
+        let isKR = upper.hasSuffix(".KS") || upper.hasSuffix(".KQ")
+            || company.market == .kospi || company.market == .kosdaq
+        guard isKR else { return nil }
+        let base = company.ticker.split(separator: ".").first.map(String.init) ?? company.ticker
+        let digits = base.filter(\.isNumber)
+        return digits.count == 6 ? digits : nil
+    }
+
+    /// 하단 고정 바로가기 바. 앱은 "정보 안내"만 하며 주문·투자권유에는 관여하지 않는다(자본시장법 대응).
+    private var brokerLinkBar: some View {
+        VStack(spacing: 6) {
+            Button { openInToss() } label: {
+                HStack(spacing: 8) {
+                    // 토스 로고(브랜드 심볼)를 흰 원형 칩에 담아 파란 버튼 위에서도 또렷하게.
+                    Image("TossLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .padding(5)
+                        .background(Circle().fill(.white))
+                    Text("토스증권 바로가기")
+                        .font(.system(size: 17, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)   // 토스 하단 CTA 표준 높이 오마주
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: "#3182F6")))
+            }
+            .buttonStyle(.plain)
+
+            Text("정보 제공 목적이며 투자 권유가 아니에요. 토스증권 미설치 시 웹으로 이동해요.")
+                .font(.system(size: 10))
+                .foregroundStyle(theme.tertiaryLabel)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(theme.background)
+    }
+
+    /// 토스증권의 해당 종목 상세 화면을 연다. KR 종목 코드는 "A" 접두사 + 6자리(예: 삼성전자 A005930).
+    /// 딥링크는 토스 공유링크(OneLink)를 리다이렉트 추적해 확보한 실제 앱 스킴이다.
+    ///   supertoss://securities?url=<service.tossinvest.com?nextLandingUrl=/stocks/A{code}>&…
+    /// 앱이 설치돼 있으면(openURL 수락) 앱의 해당 종목 화면으로, 없으면(미수락) 웹 랜딩으로 폴백한다.
+    private func openInToss() {
+        guard let code = tossStockCode else { return }
+        let web = URL(string: "https://contents.tossinvest.com/stocks/A\(code)")!
+        let deepLink = URL(string: "supertoss://securities?url=https%3A%2F%2Fservice.tossinvest.com%3FnextLandingUrl%3D%252Fstocks%252FA\(code)&clearHistory=true&swipeRefresh=true")
+        if let deepLink {
+            openURL(deepLink) { accepted in
+                if !accepted { openURL(web) }
+            }
+        } else {
+            openURL(web)
         }
     }
 
