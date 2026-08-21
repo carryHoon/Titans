@@ -1405,9 +1405,9 @@ struct SingleMarketTicker: View {
 /// 상단 티커에 로테이션으로 노출되는 "오늘의 순위 사건". company는 로고/색 표시용.
 struct Highlight: Identifiable {
     enum Kind { case overtake, topGainer, topLoser, bigMove, capMilestone, newEntry, leader }
-    /// 하이라이트 섹션 통일 색 — 상승(화살표·숫자)=빨강, 하락=파랑.
-    static let increaseColor = Color(red: 0.95, green: 0.20, blue: 0.20)
-    static let decreaseColor = Color(red: 0.10, green: 0.43, blue: 0.92)
+    /// 하이라이트 섹션 통일 색 — 상승(화살표·숫자·카테고리)=초록, 하락=빨강 (앱 전역 등락색과 통일).
+    static let increaseColor = Color.tickerUp
+    static let decreaseColor = Color.tickerDown
     static let entryColor    = Color(red: 0.12, green: 0.66, blue: 0.42)  // 신규 진입=초록(하락 파랑과 혼동 방지)
     static let milestoneColor = Color(red: 0.80, green: 0.52, blue: 0.05) // 조 달러 돌파=앰버
     let id = UUID()
@@ -1433,6 +1433,8 @@ struct Highlight: Identifiable {
     /// 카테고리 인디케이터를 이모지 대신 커스텀 아이콘(Assets.xcassets)으로 대체하는 에셋명.
     /// nil이면 emoji를 사용한다.
     var categoryAsset: String? {
+        // 한국 팔레트에선 커스텀 아이콘 대신 예전 이모지(🔺🔷🔥…)를 써 빨강↑·파랑↓ 색감에 맞춘다.
+        if AppRegion.current == .korea { return nil }
         switch kind {
         case .leader:    return "cat_leader"   // 현재 1위 — 트로피
         case .topGainer: return "cat_gainer"   // 최대 상승 — 상승 화살표
@@ -1707,11 +1709,9 @@ struct MarketIndexRow: View {
     @Environment(\.appTheme) private var theme
 
     private var isPositive: Bool { index.change >= 0 }
-    // 토스증권 컨벤션: 상승=빨강, 하락=파랑
+    // 등락 색 — 지역 팔레트(AppRegion) 통일. +상승 / −하락.
     private var trendColor: Color {
-        isPositive
-            ? Color(red: 0.95, green: 0.20, blue: 0.20)
-            : Color(red: 0.10, green: 0.43, blue: 0.92)
+        isPositive ? Color.tickerUp : Color.tickerDown
     }
 
     private static let valueFormatter: NumberFormatter = {
@@ -2070,9 +2070,7 @@ struct CompanyRow: View {
                         Text("\(abs(delta))")
                             .font(.system(size: 8, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(delta > 0
-                        ? Color(red: 0.95, green: 0.20, blue: 0.20)
-                        : Color(red: 0.10, green: 0.43, blue: 0.92))
+                    .foregroundStyle(delta > 0 ? Color.tickerUp : Color.tickerDown)
                 }
             }
             // 세 자리 순위(100)도 한 줄로 담기도록 폭을 24로. 중앙 정렬 유지.
@@ -2101,7 +2099,7 @@ struct CompanyRow: View {
                     Text(String(format: "%.2f%%", abs(company.change)))
                         .font(.system(size: 13, weight: .semibold))
                 }
-                .foregroundStyle(company.change >= 0 ? .green : .red)
+                .foregroundStyle(company.change >= 0 ? Color.tickerUp : Color.tickerDown)
             }
         }
         .padding(.horizontal, 16)

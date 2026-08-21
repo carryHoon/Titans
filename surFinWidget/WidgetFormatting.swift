@@ -8,6 +8,25 @@
 
 import SwiftUI
 
+// MARK: - 지역 팔레트(앱 AppRegion 미러 — 스토어 빌드 시 같은 값으로 맞출 것)
+
+/// 위젯 등락 색 팔레트. 앱의 `AppRegion.current`와 **항상 같은 값**으로 유지한다.
+enum WidgetRegion {
+    case global, korea
+    static let current: WidgetRegion = .global
+}
+
+extension Color {
+    /// + 상승색 — .global=초록 / .korea=빨강
+    static var tickerUp: Color {
+        WidgetRegion.current == .korea ? Color(red: 0.95, green: 0.20, blue: 0.20) : .green
+    }
+    /// − 하락색 — .global=빨강 / .korea=파랑
+    static var tickerDown: Color {
+        WidgetRegion.current == .korea ? Color(red: 0.10, green: 0.43, blue: 0.92) : .red
+    }
+}
+
 // MARK: - Currency (앱과 동일 — rawValue = ISO 코드, exchangeRates 맵 키와 일치)
 
 enum Currency: String {

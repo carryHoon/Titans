@@ -366,12 +366,10 @@ struct SearchView: View {
 
     // MARK: - Helpers
 
-    /// 상승=빨강 / 하락=파랑 (토스 증권 컨벤션 — 스크린샷과 일치)
+    /// 등락 색 — 지역 팔레트(AppRegion) 통일. +상승 / −하락.
     private func changeLabel(_ change: Double) -> some View {
         let up = change >= 0
-        let color = up
-            ? Color(red: 0.95, green: 0.20, blue: 0.20)
-            : Color(red: 0.10, green: 0.43, blue: 0.92)
+        let color = up ? Color.tickerUp : Color.tickerDown
         return Text("\(up ? "+" : "")\(String(format: "%.1f", change))%")
             .font(.system(size: 14, weight: .bold, design: .rounded))
             .foregroundStyle(color)
