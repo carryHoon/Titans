@@ -243,6 +243,8 @@ struct ContentView: View {
     @State private var editingExchange: CustomExchange?   // 편집 시트 대상(nil이면 닫힘)
     @State private var sortField: SortField = .rank
     @State private var sortOrder: SortOrder = .ascending
+    // 종목 상세(시가총액 차트) 시트 대상. nil이면 닫힘. 리스트/커스텀 페이지 행 탭으로 설정된다.
+    @State private var selectedCompany: Company?
 
     /// 기존 코드(헤더/상태/데이터 헬퍼)가 그대로 쓰는 현재 Market. 커스텀/만들기 탭에서는 .all로 유도.
     /// (builtin 탭에서만 실제 거래소를 반환 → 기존 24개 읽기 사이트를 손대지 않기 위한 computed.)
@@ -346,6 +348,22 @@ struct ContentView: View {
                         currency: displayCurrency, exchangeRate: displayRate)
     }
 
+    /// 종목 상세 헤더에 띄울 순위 배지 계산.
+    ///  · allRank = ALL 피드(통합 순위)에 존재하면 그 순위(= "ALL N위"). 없으면 nil.
+    ///  · exchangeRank = 상장 거래소 전용 피드에서의 순위(로드돼 있으면). 거래소 페이지 진입 시엔 넘어온 순위로 폴백.
+    private func detailBadges(for company: Company) -> (allRank: Int?, exchangeRank: Int?, exchangeTitle: String?) {
+        let allRank = viewModel.companies.first(where: { $0.ticker == company.ticker })?.rank
+        let market = company.market
+        var exRank: Int? = nil
+        if let m = market, let feed = viewModel.exchangeFeeds[m] {
+            exRank = feed.companies.first(where: { $0.ticker == company.ticker })?.rank
+        }
+        if exRank == nil, let m = market, m == selectedMarket, m != .all {
+            exRank = company.rank
+        }
+        return (allRank, exRank, market?.title)
+    }
+
     private func isLoading(for market: Market) -> Bool {
         if let f = feed(for: market) { return f.isLoading && f.companies.isEmpty }
         return viewModel.isLoading && viewModel.companies.isEmpty
@@ -387,11 +405,14 @@ struct ContentView: View {
                 } else {
                     let list = sortedCompanies(for: market)
                     ForEach(Array(list.enumerated()), id: \.element.id) { index, company in
-                        CompanyRow(
-                            company: company,
-                            currency: displayCurrency,
-                            exchangeRate: displayRate
-                        )
+                        Button { selectedCompany = company } label: {
+                            CompanyRow(
+                                company: company,
+                                currency: displayCurrency,
+                                exchangeRate: displayRate
+                            )
+                        }
+                        .buttonStyle(.plain)
                         if (index + 1) % AdsConfig.bannerRowInterval == 0 && index + 1 < list.count {
                             AdBannerSlot()
                         }
@@ -431,7 +452,10 @@ struct ContentView: View {
                     } else {
                         ColumnHeader(sortField: $sortField, sortOrder: $sortOrder)
                         ForEach(Array(list.enumerated()), id: \.element.id) { _, company in
-                            CompanyRow(company: company, currency: displayCurrency, exchangeRate: displayRate)
+                            Button { selectedCompany = company } label: {
+                                CompanyRow(company: company, currency: displayCurrency, exchangeRate: displayRate)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 } header: {
@@ -526,11 +550,17 @@ struct ContentView: View {
             // 블록 높이는 vScale(기준 iPhone 17 Pro 874pt) 비례라 모든 기기에서 동일 비율 유지.
             // ※ 목록 노출 개수 미세조정 knob = 아래 .frame(height:) 값(1행 ≈ 78pt).
             HStack(alignment: .center, spacing: 12) {
-                MarketHighlightTicker(
-                    highlights: currentHighlights,
-                    currentIndex: highlightIndex,
-                    vScale: vScale
-                )
+                Button {
+                    let hs = currentHighlights
+                    if hs.indices.contains(highlightIndex) { selectedCompany = hs[highlightIndex].company }
+                } label: {
+                    MarketHighlightTicker(
+                        highlights: currentHighlights,
+                        currentIndex: highlightIndex,
+                        vScale: vScale
+                    )
+                }
+                .buttonStyle(.plain)
                 // 매핑된 거래소(ALL·US·KR)에서만 그래프 노출 — 커스텀/미매핑 탭은 티커가 폭을 회수한다.
                 if case .builtin = selectedTab, selectedMarket.chartParam != nil {
                     MarketIndexSparkline(chart: viewModel.charts[selectedMarket], vScale: vScale)
@@ -612,6 +642,12 @@ struct ContentView: View {
         }
         .sheet(item: $editingExchange) { exchange in
             CustomExchangeEditView(exchange: exchange, store: customStore, universe: searchableCompanies)
+        }
+        .fullScreenCover(item: $selectedCompany) { company in
+            let badges = detailBadges(for: company)
+            CompanyDetailView(company: company, currency: displayCurrency, exchangeRate: displayRate,
+                              allRank: badges.allRank, exchangeRank: badges.exchangeRank,
+                              exchangeTitle: badges.exchangeTitle)
         }
         .fullScreenCover(isPresented: $showSearch) {
             SearchView(

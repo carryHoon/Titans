@@ -395,3 +395,69 @@ struct MarketChartResponse: Decodable {
     let error: String?
 }
 
+// MARK: - Company Chart (종목 시가총액 히스토리)
+
+/// 종목 상세 화면의 시가총액 차트 데이터 포인트.
+/// 시총은 통화 무관 공통값인 USD 조(trillion) 단위로 통일해 저장하고, 표시 시점에 통화 환산한다.
+/// (RankSnapshotStore·Company.marketCapUSD 와 동일한 단위 규약)
+struct CompanyChartPoint: Codable, Equatable {
+    let date: String     // 거래일 "YYYY-MM-DD" (종가 기준)
+    let capUSD: Double    // 해당 거래일 종가 기준 시가총액, trillion USD
+}
+
+/// 한 종목의 시가총액 히스토리(오래된→최신). 백엔드 `/api/company-chart`가 소유한다.
+/// (KR=공공데이터포털 mrktTotAmt 시계열, US=TD /market_cap 또는 time_series×주식수 — 백엔드 책임.)
+struct CompanyChart: Codable, Equatable {
+    let ticker: String
+    let name: String
+    let points: [CompanyChartPoint]   // 오래된→최신
+
+    /// 기간 첫→마지막 종가 시총 변화율(%). 헤더 등락 표기용. 포인트 2개 미만이면 0.
+    var changePercent: Double {
+        guard let first = points.first?.capUSD, first > 0, let last = points.last?.capUSD else { return 0 }
+        return (last - first) / first * 100
+    }
+}
+
+struct CompanyChartResponse: Decodable {
+    let ticker: String
+    let name: String
+    let points: [CompanyChartPoint]
+    let stale: Bool?
+    let error: String?
+}
+
+// MARK: - Chart Range (종목 차트 기간 선택)
+
+/// 종목 차트 기간 세그먼트(토스 오마주: 1주 / 1달 / 3달 / 1년 / 5년 / 전체).
+/// rawValue = 백엔드 `?range=` 쿼리 값이자 로컬 캐시 키 접미사.
+enum ChartRange: String, CaseIterable, Identifiable {
+    case w1, m1, m3, y1, y5, all
+
+    var id: String { rawValue }
+
+    /// 세그먼트에 표시할 짧은 라벨.
+    var label: String {
+        switch self {
+        case .w1:  return "1주"
+        case .m1:  return "1달"
+        case .m3:  return "3달"
+        case .y1:  return "1년"
+        case .y5:  return "5년"
+        case .all: return "전체"
+        }
+    }
+
+    /// 대략적인 조회 기간(달력일). nil = 전체 히스토리. 백엔드 요청·시드 생성·다운샘플 기준.
+    var days: Int? {
+        switch self {
+        case .w1:  return 7
+        case .m1:  return 30
+        case .m3:  return 90
+        case .y1:  return 365
+        case .y5:  return 365 * 5
+        case .all: return nil
+        }
+    }
+}
+
