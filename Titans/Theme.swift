@@ -76,6 +76,20 @@ extension Color {
 /// ⚠️ 위젯은 별도 타깃이라 WidgetFormatting.swift의 `WidgetRegion.current`도 같은 값으로 맞출 것.
 enum AppRegion {
     case global, korea
-    static let current: AppRegion = .global
+
+    /// 개발 빌드(DEBUG)는 한국 모드 고정, 스토어(Release)는 기기 지역으로 자동 판정한다.
+    /// → 앱·위젯이 동일 로직으로 각자 판정하므로 수동 플립 없이 항상 일치. 스토어 빌드는 지역별 자동 적용.
+    static var current: AppRegion {
+        #if DEBUG
+        return .korea            // 개발 중 한국 앱스토어 모드 고정 (해외 확인이 필요하면 .global 로)
+        #else
+        return autoDetected      // 스토어(Release): 기기 지역 자동감지
+        #endif
+    }
+
+    /// 기기 지역이 한국이면 .korea, 그 외는 .global.
+    private static var autoDetected: AppRegion {
+        (Locale.current.region?.identifier == "KR") ? .korea : .global
+    }
 }
 

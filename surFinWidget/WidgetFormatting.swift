@@ -13,7 +13,16 @@ import SwiftUI
 /// 위젯 등락 색 팔레트. 앱의 `AppRegion.current`와 **항상 같은 값**으로 유지한다.
 enum WidgetRegion {
     case global, korea
-    static let current: WidgetRegion = .global
+
+    /// 앱 `AppRegion`과 **동일 로직** — 개발(DEBUG)=한국 고정, 스토어(Release)=기기 지역 자동감지.
+    /// 두 타깃이 같은 규칙으로 각자 판정하므로 수동 동기화 없이 항상 앱과 일치한다.
+    static var current: WidgetRegion {
+        #if DEBUG
+        return .korea
+        #else
+        return (Locale.current.region?.identifier == "KR") ? .korea : .global
+        #endif
+    }
 }
 
 extension Color {
