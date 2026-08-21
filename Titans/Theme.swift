@@ -56,5 +56,26 @@ extension Color {
     /// MarCap 브랜드 강조색(초록). 로그인/프로필에서 쓰던 값과 동일 —
     /// "나만의 거래소" CTA·선택 요소 등 앱 전역 강조에 공용으로 쓴다.
     static let marcapAccent = Color(red: 0.2, green: 0.8, blue: 0.4)
+
+    /// 등락 통일색 — 지역 팔레트(AppRegion)를 따른다. + 상승 / − 하락.
+    /// .global(해외)=초록↑·빨강↓, .korea(한국)=빨강↑·파랑↓. 하이라이트·시장지수·시총차트·행 공통.
+    static var tickerUp: Color {
+        AppRegion.current == .korea ? Color(red: 0.95, green: 0.20, blue: 0.20) : .green
+    }
+    static var tickerDown: Color {
+        AppRegion.current == .korea ? Color(red: 0.10, green: 0.43, blue: 0.92) : .red
+    }
+}
+
+// MARK: - 스토어 지역 팔레트 스위치
+
+/// 앱스토어 지역별 등락 색·하이라이트 아이콘 팔레트. **스토어 빌드 시 아래 `current` 한 줄만 변경.**
+///  · .global — 해외(미국·영국 등): 상승 초록 / 하락 빨강 / 하이라이트 = 새 커스텀 아이콘
+///  · .korea  — 한국: 상승 빨강 / 하락 파랑 / 하이라이트 = 기존 이모지(색감 매칭)
+///
+/// ⚠️ 위젯은 별도 타깃이라 WidgetFormatting.swift의 `WidgetRegion.current`도 같은 값으로 맞출 것.
+enum AppRegion {
+    case global, korea
+    static let current: AppRegion = .global
 }
 

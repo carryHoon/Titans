@@ -24,8 +24,12 @@ struct CompanyDetailView: View {
     let exchangeRank: Int?
     let exchangeTitle: String?
 
-    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+
+    /// 다크/라이트를 시스템 colorScheme에서 직접 도출한다.
+    /// (fullScreenCover는 상위의 appTheme 주입이 끊길 수 있어, 자체 계산 후 하위에 재주입한다.)
+    private var theme: AppTheme { colorScheme == .dark ? .dark : .light }
 
     @StateObject private var store: CompanyChartStore
     @State private var range: ChartRange = .m3
@@ -49,7 +53,7 @@ struct CompanyDetailView: View {
 
     /// 상승/하락 색 — 앱 전역(CompanyRow) 규칙과 통일(초록=상승·빨강=하락).
     private var trendColor: Color {
-        (store.chart?.changePercent ?? company.change) >= 0 ? .green : .red
+        (store.chart?.changePercent ?? company.change) >= 0 ? .tickerUp : .tickerDown
     }
 
     var body: some View {
@@ -74,6 +78,7 @@ struct CompanyDetailView: View {
             }
         }
         .background(theme.background.ignoresSafeArea())
+        .environment(\.appTheme, theme)   // 하위 뷰(로고 타일 등)도 동일 다크/라이트 적용
         .task(id: range) { await store.load(range) }
     }
 
@@ -130,37 +135,37 @@ struct CompanyDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 이름 오른편 순위 배지. ALL top20에 있으면 "ALL N위"를 먼저(강조), 이어서 상장 거래소 순위.
+    /// 이름 오른편 순위 배지. ALL top20에 있으면 "ALL N위"를 먼저, 이어서 상장 거래소 순위(동일 디자인).
     private struct RankBadge: Identifiable {
-        let id = UUID()
+        var id: String { text }   // 텍스트 기반 안정 id — 매 렌더 새 id로 인한 깜빡임(재삽입) 방지
         let text: String
-        let emphasized: Bool   // ALL 배지는 강조(액센트)
     }
 
     private var rankBadges: [RankBadge] {
         var out: [RankBadge] = []
         if let allRank {
-            out.append(RankBadge(text: "ALL \(allRank)위", emphasized: true))
+            out.append(RankBadge(text: "ALL \(allRank)위"))
         }
         if let exchangeTitle {
             if let exRank = exchangeRank {
-                out.append(RankBadge(text: "\(exchangeTitle) \(exRank)위", emphasized: false))
+                out.append(RankBadge(text: "\(exchangeTitle) \(exRank)위"))
             } else if allRank == nil {
                 // ALL에 없고 거래소 랭크도 못 구한 경우: 넘어온 순위를 거래소 순위로 간주(거래소 페이지 진입).
-                out.append(RankBadge(text: "\(exchangeTitle) \(company.rank)위", emphasized: false))
+                out.append(RankBadge(text: "\(exchangeTitle) \(company.rank)위"))
             }
         }
         return out
     }
 
+    /// 모든 순위 배지는 동일한 중립 스타일(회색 캡슐) — 강조·애니메이션 없음.
     private func badgeView(_ b: RankBadge) -> some View {
         Text(b.text)
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(b.emphasized ? Color.marcapAccent : theme.secondaryLabel)
+            .foregroundStyle(theme.secondaryLabel)
             .fixedSize()
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
-            .background(b.emphasized ? Color.marcapAccent.opacity(0.14) : theme.fill, in: Capsule())
+            .background(theme.fill, in: Capsule())
     }
 
     /// 선택 기간 첫→최신 시총 변화(“{기간} 전보다 +X (n%)”). 색은 추세색.
@@ -181,7 +186,7 @@ struct CompanyDetailView: View {
             Text(String(format: "(%.2f%%)", abs(pct)))
                 .font(.system(size: 14, weight: .semibold))
         }
-        .foregroundStyle(up ? Color.green : Color.red)
+        .foregroundStyle(up ? Color.tickerUp : Color.tickerDown)
     }
 
     /// 등락 앞에 붙는 기간 문구. 전체는 “상장 이후”, 나머지는 “{기간} 전보다”.
@@ -214,16 +219,11 @@ struct CompanyDetailView: View {
 
         return Chart {
             ForEach(Array(points.enumerated()), id: \.offset) { idx, p in
+                // 토스 오마주: 그라데이션 채움 없이 라인만.
                 LineMark(x: .value("i", idx), y: .value("cap", p.capUSD))
                     .interpolationMethod(.monotone)
                     .foregroundStyle(trendColor)
                     .lineStyle(StrokeStyle(lineWidth: 2))
-
-                AreaMark(x: .value("i", idx), y: .value("cap", p.capUSD))
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(
-                        LinearGradient(colors: [trendColor.opacity(0.22), trendColor.opacity(0.0)],
-                                       startPoint: .top, endPoint: .bottom))
             }
 
             if let sel = selectedIndex, points.indices.contains(sel) {
@@ -325,7 +325,7 @@ struct CompanyDetailView: View {
             infoRow("거래소 순위", "\(exchangeRank ?? company.rank)위")
             divider
             infoRowColored("당일 등락", String(format: "%@%.2f%%", company.change >= 0 ? "+" : "-", abs(company.change)),
-                           color: company.change >= 0 ? .green : .red)
+                           color: company.change >= 0 ? .tickerUp : .tickerDown)
             divider
             infoRow("표시 통화", currency.rawValue)
         }

@@ -133,9 +133,7 @@ private struct WidgetRankDelta: View {
                 Text("\(abs(delta))")
                     .font(.system(size: numberSize, weight: .bold, design: .rounded))
             }
-            .foregroundStyle(delta > 0
-                ? Color(red: 0.95, green: 0.20, blue: 0.20)
-                : Color(red: 0.10, green: 0.43, blue: 0.92))
+            .foregroundStyle(delta > 0 ? Color.tickerUp : Color.tickerDown)
         }
     }
 }
@@ -400,7 +398,7 @@ private struct WidgetCompanyRow: View {
                     Text(String(format: "%.2f%%", abs(company.changePercent)))
                         .font(.system(size: metrics.change, weight: .semibold))
                 }
-                .foregroundStyle(isUp ? .green : .red)
+                .foregroundStyle(isUp ? Color.tickerUp : Color.tickerDown)
                 .lineLimit(1)
             }
         }
