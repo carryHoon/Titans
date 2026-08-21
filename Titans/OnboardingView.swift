@@ -670,6 +670,7 @@ private struct OnboardingPreviewStep: View {
     @State private var index = 0
     @State private var beatVisible = false   // 현재 비트 페이드 인/아웃
     @State private var started = false       // 재생 1회만 시작
+    @State private var advanceTask: Task<Void, Never>?   // 다음 비트 자동 예약(탭 스킵 시 취소·재예약)
 
     private var feed: ExchangeFeed? { market.flatMap { vm.exchangeFeeds[$0] } }
     private var companies: [Company] { feed?.companies ?? [] }
@@ -693,6 +694,8 @@ private struct OnboardingPreviewStep: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)   // 정중앙 기준, 살짝 위로 올려 시선 균형
         .offset(y: -40)
         .padding(.horizontal, 36)
+        .contentShape(Rectangle())          // 빈 영역까지 탭 인식(결과 화면 어디를 눌러도 스킵)
+        .onTapGesture { skip() }            // 탭 → 다음 결과로 즉시 건너뛰기
         .onAppear { startIfReady() }
         .onChange(of: companies.count) { _, _ in startIfReady() }
     }
@@ -741,7 +744,7 @@ private struct OnboardingPreviewStep: View {
         guard !highlights.isEmpty else { return }   // 아직 데이터 없음 → onChange에서 재시도
         started = true
         beats = buildBeats(highlights)
-        Task { await play() }
+        scheduleBeat(0)
     }
 
     /// 대표지수 → 동향 비트(최대 3개, 첫 비트에 순위 기준일을 작게 곁들임) → 마무리(끝맺음)로 구성.
@@ -815,29 +818,43 @@ private struct OnboardingPreviewStep: View {
         return nil
     }
 
-    /// 비트를 하나씩 재생: 천천히 등장 → 충분히 머무름 → 부드럽게 사라짐 → 다음이 자리를 이어받음.
-    /// 마지막(마무리) 비트는 사라지지 않고 머물며 하단 버튼을 노출한다. (총 체류 시간 ≥ 10초)
-    private func play() async {
-        // 비트가 적으면 더 오래 머물러(강조), 많으면 조금 짧게 — 최소 체류 10초 이상을 보장.
+    /// 비트 체류 시간 — 적으면 오래(강조), 많으면 조금 짧게.
+    private var beatHold: Double {
         let nonFinal = max(1, beats.count - 1)
-        let hold: Double = nonFinal <= 3 ? 3.0 : 2.2
+        return nonFinal <= 3 ? 3.0 : 2.2
+    }
 
-        for i in beats.indices {
-            // 새 비트를 '숨김' 상태로 먼저 렌더한 뒤 등장시켜(팝인 방지) 부드럽게 페이드인.
-            index = i
-            beatVisible = false
+    /// i번째 비트를 등장시키고, 마무리가 아니면 체류 후 다음 비트를 자동 예약한다.
+    /// 예약(advanceTask)은 취소 가능해서, 사용자가 화면을 탭하면 즉시 다음 비트로 건너뛸 수 있다(skip).
+    /// 마지막(마무리) 비트는 사라지지 않고 머물며 하단 "시작하기" 버튼을 노출한다.
+    private func scheduleBeat(_ i: Int) {
+        advanceTask?.cancel()
+        guard beats.indices.contains(i) else { return }
+        index = i
+        beatVisible = false
+        advanceTask = Task { @MainActor in
+            // 새 비트를 '숨김'으로 먼저 렌더한 뒤 등장(팝인 방지).
             try? await Task.sleep(for: .milliseconds(40))
+            if Task.isCancelled { return }
             withAnimation(.easeOut(duration: 1.0)) { beatVisible = true }
 
             if i == beats.count - 1 {
                 onFinished()   // 마무리 도달 → "시작하기" 노출
                 return
             }
-
-            try? await Task.sleep(for: .seconds(hold))   // 등장 + 충분한 강조 체류
+            try? await Task.sleep(for: .seconds(beatHold))   // 충분한 강조 체류
+            if Task.isCancelled { return }
             withAnimation(.easeIn(duration: 0.8)) { beatVisible = false }
-            try? await Task.sleep(for: .seconds(1.0))     // 페이드아웃 + 짧은 여백(자리 교체)
+            try? await Task.sleep(for: .seconds(1.0))         // 페이드아웃 + 여백
+            if Task.isCancelled { return }
+            scheduleBeat(i + 1)
         }
+    }
+
+    /// 결과 화면 탭 — 현재 비트를 건너뛰고 다음 결과로 즉시 전환. 마무리 비트에선 무시.
+    private func skip() {
+        guard !beats.isEmpty, index < beats.count - 1 else { return }
+        scheduleBeat(index + 1)
     }
 
     /// 선택한 거래소의 "오늘의 순위 사건"을 축약해 만든다(홈 하이라이트 로직의 미리보기용 축약판).

@@ -255,12 +255,14 @@ struct surFinWidgetEntryView: View {
     /// EOD 날짜는 basDt("YYYYMMDD") 또는 asOf("YYYY-MM-DD")에서 "MM.DD"로 정규화한다.
     /// 날짜가 아직 없으면(첫 로드 등) 실시간처럼 오해하지 않도록 시각으로 폴백한다.
     private var referenceParts: (time: String, suffix: String) {
+        // 해외(.global) 위젯은 영어만 노출 → 한글 접미사("종가"/"기준")를 숨긴다(날짜·시각은 중립이라 유지).
+        let kr = WidgetRegion.current == .korea
         switch WidgetDataBasis.of(entry.exchangeKey) {
         case .eodDated:
-            if let d = Self.mmdd(from: entry.basDt ?? entry.asOf) { return (d, "종가") }
+            if let d = Self.mmdd(from: entry.basDt ?? entry.asOf) { return (d, kr ? "종가" : "") }
             return (Self.hhmm.string(from: entry.updatedAt), "")
         case .reportedCap:
-            if let d = Self.mmdd(from: entry.asOf) { return (d, "기준") }
+            if let d = Self.mmdd(from: entry.asOf) { return (d, kr ? "기준" : "") }
             return (Self.hhmm.string(from: entry.updatedAt), "")
         case .realtime:
             return (Self.hhmm.string(from: entry.updatedAt), "")

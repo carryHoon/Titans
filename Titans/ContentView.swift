@@ -1433,8 +1433,15 @@ struct Highlight: Identifiable {
     /// 카테고리 인디케이터를 이모지 대신 커스텀 아이콘(Assets.xcassets)으로 대체하는 에셋명.
     /// nil이면 emoji를 사용한다.
     var categoryAsset: String? {
-        // 한국 팔레트에선 커스텀 아이콘 대신 예전 이모지(🔺🔷🔥…)를 써 빨강↑·파랑↓ 색감에 맞춘다.
-        if AppRegion.current == .korea { return nil }
+        // 한국 팔레트: 색감 맞춘 KR 전용 아이콘(상승 주황·하락 파랑·급등 핑크). 미제공 항목은 이모지 폴백.
+        if AppRegion.current == .korea {
+            switch kind {
+            case .topGainer: return "cat_gainer_kr"
+            case .topLoser:  return "cat_loser_kr"
+            case .bigMove:   return (percentMove ?? 0) >= 0 ? "cat_surge_kr" : nil
+            default:         return nil
+            }
+        }
         switch kind {
         case .leader:    return "cat_leader"   // 현재 1위 — 트로피
         case .topGainer: return "cat_gainer"   // 최대 상승 — 상승 화살표
