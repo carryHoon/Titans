@@ -35,8 +35,31 @@ struct CompanyDetailView: View {
     @StateObject private var store: CompanyChartStore
     @State private var range: ChartRange = .m3
     @State private var selectedIndex: Int? = nil
+    @State private var mode: ChartMode = .marketCap
 
     private let haptics = UISelectionFeedbackGenerator()
+
+    /// 상세 차트 표시 모드 — 헤더 우측 pill로 전환한다.
+    ///  · marketCap: 기존 시가총액 절대값 곡선(토스 오마주).
+    ///  · vsIndex: 거래소 지수(=base 100) 대비 종목 시총 성장률 비교(2라인).
+    enum ChartMode: String, CaseIterable, Identifiable {
+        case marketCap, vsIndex
+        var id: String { rawValue }
+        /// pill에 표시할 짧은 라벨.
+        var pillLabel: String {
+            switch self {
+            case .marketCap: return "시가총액"
+            case .vsIndex:   return "지수 대비"
+            }
+        }
+        /// 메뉴 항목 라벨(조금 더 설명적).
+        var menuLabel: String {
+            switch self {
+            case .marketCap: return "시가총액 그래프"
+            case .vsIndex:   return "지수 대비 성장률"
+            }
+        }
+    }
 
     init(company: Company, currency: Currency, exchangeRate: Double,
          allRank: Int? = nil, exchangeRank: Int? = nil, exchangeTitle: String? = nil) {
@@ -64,9 +87,13 @@ struct CompanyDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     header
                         .padding(.top, 10)
+                    if mode == .vsIndex {
+                        comparisonLegend
+                            .padding(.top, 20)
+                    }
                     chartSection
-                        .frame(height: 280)
-                        .padding(.top, 22)
+                        .frame(height: 320)
+                        .padding(.top, mode == .vsIndex ? 12 : 22)
                     rangeSelector
                         .padding(.top, 20)
                     infoCard
@@ -84,6 +111,7 @@ struct CompanyDetailView: View {
         .background(theme.background.ignoresSafeArea())
         .environment(\.appTheme, theme)   // 하위 뷰(로고 타일 등)도 동일 다크/라이트 적용
         .task(id: range) { await store.load(range) }
+        .onChange(of: mode) { _, _ in selectedIndex = nil }
     }
 
     // MARK: - 상단 바
@@ -127,16 +155,46 @@ struct CompanyDetailView: View {
                 Spacer(minLength: 0)
             }
 
-            // 2행: 큰 시가총액 (현재/최신). 스크러빙 값은 그래프 말풍선이 담당.
-            Text(formatMarketCap(company.marketCapUSD, currency: currency, exchangeRate: exchangeRate))
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(theme.label)
-                .contentTransition(.numericText())
+            // 2행: 큰 시가총액 (현재/최신) + 모드 전환 pill(시총 숫자 행에 맞춤).
+            //      스크러빙 값은 그래프 말풍선이 담당.
+            HStack(alignment: .center, spacing: 8) {
+                Text(formatMarketCap(company.marketCapUSD, currency: currency, exchangeRate: exchangeRate))
+                    .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    .foregroundStyle(theme.label)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 8)
+                modePill
+            }
 
             // 3행: 기간 전보다 등락
             periodDelta
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 헤더 우측 모드 전환 pill(캡슐 + chevron). 탭하면 시가총액/지수 대비 메뉴가 뜬다.
+    private var modePill: some View {
+        Menu {
+            Picker("차트 모드", selection: $mode) {
+                ForEach(ChartMode.allCases) { m in
+                    Text(m.menuLabel).tag(m)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(mode.pillLabel)
+                    .font(.system(size: 13, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(theme.label)
+            .fixedSize()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(theme.fill, in: Capsule())
+        }
     }
 
     /// 이름 오른편 순위 배지. ALL top20에 있으면 "ALL N위"를 먼저, 이어서 상장 거래소 순위(동일 디자인).
@@ -202,26 +260,39 @@ struct CompanyDetailView: View {
 
     private var chartSection: some View {
         Group {
-            if points.count >= 2 {
-                chart
-            } else {
-                // 데이터 부재(시드 실패 등) 시 옅은 스켈레톤.
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(theme.fill)
-                    .overlay(ProgressView())
+            switch mode {
+            case .marketCap:
+                if points.count >= 2 { marketCapChart } else { chartSkeleton }
+            case .vsIndex:
+                if comparisonSeries != nil { comparisonChart } else { chartSkeleton }
             }
         }
     }
 
-    private var chart: some View {
+    /// 데이터 부재(시드 실패 등) 시 옅은 스켈레톤.
+    private var chartSkeleton: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(theme.fill)
+            .overlay(ProgressView())
+    }
+
+    // MARK: 시가총액 그래프(절대값 + 토스식 기준 점선)
+
+    private var marketCapChart: some View {
         let caps = points.map(\.capUSD)
         let minCap = caps.min() ?? 0
         let maxCap = caps.max() ?? 1
         let pad = max((maxCap - minCap) * 0.12, maxCap * 0.02)
         let lower = max(minCap - pad, 0)
         let upper = maxCap + pad
+        let baseline = points.first?.capUSD ?? caps.first ?? 0   // 기준선 = 기간 시작값
 
         return Chart {
+            // 토스식 기준 점선(기간 시작 시총). 이 선 위/아래로 등락을 직관적으로 읽는다.
+            RuleMark(y: .value("base", baseline))
+                .foregroundStyle(theme.secondaryLabel.opacity(0.45))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
             ForEach(Array(points.enumerated()), id: \.offset) { idx, p in
                 // 토스 오마주: 그라데이션 채움 없이 라인만.
                 LineMark(x: .value("i", idx), y: .value("cap", p.capUSD))
@@ -248,14 +319,181 @@ struct CompanyDetailView: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(Color.clear).contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in updateSelection(at: value.location.x, proxy: proxy, geo: geo) }
-                            .onEnded { _ in selectedIndex = nil }
-                    )
+            scrubOverlay(proxy)
+        }
+    }
+
+    // MARK: 지수 대비 성장률 그래프(base 100, 2라인)
+
+    /// 종목·지수 시드를 각각 base 100으로 리베이스한 비교 시리즈. 데이터 미비 시 nil.
+    private var comparisonSeries: (company: [Double], index: [Double])? {
+        let caps = points.map(\.capUSD)
+        let idx = store.indexSeries
+        guard caps.count >= 2, idx.count == caps.count,
+              let c0 = caps.first, c0 > 0, let i0 = idx.first, i0 > 0 else { return nil }
+        return (caps.map { $0 / c0 * 100 }, idx.map { $0 / i0 * 100 })
+    }
+
+    private var comparisonChart: some View {
+        let series = comparisonSeries ?? (company: [], index: [])
+        let all = series.company + series.index
+        let minV = all.min() ?? 90
+        let maxV = all.max() ?? 110
+        let pad = max((maxV - minV) * 0.12, 2)
+        let lower = minV - pad
+        let upper = maxV + pad
+
+        return Chart {
+            // 기준선 = 100(비교 시작 시점). 이 선 대비 두 곡선의 상대 성과를 읽는다.
+            RuleMark(y: .value("base", 100.0))
+                .foregroundStyle(theme.secondaryLabel.opacity(0.45))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+            // 지수선(회색) — 먼저 그려 종목선이 위로 오게.
+            ForEach(Array(series.index.enumerated()), id: \.offset) { i, v in
+                LineMark(x: .value("i", i), y: .value("v", v), series: .value("s", "지수"))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(theme.secondaryLabel)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
             }
+            // 종목선(추세색)
+            ForEach(Array(series.company.enumerated()), id: \.offset) { i, v in
+                LineMark(x: .value("i", i), y: .value("v", v), series: .value("s", "종목"))
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(trendColor)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+            }
+
+            if let sel = selectedIndex, series.company.indices.contains(sel) {
+                RuleMark(x: .value("i", sel))
+                    .foregroundStyle(theme.stroke)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .annotation(position: .top, spacing: 8,
+                                overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                        comparisonBubble(at: sel, series: series)
+                    }
+                PointMark(x: .value("i", sel), y: .value("v", series.index[sel]))
+                    .symbolSize(70)
+                    .foregroundStyle(theme.secondaryLabel)
+                PointMark(x: .value("i", sel), y: .value("v", series.company[sel]))
+                    .symbolSize(90)
+                    .foregroundStyle(trendColor)
+            }
+        }
+        .chartYScale(domain: lower...upper)
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartOverlay { proxy in
+            scrubOverlay(proxy)
+        }
+    }
+
+    /// 스크러빙 제스처 오버레이(두 차트 공용). x좌표 → 최근접 인덱스.
+    private func scrubOverlay(_ proxy: ChartProxy) -> some View {
+        GeometryReader { geo in
+            Rectangle().fill(Color.clear).contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in updateSelection(at: value.location.x, proxy: proxy, geo: geo) }
+                        .onEnded { _ in selectedIndex = nil }
+                )
+        }
+    }
+
+    /// 비교 모드 범례 — 종목/지수 각각의 기간 성장률(base 100 대비)과 초과성과.
+    private var comparisonLegend: some View {
+        let series = comparisonSeries
+        let companyPct = (series?.company.last ?? 100) - 100
+        let indexPct = (series?.index.last ?? 100) - 100
+        let excess = companyPct - indexPct   // 지수 대비 초과성과(%p)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 16) {
+                legendItem(color: trendColor, name: company.name, pct: companyPct)
+                legendItem(color: theme.secondaryLabel, name: indexName, pct: indexPct)
+            }
+            Text(excessText(excess))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.secondaryLabel)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func legendItem(color: Color, name: String, pct: Double) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.label)
+                .lineLimit(1)
+            Text(String(format: "%@%.1f%%", pct >= 0 ? "+" : "", pct))
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(pct >= 0 ? Color.tickerUp : Color.tickerDown)
+        }
+    }
+
+    /// 초과성과 문구. 양수면 지수를 앞섰다는 서사, 음수면 뒤처졌다는 서사.
+    private func excessText(_ excess: Double) -> String {
+        let mag = String(format: "%.1f%%p", abs(excess))
+        if excess >= 0.05 {
+            return "\(deltaPrefix.replacingOccurrences(of: " 전보다", with: "")) \(indexName)보다 \(mag) 앞섰어요"
+        } else if excess <= -0.05 {
+            return "\(deltaPrefix.replacingOccurrences(of: " 전보다", with: "")) \(indexName)보다 \(mag) 뒤처졌어요"
+        } else {
+            return "\(indexName)와 비슷한 흐름이에요"
+        }
+    }
+
+    /// 비교선에 표기할 지수명. 백엔드 실데이터 지수명이 있으면 그걸, 없으면 거래소 기반 폴백.
+    private var indexName: String {
+        if let n = store.indexName, !n.isEmpty { return n }
+        switch company.market {
+        case .all:      return "S&P 500"
+        case .nasdaq:   return "나스닥 100"
+        case .nyse:     return "다우존스"
+        case .kospi:    return "코스피"
+        case .kosdaq:   return "코스닥"
+        case .jpx:      return "MSCI 일본"
+        case .euronext: return "유로 스톡스 50"
+        case .sse:      return "CSI 300"
+        case .szse:     return "차이넥스트"
+        case .nse:      return "니프티 50"
+        case .fwb:      return "DAX"
+        default:        return "시장 지수"
+        }
+    }
+
+    /// 비교 모드 크로스헤어 말풍선 — 날짜 + 종목/지수 각각의 base 100 대비 성장률.
+    private func comparisonBubble(at idx: Int, series: (company: [Double], index: [Double])) -> some View {
+        let dateStr = points.indices.contains(idx) ? displayDate(points[idx].date) : ""
+        let cPct = series.company[idx] - 100
+        let iPct = series.index[idx] - 100
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(dateStr)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.secondaryLabel)
+            bubbleRow(color: trendColor, name: company.name, pct: cPct)
+            bubbleRow(color: theme.secondaryLabel, name: indexName, pct: iPct)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(theme.background)
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.stroke.opacity(0.5), lineWidth: 0.5))
+    }
+
+    private func bubbleRow(color: Color, name: String, pct: Double) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.secondaryLabel)
+                .lineLimit(1)
+            Text(String(format: "%@%.1f%%", pct >= 0 ? "+" : "", pct))
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(theme.label)
         }
     }
 

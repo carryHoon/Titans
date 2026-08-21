@@ -221,6 +221,7 @@ export async function fetchKrIndexSeries(
   idxCsf: string,
   idxNm: string,
   calendarDays = 45,
+  numOfRows = 200,
 ): Promise<{ basDt: string; clpr: number }[]> {
   if (!DATA_GO_KR_KEY) throw new Error('DATA_GO_KR_KEY 미설정 — 공공데이터포털 인증키 필요')
   const endBasDt   = kstDateStr(0)
@@ -228,7 +229,7 @@ export async function fetchKrIndexSeries(
   const params = new URLSearchParams({
     serviceKey: DATA_GO_KR_KEY,
     resultType: 'json',
-    numOfRows:  '200',
+    numOfRows:  String(numOfRows),
     pageNo:     '1',
     idxNm,
     beginBasDt,

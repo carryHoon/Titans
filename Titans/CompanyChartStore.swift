@@ -18,10 +18,17 @@ import Combine
 final class CompanyChartStore: ObservableObject {
     /// 현재 표시 중인 차트(선택된 기간 기준). nil = 아직 첫 로드 전.
     @Published var chart: CompanyChart?
+    /// 비교용 거래소 지수 시드(오래된→최신, chart.points와 인덱스 정렬). base 미적용 원값이며 뷰에서 100으로 리베이스한다.
+    /// Phase 1: 결정론적 시드. 실데이터(백엔드 지수 시계열)가 오면 동일 자리(같은 길이)로 대체된다.
+    @Published var indexSeries: [Double] = []
+    /// 실데이터 지수명(백엔드 제공 시). nil이면 뷰가 거래소 기반 폴백 라벨을 쓴다.
+    @Published var indexName: String? = nil
     @Published var isLoading = true
 
     private let ticker: String
     private let name: String
+    private let market: Market?        // 비교 지수 시드의 형태·시드값 결정에 사용
+    private let exchangeParam: String? // 백엔드 지수 매핑용(?exchange=). company.market 기반.
     private let anchorCapUSD: Double   // 시드 곡선의 최신값 앵커(= 현재 시가총액, trillion USD)
 
     // 기간별 세션 캐시 — 한 번 만든 기간은 즉시 재사용(기간 왕복 시 깜빡임 방지).
@@ -33,6 +40,8 @@ final class CompanyChartStore: ObservableObject {
     init(company: Company) {
         self.ticker = company.ticker
         self.name = company.name
+        self.market = company.market
+        self.exchangeParam = company.market?.chartParam
         self.anchorCapUSD = company.marketCapUSD
     }
 
@@ -57,6 +66,9 @@ final class CompanyChartStore: ObservableObject {
             isLoading = false
         }
 
+        // 지수 비교선 — 실데이터(백엔드 index) 우선, 없으면 결정론적 시드.
+        applyIndex(range: range)
+
         // 세션당 기간별 1회는 네트워크 갱신 시도(캐시가 있어도 최신화). 실패해도 조용히 시드/캐시 유지.
         guard !fetched.contains(range) else { return }
         if let fresh = await fetchRemote(range) {
@@ -64,22 +76,44 @@ final class CompanyChartStore: ObservableObject {
             chart = fresh
             fetched.insert(range)
             ChartDiskCache.save(fresh, ticker: ticker, range: range)
+            applyIndex(range: range)   // 실데이터 지수 반영(없으면 시드 재정렬).
+        }
+    }
+
+    /// 비교 지수 시리즈를 확정한다. 백엔드가 종목 points와 정렬된 index를 주면 그걸 쓰고,
+    /// 부재/불일치면 결정론적 시드로 폴백한다(포인트 2개 미만이면 비움).
+    private func applyIndex(range: ChartRange) {
+        let count = chart?.points.count ?? 0
+        if let ip = chart?.indexPoints, ip.count == count, count >= 2 {
+            indexSeries = ip
+            indexName = chart?.indexName
+        } else {
+            indexName = nil
+            indexSeries = count >= 2 ? Self.seedIndex(market: market, range: range, count: count) : []
         }
     }
 
     // MARK: - 네트워크 (미래 백엔드 계약)
 
-    /// `GET /api/company-chart?ticker=&range=` → CompanyChart. 실패/부재 시 nil.
+    /// `GET /api/company-chart?ticker=&range=&exchange=` → CompanyChart. 실패/부재 시 nil.
+    /// exchange는 비교 지수 매핑용(백엔드가 거래소 지수를 선택). 없으면 백엔드가 티커로 폴백.
     private func fetchRemote(_ range: ChartRange) async -> CompanyChart? {
-        guard let encoded = ticker.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(endpointBase)?ticker=\(encoded)&range=\(range.rawValue)")
+        guard let encoded = ticker.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
         else { return nil }
+        var urlString = "\(endpointBase)?ticker=\(encoded)&range=\(range.rawValue)"
+        if let ex = exchangeParam { urlString += "&exchange=\(ex)" }
+        guard let url = URL(string: urlString) else { return nil }
         guard let (data, response) = try? await URLSession.shared.data(from: url),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
               let decoded = try? JSONDecoder().decode(CompanyChartResponse.self, from: data),
               decoded.error == nil, decoded.points.count >= 2
         else { return nil }
-        return CompanyChart(ticker: decoded.ticker, name: decoded.name, points: decoded.points)
+        // 지수는 종목 points와 길이가 같을 때만 채택(정렬 보장). 아니면 nil → 시드 폴백.
+        let idx = decoded.index
+        let indexPoints = (idx?.points.count == decoded.points.count) ? idx?.points : nil
+        return CompanyChart(ticker: decoded.ticker, name: decoded.name, points: decoded.points,
+                            indexName: indexPoints != nil ? idx?.name : nil,
+                            indexPoints: indexPoints)
     }
 
     // MARK: - 시드 생성기 (백엔드 부재 동안 플레이스홀더)
@@ -129,6 +163,38 @@ final class CompanyChartStore: ObservableObject {
             points.append(CompanyChartPoint(date: ymd(date, cal: cal), capUSD: caps[i]))
         }
         return CompanyChart(ticker: ticker, name: name, points: points)
+    }
+
+    /// 거래소 지수 비교선의 결정론적 시드(오래된→최신). 마지막 값은 100(anchor)에 고정.
+    /// 개별 종목보다 완만한 성장·낮은 변동으로 만들어, 리베이스 후 종목선과 자연스럽게 갈라진다.
+    /// (실 지수 시계열은 Phase 2 백엔드가 담당; 여기서는 형태 프리뷰용 플레이스홀더.)
+    static func seedIndex(market: Market?, range: ChartRange, count: Int) -> [Double] {
+        guard count >= 2 else { return [] }
+        var rng = SeededRNG(seed: stableHash("IDX_" + (market?.rawValue ?? "GLOBAL")) &+ UInt64(range.rawValue.count) &* 40503)
+
+        // 기간이 길수록 낮은 지점에서 시작(장기 지수 상승 서사). 종목 시드보다 시작점이 높음(완만).
+        let startFactor: Double
+        switch range {
+        case .w1:  startFactor = 0.99
+        case .m1:  startFactor = 0.96
+        case .m3:  startFactor = 0.91
+        case .y1:  startFactor = 0.80
+        case .y5:  startFactor = 0.55
+        case .all: startFactor = 0.40
+        }
+        let anchor = 100.0
+        let start = anchor * startFactor
+
+        var out: [Double] = []
+        out.reserveCapacity(count)
+        for i in 0..<count {
+            let t = Double(i) / Double(count - 1)
+            let base = start * pow(anchor / start, t)            // 지수 성장 보간
+            let noise = 1.0 + (rng.nextUnit() - 0.5) * 0.03      // ±1.5% (지수는 개별종목보다 완만)
+            out.append(base * noise)
+        }
+        out[out.count - 1] = anchor
+        return out
     }
 
     /// 기간별 시드 포인트 개수(그래프 매끄러움 vs 비용 균형).

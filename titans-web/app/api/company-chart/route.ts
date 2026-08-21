@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUsdKrwQuote } from '@/lib/fx'
+import { MARKET_CHART, type MarketChartConfig } from '@/lib/exchanges'
+import { fetchKrIndexSeries } from '@/lib/kr-snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,11 +37,18 @@ const RANGE_MAXPTS: Record<Range, number> = {
 }
 
 interface ChartPoint { date: string; capUSD: number }
-interface Payload { ticker: string; name: string; points: ChartPoint[]; stale: boolean }
+// 비교용 지수 블록: 종목 points와 인덱스 정렬된 지수 종가(base 미적용, 앱이 100으로 리베이스).
+interface IndexBlock { name: string; points: number[] }
+interface Payload { ticker: string; name: string; points: ChartPoint[]; index?: IndexBlock; stale: boolean }
 
 interface CacheEntry { data: Payload; ts: number }
 const cache    = new Map<string, CacheEntry>()
 const lastGood = new Map<string, Payload>()
+
+// 지수 시계열 캐시(거래소|range 단위). 같은 거래소의 여러 종목이 동일 지수를 공유하므로
+// 티커별로 다시 받지 않게 별도 캐시로 TD 크레딧을 아낀다. dates=오래된→최신.
+interface IndexSeriesEntry { name: string; series: { date: string; close: number }[]; ts: number }
+const indexCache = new Map<string, IndexSeriesEntry>()
 
 // ─── 공통 유틸 ────────────────────────────────────────────────────────────────
 
@@ -109,9 +118,10 @@ async function fetchKrCaps(ticker: string, range: Range): Promise<{ name: string
 // ─── 🇺🇸/글로벌 Twelve Data: 일봉 종가 × 현재 발행주식수 ───────────────────────
 interface TdBar { datetime: string; close: string }
 
-/** time_series 1콜(newest→oldest). end_date 지정 시 그 이전 구간. */
-async function tdSeriesCall(symbol: string, outputsize: number, endDate?: string): Promise<TdBar[]> {
+/** time_series 1콜(newest→oldest). end_date 지정 시 그 이전 구간. mic 지정 시 거래소 특정(XETRA ETF 등). */
+async function tdSeriesCall(symbol: string, outputsize: number, endDate?: string, mic?: string): Promise<TdBar[]> {
   const url = `${TD_BASE}/time_series?symbol=${encodeURIComponent(symbol)}` +
+              (mic ? `&mic_code=${encodeURIComponent(mic)}` : '') +
               `&interval=1day&outputsize=${outputsize}` +
               (endDate ? `&end_date=${endDate}` : '') +
               `&apikey=${TD_KEY}`
@@ -181,6 +191,71 @@ async function fetchUsCaps(symbol: string, range: Range): Promise<{ name: string
   return { name: symbol, points: downsample(points, RANGE_MAXPTS[range]) }
 }
 
+// ─── 비교용 거래소 지수 시계열(종목 차트와 날짜 정렬) ──────────────────────────
+// "지수 대비 성장률" 뷰용. MARKET_CHART(홈 스파크라인과 동일 소스·라이선스 근거)를 재사용해
+// 지수 종가 시계열을 받고, 종목 points의 날짜에 forward-fill 정렬해 1:1 길이로 맞춰 내려준다.
+// 실패해도 종목 차트에는 영향 없다(호출부에서 흡수 → index 생략).
+
+/** 티커/거래소 → 비교할 지수 config. exchange 파라미터 우선, 없으면 KR 접미사, 그 외 S&P 500(all). */
+function resolveIndexConfig(exchange: string | null, ticker: string): { param: string; cfg: MarketChartConfig } | null {
+  if (exchange && MARKET_CHART[exchange]) return { param: exchange, cfg: MARKET_CHART[exchange] }
+  if (isKR(ticker)) {
+    const param = /\.KQ$/i.test(ticker) ? 'kosdaq' : 'kospi'
+    return MARKET_CHART[param] ? { param, cfg: MARKET_CHART[param] } : null
+  }
+  return MARKET_CHART.all ? { param: 'all', cfg: MARKET_CHART.all } : null
+}
+
+/** 지수 종가 시계열(오래된→최신, 날짜 포함). td=ETF 1일봉, krx=공공데이터포털 지수. */
+async function fetchIndexSeries(cfg: MarketChartConfig, range: Range): Promise<{ date: string; close: number }[]> {
+  if (cfg.source.kind === 'td') {
+    const days = RANGE_DAYS[range]
+    const need = days == null ? 5000 : Math.min(5000, Math.ceil(days * 0.72) + 5)
+    const bars = await tdSeriesCall(cfg.source.symbol, need, undefined, cfg.source.mic)
+    return bars
+      .map(b => ({ date: b.datetime.slice(0, 10), close: Number(b.close) }))
+      .filter(b => b.date && Number.isFinite(b.close) && b.close > 0)
+      .reverse()   // newest→oldest → 오래된→최신
+  }
+  // krx: getStockMarketIndex 일별 종가. all은 넉넉히(공공데이터 2020~), 유한 기간은 range+여유.
+  const days = RANGE_DAYS[range]
+  const calDays = days == null ? 366 * 6 : days + 10
+  const rows = await fetchKrIndexSeries(cfg.source.idxCsf, cfg.source.idxNm, calDays, 3000)
+  return rows.map(r => ({
+    date: `${r.basDt.slice(0, 4)}-${r.basDt.slice(4, 6)}-${r.basDt.slice(6, 8)}`,
+    close: r.clpr,
+  }))
+}
+
+/** 지수 시계열(오래된→최신)을 targetDates(오름차순)에 forward-fill 정렬 → 같은 길이 종가 배열. */
+function alignToDates(series: { date: string; close: number }[], targetDates: string[]): number[] | null {
+  if (series.length < 2 || targetDates.length < 2) return null
+  const out: number[] = []
+  let j = 0
+  for (const d of targetDates) {
+    while (j + 1 < series.length && series[j + 1].date <= d) j++
+    out.push(series[j].close)   // d가 첫 지수일보다 이르면 첫 값으로 채움
+  }
+  return out
+}
+
+/** 종목 points에 맞춘 지수 블록. 실패/부재 시 null(종목 차트는 그대로). */
+async function buildIndexBlock(exchange: string | null, ticker: string, range: Range, points: ChartPoint[]): Promise<IndexBlock | null> {
+  const resolved = resolveIndexConfig(exchange, ticker)
+  if (!resolved) return null
+  const idxKey = `${resolved.param}|${range}`
+  let entry = indexCache.get(idxKey)
+  if (!entry || Date.now() - entry.ts >= CACHE_TTL_MS) {
+    const series = await fetchIndexSeries(resolved.cfg, range)
+    if (series.length < 2) return null
+    entry = { name: resolved.cfg.label, series, ts: Date.now() }
+    indexCache.set(idxKey, entry)
+  }
+  const aligned = alignToDates(entry.series, points.map(p => p.date))
+  if (!aligned) return null
+  return { name: entry.name, points: aligned }
+}
+
 // ─── 라우트 ──────────────────────────────────────────────────────────────────
 export async function GET(req: Request) {
   const url    = new URL(req.url)
@@ -188,6 +263,7 @@ export async function GET(req: Request) {
   const rangeQ = (url.searchParams.get('range') ?? 'm3').toLowerCase()
   const range: Range = (['w1', 'm1', 'm3', 'y1', 'y5', 'all'] as Range[]).includes(rangeQ as Range)
     ? (rangeQ as Range) : 'm3'
+  const exchange = (url.searchParams.get('exchange') ?? '').trim().toLowerCase() || null
 
   if (!ticker) {
     return NextResponse.json({ error: 'company-chart: ticker 필요' }, { status: 400 })
@@ -205,7 +281,15 @@ export async function GET(req: Request) {
       : await fetchUsCaps(ticker, range)
     if (points.length < 2) throw new Error('포인트 부족')
 
-    const data: Payload = { ticker, name, points, stale: false }
+    // 비교용 지수(선택). 실패해도 종목 차트는 정상 — index만 생략.
+    let index: IndexBlock | undefined
+    try {
+      index = (await buildIndexBlock(exchange, ticker, range, points)) ?? undefined
+    } catch (e) {
+      console.warn(`[company-chart] ${key} index skipped:`, e)
+    }
+
+    const data: Payload = { ticker, name, points, index, stale: false }
     cache.set(key, { data, ts: Date.now() })
     lastGood.set(key, data)
     return NextResponse.json(data)

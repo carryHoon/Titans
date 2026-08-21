@@ -411,6 +411,10 @@ struct CompanyChart: Codable, Equatable {
     let ticker: String
     let name: String
     let points: [CompanyChartPoint]   // 오래된→최신
+    /// "지수 대비 성장률" 비교선용 거래소 지수. 백엔드가 points와 날짜 정렬해 같은 길이로 내려준다.
+    /// 부재(백엔드 미제공/실패) 시 nil → 앱이 결정론적 시드로 폴백. (base 미적용 원값; 앱이 100으로 리베이스)
+    var indexName: String? = nil
+    var indexPoints: [Double]? = nil
 
     /// 기간 첫→마지막 종가 시총 변화율(%). 헤더 등락 표기용. 포인트 2개 미만이면 0.
     var changePercent: Double {
@@ -419,10 +423,17 @@ struct CompanyChart: Codable, Equatable {
     }
 }
 
+/// company-chart 응답의 지수 블록. points는 종목 points와 1:1 정렬(오래된→최신).
+struct CompanyChartIndexDTO: Decodable {
+    let name: String
+    let points: [Double]
+}
+
 struct CompanyChartResponse: Decodable {
     let ticker: String
     let name: String
     let points: [CompanyChartPoint]
+    let index: CompanyChartIndexDTO?
     let stale: Bool?
     let error: String?
 }
