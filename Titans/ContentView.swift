@@ -1439,6 +1439,8 @@ struct Highlight: Identifiable {
             case .topGainer: return "cat_gainer_kr"
             case .topLoser:  return "cat_loser_kr"
             case .bigMove:   return (percentMove ?? 0) >= 0 ? "cat_surge_kr" : nil
+            case .leader:    return "cat_leader_kr"   // 현재 1위 — 월계관 1
+            case .newEntry:  return "cat_entry_kr"    // Top-N 진입 — 축포/컨페티
             default:         return nil
             }
         }

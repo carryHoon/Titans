@@ -438,6 +438,35 @@ struct CompanyChartResponse: Decodable {
     let error: String?
 }
 
+// MARK: - Company Metrics (투자지표 + 배당 소식)
+
+/// 종목 상세의 투자지표. 비율 지표라 통화 무관. 백엔드 `/api/company-metrics`가 소유한다.
+/// (US/글로벌=TD /statistics, KR=소스 미연동 → supported=false)
+struct CompanyMetricsData: Decodable, Equatable {
+    let per: Double?          // 주가수익비율(배)
+    let pbr: Double?          // 주가순자산비율(배)
+    let psr: Double?          // 주가매출비율(배)
+    let roePct: Double?       // 자기자본이익률(%)
+    let divYieldPct: Double?  // 배당수익률(%)
+}
+
+/// 종목 배당 소식. perShare는 currency 통화 기준 연 배당금.
+struct CompanyDividendData: Decodable, Equatable {
+    let perShare: Double?     // 주당 연 배당금
+    let yieldPct: Double?     // 배당수익률(%)
+    let freqCount: Int?       // 연간 지급 횟수
+    let exDate: String?       // 배당락일 "YYYY-MM-DD"
+    let payDate: String?      // 지급일
+}
+
+struct CompanyMetricsResponse: Decodable, Equatable {
+    let ticker: String
+    let supported: Bool
+    let currency: String?
+    let metrics: CompanyMetricsData?
+    let dividend: CompanyDividendData?
+}
+
 // MARK: - Chart Range (종목 차트 기간 선택)
 
 /// 종목 차트 기간 세그먼트(토스 오마주: 1주 / 1달 / 3달 / 1년 / 5년 / 전체).
