@@ -465,8 +465,6 @@ struct CompanyMetricsResponse: Codable, Equatable {
     let currency: String?
     let metrics: CompanyMetricsData?
     let dividend: CompanyDividendData?
-    /// 토스증권 US 상품코드(US{IPO일}001). 백엔드가 토스 검색으로 해석. 딥링크/웹 경로에 사용.
-    let tossCode: String?
 }
 
 // MARK: - Chart Range (종목 차트 기간 선택)

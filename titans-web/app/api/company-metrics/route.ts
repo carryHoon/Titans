@@ -8,15 +8,15 @@ export const dynamic = 'force-dynamic'
 //   · 배당 = TD /dividends(실지급 이력)에서 **정규 배당의 중앙값 × 지급횟수**로 연간화한다.
 //     (TD /statistics.forward_annual_dividend_rate 는 직전 이상치 배당을 연간화해 크게 틀림 —
 //      예: NVDA 0.25×4=$1.00. /dividends 중앙값(0.01)×4=$0.04 가 토스/실제와 일치.)
-//   · tossCode = 토스 US 종목 상품코드(US{IPO일}001). 토스 공개 검색 API로 티커→코드 해석·영구 캐시.
-//     (토스 앱 딥링크는 티커가 아니라 이 코드를 요구 — 티커 딥링크는 "지원하지 않는 주식" 처리됨.)
+//   · Toss 바로가기: US 상품코드는 토스 비공개 검색 API 스크래핑에 의존(라이선스·상표 회색지대)이라
+//     상용 배포에서 제거했다. 🇰🇷은 앱이 공개 단축코드로 A+6자리를 로컬 도출한다(백엔드 무관).
 //   · 🇰🇷 KOSPI/KOSDAQ = 배당은 공공데이터포털 주식배당정보(GetStocDiviInfoService_V2/getDiviInfo_V2,
 //     라이선스 0)로 실제 지급 이력 → 최근 12개월 합으로 연간화 + 주식시세(getStockPriceInfo) 종가로
 //     배당수익률 계산. PER/PBR/PSR/ROE는 KR 무료 재배포 소스 미확정이라 아직 미제공(metrics=null).
 //     배당이 없으면 supported:false(앱 "곧 제공" 표기). 토스코드는 앱이 로컬 A+6자리 사용.
 //
-// 응답(iOS CompanyMetricsResponse 계약): { ticker, supported, currency?, metrics?, dividend?, tossCode?, stale }
-// EOD/기업액션 데이터라 24h 캐시 + last-good 폴백. tossCode는 불변이라 영구 캐시.
+// 응답(iOS CompanyMetricsResponse 계약): { ticker, supported, currency?, metrics?, dividend?, stale }
+// EOD/기업액션 데이터라 24h 캐시 + last-good 폴백.
 
 const TD_BASE = 'https://api.twelvedata.com'
 const TD_KEY  = process.env.TWELVE_DATA_API_KEY ?? ''
@@ -58,15 +58,12 @@ interface Payload {
   currency?: string
   metrics?:  Metrics
   dividend?: DividendBlock
-  tossCode?: string
   stale:     boolean
 }
 
 interface CacheEntry { data: Payload; ts: number }
 const cache    = new Map<string, CacheEntry>()
 const lastGood = new Map<string, Payload>()
-// 토스 상품코드는 종목당 불변 → 영구 캐시(200 응답 시에만 저장, 네트워크 오류는 미저장해 재시도 허용).
-const tossCodeCache = new Map<string, string | null>()
 
 const num = (v: unknown): number | null => {
   const n = Number(v)
@@ -227,36 +224,6 @@ function buildKrDividend(rows: KrDivRow[], clpr: number): DividendBlock | null {
   }
 }
 
-// ─── 토스 US 상품코드 해석(공개 검색 API) ────────────────────────────────────────
-// POST wts-info-api.tossinvest.com/.../wts-auto-complete → items[].productCode(US{IPO일}001).
-// 심볼 정확 일치 + 코드가 US로 시작하는 항목만 채택(ETF·유사티커 오매칭 방지).
-async function fetchTossCode(ticker: string): Promise<string | null> {
-  if (tossCodeCache.has(ticker)) return tossCodeCache.get(ticker) ?? null
-  const res = await fetch(
-    `https://wts-info-api.tossinvest.com/api/v3/search-all/wts-auto-complete?query=${encodeURIComponent(ticker)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-      body: JSON.stringify({ query: ticker, sections: [{ type: 'PRODUCT', option: { addIntegratedSearchResult: true } }] }),
-      cache: 'no-store',
-    },
-  )
-  if (!res.ok) throw new Error(`toss search ${ticker} → HTTP ${res.status}`)  // 미저장(재시도 허용)
-  const json = await res.json()
-  const result: unknown[] = Array.isArray(json?.result) ? json.result : []
-  const product = result.find(r => (r as { type?: string }).type === 'PRODUCT') as { data?: { items?: unknown[] } } | undefined
-  const items: unknown[] = product?.data?.items ?? []
-  const up = ticker.toUpperCase()
-  const hit = items.find(it => {
-    const o = it as { symbol?: string; productCode?: string; code?: string }
-    const code = String(o.productCode ?? o.code ?? '')
-    return String(o.symbol ?? '').toUpperCase() === up && /^US\d/.test(code)
-  }) as { productCode?: string; code?: string } | undefined
-  const code = hit ? String(hit.productCode ?? hit.code) : null
-  tossCodeCache.set(ticker, code)   // 200 응답이면 결과(코드/없음) 영구 캐시
-  return code
-}
-
 export async function GET(req: Request) {
   const url      = new URL(req.url)
   const ticker   = (url.searchParams.get('ticker') ?? '').trim()
@@ -294,11 +261,8 @@ export async function GET(req: Request) {
 
   try {
     const stats = await fetchStatistics(ticker)
-    // 배당·토스코드는 병렬(실패해도 각자 흡수 — 지표는 유지).
-    const [divs, tossCode] = await Promise.all([
-      fetchDividends(ticker).catch(() => [] as TdDiv[]),
-      fetchTossCode(ticker).catch(() => null),
-    ])
+    // 배당은 실패해도 흡수 — 지표는 유지.
+    const divs = await fetchDividends(ticker).catch(() => [] as TdDiv[])
     const dividend = buildDividend(divs, stats.price, stats.payDate) ?? undefined
     const metrics: Metrics = {
       per: stats.per, pbr: stats.pbr, psr: stats.psr, roePct: stats.roePct,
@@ -310,7 +274,6 @@ export async function GET(req: Request) {
       currency: CURRENCY_BY_EXCHANGE[exchange] ?? 'USD',
       metrics,
       dividend,
-      tossCode: tossCode ?? undefined,
       stale: false,
     }
     cache.set(key, { data, ts: Date.now() })

@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct CustomExchangeCreationView: View {
     /// 선택 가능한 유니버스 — 홈에서 이미 로드된 전 거래소 종목(JPX 포함). 별도 조회 없음.
@@ -18,6 +19,7 @@ struct CustomExchangeCreationView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.requestReview) private var requestReview
 
     @State private var name: String = ""
     @State private var showPicker = false
@@ -110,6 +112,13 @@ struct CustomExchangeCreationView: View {
             let ex = store.add(name: name.trimmingCharacters(in: .whitespaces), tickers: selectedTickers)
             onCreated(ex)
             dismiss()
+            // 나만의 거래소를 처음 완성한 '아하' 순간에 앱스토어 리뷰를 요청한다(노출 빈도는 시스템이 제어).
+            // 시트 dismiss 전환이 끝난 뒤 표시되도록 잠시 지연.
+            let review = requestReview
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.8))
+                review()
+            }
         }
     }
 }

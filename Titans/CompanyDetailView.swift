@@ -26,7 +26,6 @@ struct CompanyDetailView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
 
     /// 다크/라이트를 시스템 colorScheme에서 직접 도출한다.
     /// (fullScreenCover는 상위의 appTheme 주입이 끊길 수 있어, 자체 계산 후 하위에 재주입한다.)
@@ -105,8 +104,6 @@ struct CompanyDetailView: View {
                         .padding(.top, 28)
                     investmentSection
                         .padding(.top, 28)
-                    attribution
-                        .padding(.top, 20)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)
@@ -627,20 +624,20 @@ struct CompanyDetailView: View {
 
     // MARK: - 투자 지표 + 배당 소식 (토스 오마주)
 
-    /// 정보 카드 아래에 투자지표 그리드 + 배당 소식을 노출. US/글로벌=실데이터, KR/미지원=준비 안내.
-    /// 로딩 전(metrics==nil)엔 아무것도 그리지 않아 레이아웃 흔들림을 줄인다.
+    /// 정보 카드 아래에 투자지표 그리드 + 배당 소식을 노출. 데이터가 있으면(프리페치/캐시로 대개 즉시) 표시하고,
+    /// 없으면(무배당·미지원·조회 실패) **아무것도 그리지 않는다** — "곧 제공" 같은 미완 문구로 화면을 어수선하게
+    /// 만들지 않기 위함(정직한 생략). 로딩 중(metrics==nil)엔 스켈레톤으로 즉각 반응한다.
     @ViewBuilder
     private var investmentSection: some View {
-        if let m = metrics, m.supported {
-            let hasMetric = hasAnyMetric(m.metrics)
-            let hasDiv = hasAnyDividend(m.dividend)
-            VStack(alignment: .leading, spacing: 24) {
-                if hasMetric { valuationCard(m.metrics!) }
-                if hasDiv { dividendCard(m.dividend!, currencyCode: m.currency ?? "USD") }
-                if !hasMetric && !hasDiv { comingSoonCard }
+        if let m = metrics {
+            let hasMetric = m.supported && hasAnyMetric(m.metrics)
+            let hasDiv = m.supported && hasAnyDividend(m.dividend)
+            if hasMetric || hasDiv {
+                VStack(alignment: .leading, spacing: 24) {
+                    if hasMetric { valuationCard(m.metrics!) }
+                    if hasDiv { dividendCard(m.dividend!, currencyCode: m.currency ?? "USD") }
+                }
             }
-        } else if metrics != nil {
-            comingSoonCard   // supported=false (KR 등)
         } else {
             metricsSkeleton  // 캐시 없음(첫 조회) → 로딩 스켈레톤(가짜 수치 없이 즉각 반응)
         }
@@ -722,22 +719,6 @@ struct CompanyDetailView: View {
         }
     }
 
-    /// 데이터 미연동(KR 등) 안내 카드 — 가짜 값 대신 정직한 준비 중 표기.
-    private var comingSoonCard: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "hourglass")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(theme.secondaryLabel)
-            Text("투자지표·배당 정보는 곧 제공될 예정이에요.")
-                .font(.system(size: 13))
-                .foregroundStyle(theme.secondaryLabel)
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(theme.fill.opacity(0.6)))
-    }
-
     /// 배당금 표기: 통화별 기호. 원/엔은 정수(천단위 콤마), 그 외 소수 2자리.
     private func formatDividendAmount(_ v: Double, currencyCode: String) -> String {
         switch currencyCode {
@@ -759,107 +740,17 @@ struct CompanyDetailView: View {
         return f.string(from: NSNumber(value: v)) ?? String(format: "%.0f", v)
     }
 
-    // MARK: - 출처 표기(라이선스)
+    // MARK: - 하단 고정 바(배당 캘린더)
 
-    private var attribution: some View {
-        VStack(spacing: 4) {
-            if let note = coverageNote {
-                Text(note)
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.secondaryLabel)
-                    .multilineTextAlignment(.center)
-            }
-            Text(attributionText)
-                .font(.system(size: 11))
-                .foregroundStyle(theme.tertiaryLabel)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    /// 거래소에 맞는 데이터 출처. 상업 배포 라이선스 표기 요건 대응.
-    private var attributionText: String {
-        switch company.market {
-        case .kospi, .kosdaq:
-            return "데이터 · 공공데이터포털(금융위원회)"
-        default:
-            return "데이터 · Twelve Data"
-        }
-    }
-
-    /// 데이터 특성 안내(정보 정확성).
-    ///  · KR: 공공데이터포털은 2020년부터의 공식 시총만 제공.
-    ///  · US/글로벌: 종가×현재 발행주식수로 계산한 추정치(과거 주식수 미반영) → '추정치' 명시.
-    private var coverageNote: String? {
-        switch company.market {
-        case .kospi, .kosdaq:
-            return "한국 종목은 2020년부터의 공식 시가총액이에요."
-        default:
-            return "해외 종목 시가총액은 종가 × 현재 발행주식수 기준 추정치예요."
-        }
-    }
-
-    // MARK: - 증권앱 바로가기(토스증권)
-
-    /// 토스증권 딥링크/웹에 쓰는 종목 경로 세그먼트.
-    ///  · 🇰🇷 KOSPI/KOSDAQ = "A"+6자리코드(예: 삼성전자 → A005930). 로컬에서 즉시 도출(티커 접미사 우선).
-    ///  · 🇺🇸/글로벌 = 토스 US 상품코드(US{IPO일}001, 예: NVDA → US19990122001). 백엔드가 토스 검색으로
-    ///    해석한 값(metrics.tossCode)만 사용한다. ⚠️토스 앱은 티커 딥링크를 "지원하지 않는 주식"으로
-    ///    거부하므로 티커를 경로로 쓰면 안 된다. 코드 미해석(로딩 전/실패)이면 nil → 버튼 미노출.
-    private var tossPath: String? {
-        let upper = company.ticker.uppercased()
-        let isKR = upper.hasSuffix(".KS") || upper.hasSuffix(".KQ")
-            || company.market == .kospi || company.market == .kosdaq
-        if isKR {
-            let base = company.ticker.split(separator: ".").first.map(String.init) ?? company.ticker
-            let digits = base.filter(\.isNumber)
-            return digits.count == 6 ? "A\(digits)" : nil
-        }
-        // US/글로벌: 백엔드가 해석한 토스 상품코드만 신뢰(티커 딥링크는 토스가 거부).
-        if let code = metrics?.tossCode, !code.isEmpty { return code }
-        return nil
-    }
-
-    /// 하단 고정 바(토스 오마주 2버튼): [바로가기(토스증권)] + [배당 캘린더].
-    /// KR·US 종목에 토스 바로가기가 붙고(자본시장법: 앱은 정보 안내만·주문 미관여), 그 외는 배당 캘린더만 전폭.
+    /// 하단 고정 바 — 배당 캘린더 단일 CTA(전폭). (증권앱 바로가기는 라이선스·상표 리스크로 제거)
     private var bottomBar: some View {
         VStack(spacing: 6) {
-            HStack(spacing: 10) {
-                if tossPath != nil { brokerButton }
-                dividendCalendarButton
-            }
-            if tossPath != nil {
-                Text("정보 제공 목적이며 투자 권유가 아니에요. 토스증권 미설치 시 웹으로 이동해요.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(theme.tertiaryLabel)
-                    .multilineTextAlignment(.center)
-            }
+            dividendCalendarButton
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 6)
         .background(theme.background)
-    }
-
-    /// 토스증권 바로가기 버튼(파란 CTA). KR·US 종목에서 노출.
-    private var brokerButton: some View {
-        Button { openInToss() } label: {
-            HStack(spacing: 8) {
-                // 토스 로고(브랜드 심볼)를 흰 원형 칩에 담아 파란 버튼 위에서도 또렷하게.
-                Image("TossLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 20, height: 20)
-                    .padding(5)
-                    .background(Circle().fill(.white))
-                Text("바로가기")
-                    .font(.system(size: 16, weight: .bold))
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)   // 토스 하단 CTA 표준 높이 오마주
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: "#3182F6")))
-        }
-        .buttonStyle(.plain)
     }
 
     /// 배당 캘린더 버튼(중립 CTA). 탭 시 배당락일 캘린더 시트를 연다.
@@ -877,29 +768,6 @@ struct CompanyDetailView: View {
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(theme.fill))
         }
         .buttonStyle(.plain)
-    }
-
-    /// 토스증권의 해당 종목 상세 화면을 연다. 경로 세그먼트는 KR="A"+6자리(예: A005930), US=티커(예: AAPL).
-    /// 딥링크는 토스 공유링크(OneLink)를 리다이렉트 추적해 확보한 실제 앱 스킴이며, 랜딩 URL만 종목별로 바꾼다.
-    ///   supertoss://securities?url=<service.tossinvest.com?nextLandingUrl=/stocks/{path}>&…
-    /// 앱이 설치돼 있으면(openURL 수락) 앱의 해당 종목 화면으로, 없으면(미수락) 웹 랜딩으로 폴백한다.
-    private func openInToss() {
-        guard let path = tossPath else { return }
-        // 웹 폴백: 토스 종목 콘텐츠 페이지(KR=A+코드, US=상품코드) — 토스 자체 web_dp와 동일 호스트.
-        guard let web = URL(string: "https://contents.tossinvest.com/stocks/\(path)") else { return }
-        // 딥링크: nextLandingUrl(/stocks/{path})을 1차 인코딩 → 전체 url 파라미터를 2차 인코딩(기존 KR 링크와 동일 규약).
-        let unreserved = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-_~"))
-        let landingEnc = "/stocks/\(path)".addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
-        let inner = "https://service.tossinvest.com?nextLandingUrl=\(landingEnc)"
-        let innerEnc = inner.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
-        let deepLink = URL(string: "supertoss://securities?url=\(innerEnc)&clearHistory=true&swipeRefresh=true")
-        if let deepLink {
-            openURL(deepLink) { accepted in
-                if !accepted { openURL(web) }
-            }
-        } else {
-            openURL(web)
-        }
     }
 
     /// "YYYY-MM-DD" → "YYYY.MM.DD".
