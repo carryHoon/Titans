@@ -43,6 +43,18 @@ final class CompanyChartStore: ObservableObject {
         self.market = company.market
         self.exchangeParam = company.market?.chartParam
         self.anchorCapUSD = company.marketCapUSD
+
+        // 첫 프레임 즉시 그래프(토스식): 기본기간(.m3)을 디스크 캐시(있으면 실데이터) → 없으면 시드로 미리 채운다.
+        // 이후 .task의 load(.m3)가 세션 캐시/네트워크로 자연스럽게 최신화한다(중복 표시 없음).
+        let initial: ChartRange = .m3
+        if let disk = ChartDiskCache.load(ticker: ticker, range: initial) {
+            bySeg[initial] = disk
+            chart = disk
+        } else {
+            chart = Self.seed(ticker: ticker, name: name, anchorCapUSD: anchorCapUSD, range: initial)
+        }
+        isLoading = false
+        applyIndex(range: initial)
     }
 
     /// 선택 기간의 차트를 로드한다.
