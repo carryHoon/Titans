@@ -10,13 +10,21 @@ export const dynamic = 'force-dynamic'
 //      예: NVDA 0.25×4=$1.00. /dividends 중앙값(0.01)×4=$0.04 가 토스/실제와 일치.)
 //   · tossCode = 토스 US 종목 상품코드(US{IPO일}001). 토스 공개 검색 API로 티커→코드 해석·영구 캐시.
 //     (토스 앱 딥링크는 티커가 아니라 이 코드를 요구 — 티커 딥링크는 "지원하지 않는 주식" 처리됨.)
-//   · 🇰🇷 KOSPI/KOSDAQ = 지표/배당 소스 미연동 → supported:false(앱이 "곧 제공" 표기). 토스코드는 앱이 로컬 A+6자리 사용.
+//   · 🇰🇷 KOSPI/KOSDAQ = 배당은 공공데이터포털 주식배당정보(GetStocDiviInfoService_V2/getDiviInfo_V2,
+//     라이선스 0)로 실제 지급 이력 → 최근 12개월 합으로 연간화 + 주식시세(getStockPriceInfo) 종가로
+//     배당수익률 계산. PER/PBR/PSR/ROE는 KR 무료 재배포 소스 미확정이라 아직 미제공(metrics=null).
+//     배당이 없으면 supported:false(앱 "곧 제공" 표기). 토스코드는 앱이 로컬 A+6자리 사용.
 //
 // 응답(iOS CompanyMetricsResponse 계약): { ticker, supported, currency?, metrics?, dividend?, tossCode?, stale }
 // EOD/기업액션 데이터라 24h 캐시 + last-good 폴백. tossCode는 불변이라 영구 캐시.
 
 const TD_BASE = 'https://api.twelvedata.com'
 const TD_KEY  = process.env.TWELVE_DATA_API_KEY ?? ''
+
+// 🇰🇷 공공데이터포털(금융위) — 단일 계정 키로 주식시세·배당 서비스 공용(company-chart와 동일 키).
+const DATA_GO_KR_KEY = process.env.DATA_GO_KR_KEY ?? ''
+const KR_PRICE_URL = 'https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo'
+const KR_DIV_URL   = 'https://apis.data.go.kr/1160100/GetStocDiviInfoService_V2/getDiviInfo_V2'
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000   // 24h
 const YEAR_MS      = 365 * 24 * 60 * 60 * 1000
@@ -140,6 +148,85 @@ function buildDividend(divs: TdDiv[], price: number | null, payDate: string | nu
   }
 }
 
+// ─── 🇰🇷 공공데이터포털: 종가+ISIN + 배당 이력 → 배당 블록 ──────────────────────
+function ymdDaysAgo(n: number): string {
+  const d = new Date(Date.now() - n * 24 * 60 * 60 * 1000)
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+}
+function dashify(ymd8: string): string {
+  return ymd8.length === 8 ? `${ymd8.slice(0, 4)}-${ymd8.slice(4, 6)}-${ymd8.slice(6, 8)}` : ymd8
+}
+/** 배당기준일(record date) → 배당락일(ex-date) ≈ 직전 영업일. "YYYYMMDD" → "YYYY-MM-DD". */
+function prevBusinessDayDash(ymd8: string): string | null {
+  if (ymd8.length !== 8) return null
+  const d = new Date(Number(ymd8.slice(0, 4)), Number(ymd8.slice(4, 6)) - 1, Number(ymd8.slice(6, 8)))
+  d.setDate(d.getDate() - 1)
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1)   // 주말 건너뜀
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** 단축코드(6자리) → 최신 종가 + ISIN. likeSrtnCd는 부분매칭이라 정확 일치 우선. */
+async function fetchKrPriceIsin(shortCode: string): Promise<{ clpr: number; isinCd: string } | null> {
+  if (!DATA_GO_KR_KEY) return null
+  const params = new URLSearchParams({
+    serviceKey: DATA_GO_KR_KEY, resultType: 'json', numOfRows: '10', pageNo: '1',
+    beginBasDt: ymdDaysAgo(14), likeSrtnCd: shortCode,
+  })
+  const res = await fetch(`${KR_PRICE_URL}?${params}`, { cache: 'no-store' })
+  if (!res.ok) return null
+  const json = await res.json()
+  let items = json?.response?.body?.items?.item ?? []
+  if (!Array.isArray(items)) items = items ? [items] : []
+  const exact = items.filter((it: { srtnCd?: string }) => String(it.srtnCd) === shortCode)
+  const pool: { basDt?: string; clpr?: string; isinCd?: string }[] = exact.length ? exact : items
+  pool.sort((a, b) => String(b.basDt).localeCompare(String(a.basDt)))   // 최신 basDt
+  const top = pool[0]
+  if (!top) return null
+  const clpr = Number(top.clpr)
+  const isinCd = String(top.isinCd ?? '')
+  return Number.isFinite(clpr) && clpr > 0 && isinCd ? { clpr, isinCd } : null
+}
+
+interface KrDivRow { basDt: string; pay: string | null; amount: number }
+/** ISIN → 현금배당 이력(최신순). stckGenrDvdnAmt = 주당 현금배당금(원). */
+async function fetchKrDividends(isinCd: string): Promise<KrDivRow[]> {
+  const params = new URLSearchParams({
+    serviceKey: DATA_GO_KR_KEY, resultType: 'json', numOfRows: '100', pageNo: '1', isinCd,
+  })
+  const res = await fetch(`${KR_DIV_URL}?${params}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`KR dividends ${isinCd} → HTTP ${res.status}`)
+  const json = await res.json()
+  let items = json?.response?.body?.items?.item ?? []
+  if (!Array.isArray(items)) items = items ? [items] : []
+  const rows: KrDivRow[] = items
+    .map((it: { dvdnBasDt?: string; cashDvdnPayDt?: string; stckGenrDvdnAmt?: string; stckGenrCashDvdnRt?: string }) => ({
+      basDt:  String(it.dvdnBasDt ?? ''),
+      pay:    it.cashDvdnPayDt ? String(it.cashDvdnPayDt) : null,
+      amount: Number(it.stckGenrDvdnAmt ?? it.stckGenrCashDvdnRt ?? 0),
+    }))
+    .filter((r: KrDivRow) => r.basDt.length === 8 && Number.isFinite(r.amount) && r.amount > 0)
+  rows.sort((a, b) => b.basDt.localeCompare(a.basDt))   // 최신순
+  return rows
+}
+
+/** KR 배당 블록. 최근 12개월 실지급 합으로 연간화(공식 데이터라 합계=실제 연배당). 배당 없으면 null. */
+function buildKrDividend(rows: KrDivRow[], clpr: number): DividendBlock | null {
+  if (rows.length === 0) return null
+  const cutoff = ymdDaysAgo(365)
+  const recent = rows.filter(r => r.basDt >= cutoff)
+  const pool = recent.length > 0 ? recent : rows.slice(0, 4)
+  const annual = pool.reduce((s, r) => s + r.amount, 0)
+  const freqCount = recent.length > 0 ? recent.length : null
+  const latest = rows[0]
+  return {
+    perShare:  round2(annual),
+    yieldPct:  clpr > 0 ? round2(annual / clpr * 100) : null,
+    freqCount,
+    exDate:    prevBusinessDayDash(latest.basDt),   // 배당락일 ≈ 배당기준일 -1영업일
+    payDate:   latest.pay ? dashify(latest.pay) : null,
+  }
+}
+
 // ─── 토스 US 상품코드 해석(공개 검색 API) ────────────────────────────────────────
 // POST wts-info-api.tossinvest.com/.../wts-auto-complete → items[].productCode(US{IPO일}001).
 // 심볼 정확 일치 + 코드가 US로 시작하는 항목만 채택(ETF·유사티커 오매칭 방지).
@@ -179,15 +266,30 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'company-metrics: ticker 필요' }, { status: 400 })
   }
 
-  // KR은 지표/배당 소스 미연동 — 정직하게 준비 중(토스코드는 앱이 로컬 처리).
-  if (isKR(ticker)) {
-    return NextResponse.json({ ticker, supported: false, stale: false } satisfies Payload)
-  }
-
   const key = ticker
   const hit = cache.get(key)
   if (hit && Date.now() - hit.ts < CACHE_TTL_MS) {
     return NextResponse.json(hit.data)
+  }
+
+  // 🇰🇷 배당(공공데이터포털). 지표(PER/PBR 등)는 미제공(metrics 생략). 실패/무배당이면 supported:false.
+  if (isKR(ticker)) {
+    try {
+      const shortCode = ticker.split('.')[0]
+      const pi = await fetchKrPriceIsin(shortCode)
+      if (!pi) throw new Error(`KR ${shortCode} → 종가/ISIN 없음`)
+      const rows = await fetchKrDividends(pi.isinCd)
+      const dividend = buildKrDividend(rows, pi.clpr) ?? undefined
+      const data: Payload = { ticker, supported: !!dividend, currency: 'KRW', dividend, stale: false }
+      cache.set(key, { data, ts: Date.now() })
+      if (dividend) lastGood.set(key, data)
+      return NextResponse.json(data)
+    } catch (err) {
+      console.error(`[company-metrics] KR ${key} failed:`, err)
+      const prev = lastGood.get(key)
+      if (prev) return NextResponse.json({ ...prev, stale: true })
+      return NextResponse.json({ ticker, supported: false, stale: false } satisfies Payload)
+    }
   }
 
   try {
