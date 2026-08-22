@@ -81,15 +81,6 @@ struct MenuView: View {
                     sectionLabel("기능")
                     sectionCard {
                         NavigationLink {
-                            WatchlistPlaceholderView()
-                                .environment(\.appTheme, theme)
-                        } label: {
-                            menuRow(icon: "heart.fill", iconColor: .pink,
-                                    title: "관심 기업", subtitle: "배당 일정이 궁금한 기업을 추가해 보세요")
-                        }
-                        .buttonStyle(.plain)
-                        rowDivider
-                        NavigationLink {
                             DividendCalendarView(companies: [])
                                 .environment(\.appTheme, theme)
                         } label: {
@@ -403,29 +394,3 @@ struct MenuView: View {
     }
 }
 
-// MARK: - 관심기업 준비 중 플레이스홀더
-
-private struct WatchlistPlaceholderView: View {
-    @Environment(\.appTheme) private var theme
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "heart.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.pink)
-            Text("관심 기업")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(theme.label)
-            Text("곧 업데이트될 예정이에요")
-                .font(.system(size: 15))
-                .foregroundStyle(theme.secondaryLabel)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.background.ignoresSafeArea())
-        .navigationTitle("관심 기업")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}

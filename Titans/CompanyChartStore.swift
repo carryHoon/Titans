@@ -27,7 +27,6 @@ final class CompanyChartStore: ObservableObject {
 
     private let ticker: String
     private let name: String
-    private let market: Market?        // 비교 지수 시드의 형태·시드값 결정에 사용
     private let exchangeParam: String? // 백엔드 지수 매핑용(?exchange=). company.market 기반.
     private let anchorCapUSD: Double   // 시드 곡선의 최신값 앵커(= 현재 시가총액, trillion USD)
 
@@ -40,7 +39,6 @@ final class CompanyChartStore: ObservableObject {
     init(company: Company) {
         self.ticker = company.ticker
         self.name = company.name
-        self.market = company.market
         self.exchangeParam = company.market?.chartParam
         self.anchorCapUSD = company.marketCapUSD
 
@@ -54,7 +52,7 @@ final class CompanyChartStore: ObservableObject {
             chart = Self.seed(ticker: ticker, name: name, anchorCapUSD: anchorCapUSD, range: initial)
         }
         isLoading = false
-        applyIndex(range: initial)
+        applyIndex()
     }
 
     /// 선택 기간의 차트를 로드한다.
@@ -78,8 +76,8 @@ final class CompanyChartStore: ObservableObject {
             isLoading = false
         }
 
-        // 지수 비교선 — 실데이터(백엔드 index) 우선, 없으면 결정론적 시드.
-        applyIndex(range: range)
+        // 지수 비교선 — 실데이터(백엔드 index)만 반영. 없으면 비움(가짜 시드 미표시).
+        applyIndex()
 
         // 세션당 기간별 1회는 네트워크 갱신 시도(캐시가 있어도 최신화). 실패해도 조용히 시드/캐시 유지.
         guard !fetched.contains(range) else { return }
@@ -88,20 +86,21 @@ final class CompanyChartStore: ObservableObject {
             chart = fresh
             fetched.insert(range)
             ChartDiskCache.save(fresh, ticker: ticker, range: range)
-            applyIndex(range: range)   // 실데이터 지수 반영(없으면 시드 재정렬).
+            applyIndex()   // 실데이터 지수 반영(없으면 비움).
         }
     }
 
-    /// 비교 지수 시리즈를 확정한다. 백엔드가 종목 points와 정렬된 index를 주면 그걸 쓰고,
-    /// 부재/불일치면 결정론적 시드로 폴백한다(포인트 2개 미만이면 비움).
-    private func applyIndex(range: ChartRange) {
+    /// 비교 지수 시리즈를 확정한다. 백엔드가 종목 points와 정렬된 **실제 시장지수**를 주면 그걸 쓰고,
+    /// 부재/불일치면 비운다(가짜 시드 지수는 절대 표시하지 않는다 — "지수 대비"엔 실 지수만).
+    /// 실 지수가 아직 없으면 indexSeries=[] → 뷰는 비교 차트를 스켈레톤으로 두고 네트워크 결과를 기다린다.
+    private func applyIndex() {
         let count = chart?.points.count ?? 0
         if let ip = chart?.indexPoints, ip.count == count, count >= 2 {
             indexSeries = ip
             indexName = chart?.indexName
         } else {
             indexName = nil
-            indexSeries = count >= 2 ? Self.seedIndex(market: market, range: range, count: count) : []
+            indexSeries = []
         }
     }
 
@@ -175,38 +174,6 @@ final class CompanyChartStore: ObservableObject {
             points.append(CompanyChartPoint(date: ymd(date, cal: cal), capUSD: caps[i]))
         }
         return CompanyChart(ticker: ticker, name: name, points: points)
-    }
-
-    /// 거래소 지수 비교선의 결정론적 시드(오래된→최신). 마지막 값은 100(anchor)에 고정.
-    /// 개별 종목보다 완만한 성장·낮은 변동으로 만들어, 리베이스 후 종목선과 자연스럽게 갈라진다.
-    /// (실 지수 시계열은 Phase 2 백엔드가 담당; 여기서는 형태 프리뷰용 플레이스홀더.)
-    static func seedIndex(market: Market?, range: ChartRange, count: Int) -> [Double] {
-        guard count >= 2 else { return [] }
-        var rng = SeededRNG(seed: stableHash("IDX_" + (market?.rawValue ?? "GLOBAL")) &+ UInt64(range.rawValue.count) &* 40503)
-
-        // 기간이 길수록 낮은 지점에서 시작(장기 지수 상승 서사). 종목 시드보다 시작점이 높음(완만).
-        let startFactor: Double
-        switch range {
-        case .w1:  startFactor = 0.99
-        case .m1:  startFactor = 0.96
-        case .m3:  startFactor = 0.91
-        case .y1:  startFactor = 0.80
-        case .y5:  startFactor = 0.55
-        case .all: startFactor = 0.40
-        }
-        let anchor = 100.0
-        let start = anchor * startFactor
-
-        var out: [Double] = []
-        out.reserveCapacity(count)
-        for i in 0..<count {
-            let t = Double(i) / Double(count - 1)
-            let base = start * pow(anchor / start, t)            // 지수 성장 보간
-            let noise = 1.0 + (rng.nextUnit() - 0.5) * 0.03      // ±1.5% (지수는 개별종목보다 완만)
-            out.append(base * noise)
-        }
-        out[out.count - 1] = anchor
-        return out
     }
 
     /// 기간별 시드 포인트 개수(그래프 매끄러움 vs 비용 균형).
