@@ -787,11 +787,10 @@ struct CompanyDetailView: View {
     // MARK: - 증권앱 바로가기(토스증권)
 
     /// 토스증권 딥링크/웹에 쓰는 종목 경로 세그먼트.
-    ///  · 🇰🇷 KOSPI/KOSDAQ = "A"+6자리코드(예: 삼성전자 → A005930). 티커 ".KS"/".KQ" 접미사 우선 판별.
-    ///  · 🇺🇸 NASDAQ/NYSE  = 티커 그대로(예: AAPL). 토스 US 종목 페이지는 티커로 직접 접근된다.
-    ///  판별에 company.market을 쓰되, ALL·검색 등 market이 nil로 들어오는 경로를 위해
-    ///  KR은 접미사, US는 티커 형태(영문 1~5자·선택적 .클래스)로도 폴백 판별한다.
-    ///  그 외 해외 거래소(JP/EU/CN/IN 등)는 nil → 버튼 미노출(잘못된 링크 방지).
+    ///  · 🇰🇷 KOSPI/KOSDAQ = "A"+6자리코드(예: 삼성전자 → A005930). 로컬에서 즉시 도출(티커 접미사 우선).
+    ///  · 🇺🇸/글로벌 = 토스 US 상품코드(US{IPO일}001, 예: NVDA → US19990122001). 백엔드가 토스 검색으로
+    ///    해석한 값(metrics.tossCode)만 사용한다. ⚠️토스 앱은 티커 딥링크를 "지원하지 않는 주식"으로
+    ///    거부하므로 티커를 경로로 쓰면 안 된다. 코드 미해석(로딩 전/실패)이면 nil → 버튼 미노출.
     private var tossPath: String? {
         let upper = company.ticker.uppercased()
         let isKR = upper.hasSuffix(".KS") || upper.hasSuffix(".KQ")
@@ -801,9 +800,9 @@ struct CompanyDetailView: View {
             let digits = base.filter(\.isNumber)
             return digits.count == 6 ? "A\(digits)" : nil
         }
-        let isUS = company.market == .nasdaq || company.market == .nyse
-            || (company.market == nil && upper.range(of: "^[A-Z]{1,5}(\\.[A-Z])?$", options: .regularExpression) != nil)
-        return isUS ? upper : nil
+        // US/글로벌: 백엔드가 해석한 토스 상품코드만 신뢰(티커 딥링크는 토스가 거부).
+        if let code = metrics?.tossCode, !code.isEmpty { return code }
+        return nil
     }
 
     /// 하단 고정 바(토스 오마주 2버튼): [바로가기(토스증권)] + [배당 캘린더].
@@ -872,8 +871,8 @@ struct CompanyDetailView: View {
     /// 앱이 설치돼 있으면(openURL 수락) 앱의 해당 종목 화면으로, 없으면(미수락) 웹 랜딩으로 폴백한다.
     private func openInToss() {
         guard let path = tossPath else { return }
-        // 웹 폴백: 토스 US/KR 종목 페이지 모두 /stocks/{path}로 접근된다.
-        guard let web = URL(string: "https://www.tossinvest.com/stocks/\(path)") else { return }
+        // 웹 폴백: 토스 종목 콘텐츠 페이지(KR=A+코드, US=상품코드) — 토스 자체 web_dp와 동일 호스트.
+        guard let web = URL(string: "https://contents.tossinvest.com/stocks/\(path)") else { return }
         // 딥링크: nextLandingUrl(/stocks/{path})을 1차 인코딩 → 전체 url 파라미터를 2차 인코딩(기존 KR 링크와 동일 규약).
         let unreserved = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-_~"))
         let landingEnc = "/stocks/\(path)".addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
