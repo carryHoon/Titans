@@ -73,6 +73,8 @@ struct CompanyDetailView: View {
         self.exchangeRank = exchangeRank
         self.exchangeTitle = exchangeTitle
         _store = StateObject(wrappedValue: CompanyChartStore(company: company))
+        // 캐시된 지표가 있으면 첫 프레임부터 즉시 표시(토스식 즉각 반영). 없으면 스켈레톤 후 로드.
+        _metrics = State(initialValue: CompanyMetricsCache.cached(ticker: company.ticker))
     }
 
     // 오래된→최신 포인트. 시드/실데이터 공통.
@@ -121,20 +123,14 @@ struct CompanyDetailView: View {
         }
     }
 
-    /// 투자지표(TD /statistics) 로드. 세션당 1회, 실패/미지원이면 조용히 넘어간다(플레이스홀더 표시).
+    /// 투자지표/배당 최신화. 캐시가 이미 표시돼 있어도 세션당 1회 백그라운드 갱신한다(실패 시 캐시 유지).
     private func loadMetrics() async {
         guard !metricsLoaded else { return }
         metricsLoaded = true
-        guard let encoded = company.ticker.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-        else { return }
-        var urlString = "\(MarketCapViewModel.apiBase)/api/company-metrics?ticker=\(encoded)"
-        if let ex = company.market?.chartParam { urlString += "&exchange=\(ex)" }
-        guard let url = URL(string: urlString),
-              let (data, response) = try? await URLSession.shared.data(from: url),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let decoded = try? JSONDecoder().decode(CompanyMetricsResponse.self, from: data)
-        else { return }
-        metrics = decoded
+        if let fresh = await CompanyMetricsCache.fetch(ticker: company.ticker,
+                                                       exchangeParam: company.market?.chartParam) {
+            metrics = fresh
+        }
     }
 
     // MARK: - 상단 바
@@ -645,7 +641,25 @@ struct CompanyDetailView: View {
             }
         } else if metrics != nil {
             comingSoonCard   // supported=false (KR 등)
+        } else {
+            metricsSkeleton  // 캐시 없음(첫 조회) → 로딩 스켈레톤(가짜 수치 없이 즉각 반응)
         }
+    }
+
+    /// 지표 로딩 스켈레톤 — 실제 카드와 같은 레이아웃의 회색 블록(값이 뜨면 자연스럽게 대체).
+    private var metricsSkeleton: some View {
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+        return VStack(alignment: .leading, spacing: 14) {
+            RoundedRectangle(cornerRadius: 6).fill(theme.fill).frame(width: 88, height: 20)
+            LazyVGrid(columns: cols, spacing: 10) {
+                ForEach(0..<6, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 14).fill(theme.fill.opacity(0.6))
+                        .frame(height: 64)
+                }
+            }
+        }
+        .redacted(reason: .placeholder)
+        .transition(.opacity)
     }
 
     private func hasAnyMetric(_ m: CompanyMetricsData?) -> Bool {
@@ -891,6 +905,71 @@ struct CompanyDetailView: View {
     /// "YYYY-MM-DD" → "YYYY.MM.DD".
     private func displayDate(_ ymd: String) -> String {
         ymd.replacingOccurrences(of: "-", with: ".")
+    }
+}
+
+// MARK: - 종목 지표 캐시 + 프리페치 (토스식 즉시 표시)
+
+/// 종목 상세의 투자지표/배당(`/api/company-metrics`)을 즉시 보여주기 위한 공용 캐시.
+///  · 메모리(세션) + UserDefaults(디스크) 2단 캐시 → 재방문 시 네트워크 없이 첫 프레임에 표시.
+///  · 리스트 행이 화면에 들어올 때 `prefetch`로 백그라운드 워밍 → 탭 시점엔 이미 로드됨(토스 오마주).
+///  · 안전장치: 티커 단위 중복 제거 + 세션 프리페치 상한(콜드 스타트 시 업스트림/크레딧 과호출 방지).
+///    서버가 24h 캐시하므로 정상 상태에선 프리페치 비용이 사실상 0이다.
+@MainActor
+enum CompanyMetricsCache {
+    private static var memory: [String: CompanyMetricsResponse] = [:]
+    private static var inFlight: Set<String> = []
+    private static var prefetchCount = 0
+    private static let prefetchCap = 60   // 세션당 프리페치 상한(콜드 스타트 비용 하드 바운드)
+
+    private static func diskKey(_ ticker: String) -> String { "companyMetrics.\(ticker)" }
+
+    /// 캐시된 지표(메모리 → 디스크). 없으면 nil. (View init/onAppear에서 즉시 호출용)
+    static func cached(ticker: String) -> CompanyMetricsResponse? {
+        if let m = memory[ticker] { return m }
+        guard let data = UserDefaults.standard.data(forKey: diskKey(ticker)),
+              let decoded = try? JSONDecoder().decode(CompanyMetricsResponse.self, from: data)
+        else { return nil }
+        memory[ticker] = decoded
+        return decoded
+    }
+
+    private static func store(_ m: CompanyMetricsResponse) {
+        memory[m.ticker] = m
+        if let data = try? JSONEncoder().encode(m) {
+            UserDefaults.standard.set(data, forKey: diskKey(m.ticker))
+        }
+    }
+
+    /// 네트워크로 최신 지표를 받아 캐시에 저장하고 반환. 실패 시 nil(호출부는 캐시/스켈레톤 유지).
+    @discardableResult
+    static func fetch(ticker: String, exchangeParam: String?) async -> CompanyMetricsResponse? {
+        guard let encoded = ticker.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        else { return nil }
+        var urlString = "\(MarketCapViewModel.apiBase)/api/company-metrics?ticker=\(encoded)"
+        if let ex = exchangeParam { urlString += "&exchange=\(ex)" }
+        guard let url = URL(string: urlString),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let decoded = try? JSONDecoder().decode(CompanyMetricsResponse.self, from: data)
+        else { return nil }
+        store(decoded)
+        return decoded
+    }
+
+    /// 리스트 행이 보일 때 백그라운드 워밍. 이미 캐시/진행중이거나 상한 초과면 아무 것도 안 한다.
+    static func prefetch(_ company: Company) {
+        let t = company.ticker
+        if memory[t] != nil || inFlight.contains(t) { return }
+        if cached(ticker: t) != nil { return }             // 디스크 캐시 존재 → 네트워크 생략(서버 24h 캐시 존중)
+        guard prefetchCount < prefetchCap else { return }   // 세션 상한(콜드 과호출 방지)
+        prefetchCount += 1
+        inFlight.insert(t)
+        let ex = company.market?.chartParam
+        Task {
+            _ = await fetch(ticker: t, exchangeParam: ex)
+            inFlight.remove(t)
+        }
     }
 }
 

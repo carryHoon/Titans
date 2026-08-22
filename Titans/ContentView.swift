@@ -2113,6 +2113,8 @@ struct CompanyRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        // 행이 화면에 들어오면 상세 지표를 백그라운드 워밍 → 탭 시 즉시 표시(토스 오마주).
+        .onAppear { CompanyMetricsCache.prefetch(company) }
     }
 }
 
